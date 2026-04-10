@@ -4,6 +4,8 @@ import { Prisma } from '@prisma/client'
 import { requireRole } from '@/lib/route-auth'
 import { defaultPerusahaanTaxSetting } from '@/lib/tax-id'
 
+export const dynamic = 'force-dynamic'
+
 async function hasTaxSettingTable() {
   const rows = await prisma.$queryRaw<any[]>(
     Prisma.sql`SELECT EXISTS (

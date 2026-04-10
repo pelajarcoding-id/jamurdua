@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { requireRole } from '@/lib/route-auth'
 
+export const dynamic = 'force-dynamic'
+
 async function hasPpnSettingTable() {
   const rows = await prisma.$queryRaw<any[]>(
     Prisma.sql`SELECT EXISTS (

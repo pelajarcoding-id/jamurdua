@@ -5,6 +5,8 @@ import { createAuditLog } from '@/lib/audit';
 import { requireAuth, requireRole } from '@/lib/route-auth';
 import { getWibRangeUtcFromParams } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1');

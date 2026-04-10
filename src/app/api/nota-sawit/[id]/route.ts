@@ -7,6 +7,8 @@ import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR'])
   if (guard.response) return guard.response

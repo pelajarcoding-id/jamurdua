@@ -7,6 +7,8 @@ import { auth } from '@/auth';
 import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/route-auth';
 import { parseWibYmd, wibStartUtc } from '@/lib/wib';
+export const dynamic = 'force-dynamic'
+
 const stripTagMarkers = (text: string) => {
   return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN):[^\]]+\]/g, '').trim()
 }

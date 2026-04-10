@@ -6,6 +6,8 @@ import { createAuditLog } from '@/lib/audit';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { requireRole } from '@/lib/route-auth';
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(
     request: Request,
     { params }: { params: { id: string } }

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/route-auth'
 import { createAuditLog } from '@/lib/audit'
 
+export const dynamic = 'force-dynamic'
+
 export async function DELETE(request: Request) {
   const guard = await requireRole(['ADMIN'])
   if (guard.response) return guard.response

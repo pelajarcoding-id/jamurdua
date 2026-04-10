@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/route-auth';
 import { ensureKebunAccess } from '@/lib/kebun-access';
 
+export const dynamic = 'force-dynamic'
+
 // PATCH: Update status permintaan (Approve/Reject)
 export async function PATCH(
   request: Request,

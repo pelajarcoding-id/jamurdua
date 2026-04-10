@@ -7,6 +7,8 @@ import { createAuditLog } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     try {
         const id = Number(params.id);

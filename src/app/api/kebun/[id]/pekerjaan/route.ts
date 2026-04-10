@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/route-auth';
 import { ensureKebunAccess } from '@/lib/kebun-access';
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 // GET: Ambil daftar pekerjaan untuk kebun tertentu
 export async function GET(
   request: Request,

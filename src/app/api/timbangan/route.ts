@@ -7,6 +7,8 @@ import { auth } from '@/auth';
 import { requireRole } from '@/lib/route-auth';
 import { getWibRangeUtcFromParams } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR', 'MANDOR', 'MANAGER'])

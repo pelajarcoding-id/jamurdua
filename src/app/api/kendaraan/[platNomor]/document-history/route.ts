@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit';
 import { auth } from '@/auth';
 
+export const dynamic = 'force-dynamic'
+
 interface Params {
     params: { platNomor: string }
 }

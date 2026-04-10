@@ -4,6 +4,8 @@ import { createAuditLog } from '@/lib/audit';
 import { z } from 'zod';
 import { requireRole } from '@/lib/route-auth';
 
+export const dynamic = 'force-dynamic'
+
 const bayarSchema = z.object({
   jumlah: z.number().positive(),
   tanggal: z.string(),

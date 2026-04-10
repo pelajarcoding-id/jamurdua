@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/route-auth'
 import { parseDateRangeFromSearchParams } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'MANAGER', 'SUPIR'])

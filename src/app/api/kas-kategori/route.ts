@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/route-auth'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 
+export const dynamic = 'force-dynamic'
+
 const ensureTable = async () => {
   await prisma.$executeRaw`
     CREATE TABLE IF NOT EXISTS "KasKategori" (

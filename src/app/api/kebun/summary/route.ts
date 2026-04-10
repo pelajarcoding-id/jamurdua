@@ -4,6 +4,8 @@ import { Prisma } from '@prisma/client'
 import { requireRole } from '@/lib/route-auth'
 import { getAccessibleKebunIds } from '@/lib/kebun-access'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const search = (searchParams.get('search') || '').trim()

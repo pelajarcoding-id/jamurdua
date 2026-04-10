@@ -5,6 +5,8 @@ import { createAuditLog } from '@/lib/audit';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);

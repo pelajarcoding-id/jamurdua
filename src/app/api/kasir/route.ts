@@ -7,6 +7,8 @@ import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 async function ensureKasKategoriTable() {
   await prisma.$executeRaw`
     CREATE TABLE IF NOT EXISTS "KasKategori" (

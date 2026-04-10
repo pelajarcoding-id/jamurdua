@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 const ensureTable = async () => {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "AbsensiHarian" (

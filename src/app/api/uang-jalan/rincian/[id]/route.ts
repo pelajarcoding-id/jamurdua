@@ -8,6 +8,8 @@ import { createAuditLog } from '@/lib/audit'
 import { requireRole } from '@/lib/route-auth'
 import { scheduleFileDeletion } from '@/lib/file-retention'
 
+export const dynamic = 'force-dynamic'
+
 const stripTagMarkers = (text: string) => {
   return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN):[^\]]+\]/g, '').trim()
 }

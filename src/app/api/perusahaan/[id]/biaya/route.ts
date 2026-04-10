@@ -5,6 +5,8 @@ import { createAuditLog } from '@/lib/audit'
 import { requireRole } from '@/lib/route-auth'
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 function toDateKey(ymd: { y: number; m: number; d: number }) {
   return `${String(ymd.y).padStart(4, '0')}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`
 }

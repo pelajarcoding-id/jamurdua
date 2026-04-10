@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { requireRole } from '@/lib/route-auth';
 import { ensureKebunAccess } from '@/lib/kebun-access';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }

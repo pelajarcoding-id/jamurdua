@@ -8,6 +8,8 @@ import { Prisma } from '@prisma/client';
 import { requireRole } from '@/lib/route-auth';
 import { getWibRangeUtcFromParams, parseWibYmd, wibStartUtc } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 // Define a type for the session object that includes relations
 type SesiWithDetails = SesiUangJalan & {
   supir: User;

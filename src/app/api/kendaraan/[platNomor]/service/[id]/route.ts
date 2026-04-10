@@ -7,6 +7,8 @@ import { createAuditLog } from '@/lib/audit';
 import { auth } from '@/auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   request: Request,
   { params }: { params: { platNomor: string; id: string } }

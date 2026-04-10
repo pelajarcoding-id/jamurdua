@@ -4,6 +4,8 @@ import { Prisma } from '@prisma/client'
 import { auth } from '@/auth'
 import { parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 const canWriteForKebun = (session: any, kebunId: number) => {
   const role = session?.user?.role as string | undefined
   if (!role) return false

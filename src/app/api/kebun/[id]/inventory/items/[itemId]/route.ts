@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { requireRole } from '@/lib/route-auth'
 import { ensureKebunAccess } from '@/lib/kebun-access'
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(request: Request, { params }: { params: { id: string; itemId: string } }) {
   try {
     const kebunId = Number(params.id)

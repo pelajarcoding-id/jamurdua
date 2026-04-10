@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/route-auth'
 import { createAuditLog } from '@/lib/audit'
 
+export const dynamic = 'force-dynamic'
+
 async function recreateKasirJurnal(trx: any) {
   const amount = Number(trx.jumlah || 0)
   if (!Number.isFinite(amount) || amount <= 0) return

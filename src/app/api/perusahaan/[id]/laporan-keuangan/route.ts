@@ -6,6 +6,8 @@ import { requireRole } from '@/lib/route-auth'
 import { computeStraightLineDepreciation } from '@/lib/asset-depreciation'
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 async function hasTaxSettingTable() {
   const rows = await prisma.$queryRaw<any[]>(
     Prisma.sql`SELECT EXISTS (

@@ -6,6 +6,8 @@ import { createAuditLog } from '@/lib/audit';
 import { z } from 'zod';
 import { requireRole } from '@/lib/route-auth';
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }

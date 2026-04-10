@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/route-auth'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
 
+export const dynamic = 'force-dynamic'
+
 async function isUrlReferenced(url: string) {
   const u = url.trim()
   if (!u) return false

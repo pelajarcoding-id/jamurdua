@@ -5,6 +5,8 @@ import bcrypt from 'bcrypt'
 import crypto from 'crypto'
 import { requireRole } from '@/lib/route-auth'
 
+export const dynamic = 'force-dynamic'
+
 type UserWhereWithJobType = Prisma.UserWhereInput & {
   jobType?: Prisma.StringNullableFilter<'User'> | string | null
 }

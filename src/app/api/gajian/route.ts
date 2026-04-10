@@ -5,6 +5,8 @@ import { createAuditLog } from '@/lib/audit';
 import { auth } from '@/auth';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/gajian?kebunId=...&startDate=...&endDate=...
 // GET /api/gajian?kebunId=...&history=true
 export async function GET(request: Request) {

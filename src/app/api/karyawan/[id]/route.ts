@@ -5,6 +5,8 @@ import { Prisma } from '@prisma/client'
 import bcrypt from 'bcrypt'
 import { createAuditLog } from '@/lib/audit'
 
+export const dynamic = 'force-dynamic'
+
 type UserUpdateWithMeta = Prisma.UserUncheckedUpdateInput & {
   jobType?: string | null
   status?: string | null

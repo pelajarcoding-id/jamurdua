@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/audit';
 import { requireAuth, requireRole } from '@/lib/route-auth';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }

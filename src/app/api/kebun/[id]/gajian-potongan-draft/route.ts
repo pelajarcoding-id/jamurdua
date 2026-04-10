@@ -5,6 +5,8 @@ import { ensureKebunAccess } from '@/lib/kebun-access'
 import { Prisma } from '@prisma/client'
 import { parseWibYmd } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 function toDateKey(ymd: { y: number; m: number; d: number }) {
   return `${String(ymd.y).padStart(4, '0')}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`
 }

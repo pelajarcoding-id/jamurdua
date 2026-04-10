@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 
+export const dynamic = 'force-dynamic'
+
 const ensureDefaultLocations = async () => {
   const baseLocations = [
     { name: 'Kantor Pusat', type: 'KANTOR_PUSAT' },

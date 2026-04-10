@@ -6,6 +6,8 @@ import { ASSET_GROUPS } from '@/lib/asset-depreciation'
 import { Prisma } from '@prisma/client'
 import { parseWibYmd, wibStartUtc } from '@/lib/wib'
 
+export const dynamic = 'force-dynamic'
+
 const groupValues = ASSET_GROUPS.map(g => g.value) as [string, ...string[]]
 
 export async function PUT(request: Request, { params }: { params: { id: string; assetId: string } }) {

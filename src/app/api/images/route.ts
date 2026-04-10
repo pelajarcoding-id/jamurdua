@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { requireAuth } from '@/lib/route-auth'
 
+export const dynamic = 'force-dynamic'
+
 type ImageItem = {
   id: string
   url: string

@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/route-auth'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
 
+export const dynamic = 'force-dynamic'
+
 async function deleteLocalByUrl(url: string) {
   const u = url.trim()
   if (!u.startsWith('/')) return false

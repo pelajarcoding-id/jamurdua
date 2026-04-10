@@ -4,6 +4,8 @@ import { sendPushNotification } from '@/lib/web-push';
 import { requireRole } from '@/lib/route-auth';
 import { ensureKebunAccess } from '@/lib/kebun-access';
 
+export const dynamic = 'force-dynamic'
+
 // GET: Ambil daftar permintaan untuk kebun tertentu
 export async function GET(
   _request: Request,

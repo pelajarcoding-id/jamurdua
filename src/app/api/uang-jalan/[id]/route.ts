@@ -7,6 +7,8 @@ import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { parseWibYmd, wibStartUtc } from '@/lib/wib';
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id);

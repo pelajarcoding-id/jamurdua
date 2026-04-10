@@ -4,6 +4,8 @@ import { Prisma } from '@prisma/client'
 import { createAuditLog } from '@/lib/audit'
 import { requireRole } from '@/lib/route-auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANAGER'])

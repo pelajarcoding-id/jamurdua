@@ -4,6 +4,8 @@ import { createAuditLog } from '@/lib/audit';
 import { z } from 'zod';
 import { requireRole } from '@/lib/route-auth';
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK']);
