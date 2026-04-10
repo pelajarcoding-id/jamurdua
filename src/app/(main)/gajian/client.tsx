@@ -1,0 +1,3156 @@
+'use client';
+
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { DataTable } from '@/components/data-table';
+import { createColumns, createProcessingColumns, ProcessingNotaSawit } from './columns';
+import { createDraftColumns } from './draft-columns'; // Import draft columns
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import toast from 'react-hot-toast';
+import type { NotaSawit, Kebun, Kendaraan, Timbangan, User, Gajian } from '@prisma/client';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import { useDebounce } from '@/hooks/useDebounce';
+import { AdjustmentsHorizontalIcon, BanknotesIcon, CalendarIcon, CheckIcon, CheckCircleIcon, ClipboardDocumentListIcon, ClockIcon, EllipsisHorizontalIcon, PrinterIcon, TrashIcon, ArrowRightIcon, ArrowDownTrayIcon, UserIcon, XMarkIcon, StarIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import Link from 'next/link';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { ColumnDef } from '@tanstack/react-table';
+import { ConfirmationModal } from './modal';
+import { DetailGajianModal } from './detail-modal';
+import type { BiayaLainGajian, DetailGajian, PotonganGajian, DetailGajianKaryawan } from '@prisma/client';
+
+
+interface GajianClientProps {
+  kebunList: Kebun[];
+  initialGajianHistory: {
+    drafts: (Gajian & { kebun: Kebun })[];
+    finalized: (Gajian & { kebun: Kebun })[];
+  };
+}
+
+type NotaSawitWithRelations = NotaSawit & {
+  supir: User;
+  kendaraan: Kendaraan | null;
+  timbangan?: (Timbangan & { kebun: Kebun }) | null;
+  kebun?: Kebun | null;
+};
+
+type DetailGajianWithRelations = DetailGajian & {
+  notaSawit: NotaSawitWithRelations;
+};
+
+type GajianWithDetails = Gajian & {
+  kebun: Kebun;
+  detailGajian: DetailGajianWithRelations[];
+  biayaLain: BiayaLainGajian[];
+  potongan: PotonganGajian[];
+  detailKaryawan: (DetailGajianKaryawan & { user: User })[];
+  hutangTambahan?: Array<{ userId: number; jumlah: number; date: string | null; deskripsi: string | null }>;
+  pekerjaanKebun?: Array<any>;
+  dibuatOlehName?: string | null;
+  disetujuiOlehName?: string | null;
+};
+
+interface BiayaLain {
+  id: string;
+  deskripsi: string;
+  jumlah: number;
+  satuan: string;
+  hargaSatuan: number;
+  total?: number;
+  keterangan?: string;
+}
+
+const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
+const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(date);
+const toYmdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const createHistoryColumns = (
+  onDelete: (id: number) => void,
+  onDetail: (id: number) => void,
+  totals: { totalNota: number; totalBerat: number; totalGaji: number; totalPotongan: number; totalJumlahGaji: number }
+): ColumnDef<(Gajian & { kebun: Kebun })>[] => [
+  {
+    accessorKey: 'kebun.name',
+    header: 'Kebun',
+  },
+  {
+    accessorKey: 'tanggalMulai',
+    header: 'Periode',
+    cell: ({ row }) => {
+      const { tanggalMulai, tanggalSelesai } = row.original;
+      return <span>{`${formatDate(new Date(tanggalMulai))} - ${formatDate(new Date(tanggalSelesai))}`}</span>;
+    },
+    footer: () => <div className="text-right">JUMLAH</div>,
+  },
+  {
+    accessorKey: 'totalNota',
+    header: () => <div className="text-right">Total Nota</div>,
+    cell: ({ row }) => {
+        if (row.original.totalNota === 0 && row.original.totalBerat === 0) return <div className="text-right text-gray-400">-</div>;
+        return <div className="text-right">{formatNumber(row.original.totalNota)}</div>;
+    },
+    footer: () => <div className="text-right">{formatNumber(totals.totalNota)}</div>,
+  },
+  {
+    accessorKey: 'totalBerat',
+    header: () => <div className="text-right">Total Berat (Kg)</div>,
+    cell: ({ row }) => {
+        if (row.original.totalNota === 0 && row.original.totalBerat === 0) return <div className="text-right text-gray-400">-</div>;
+        return <div className="text-right">{formatNumber(row.original.totalBerat)}</div>;
+    },
+    footer: () => <div className="text-right">{formatNumber(totals.totalBerat)}</div>,
+  },
+  {
+    accessorKey: 'totalBiayaLain',
+    header: () => <div className="text-right">Total Gaji (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(row.original.totalBiayaLain || 0)}</div>,
+    footer: () => <div className="text-right">{formatNumber(totals.totalGaji)}</div>,
+  },
+  {
+    accessorKey: 'totalPotongan',
+    header: () => <div className="text-right">Potongan (Rp)</div>,
+    cell: ({ row }) => <div className="text-right text-red-600">-{formatNumber(row.original.totalPotongan || 0)}</div>,
+    footer: () => <div className="text-right text-red-600">-{formatNumber(totals.totalPotongan)}</div>,
+  },
+  {
+    accessorKey: 'totalGaji',
+    header: () => <div className="text-right">Jumlah Gaji (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(row.original.totalGaji || 0)}</div>,
+    footer: () => <div className="text-right">{formatNumber(totals.totalJumlahGaji)}</div>,
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Tanggal Dibuat',
+    cell: ({ row }) => formatDate(new Date(row.original.createdAt)),
+  },
+  {
+    id: 'actions',
+    cell: ({ row }) => {
+      const gajian = row.original;
+      return (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Buka menu</span>
+                <EllipsisHorizontalIcon className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => onDetail(gajian.id)}>
+                <PrinterIcon className="mr-2 h-4 w-4" />
+                <span>Print / Detail</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={() => onDelete(gajian.id)}
+              >
+                <TrashIcon className="mr-2 h-4 w-4" />
+                <span>Hapus</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      );
+    },
+  },
+];
+
+interface Potongan {
+  id: string;
+  deskripsi: string;
+  total: number;
+  keterangan?: string;
+}
+
+export function GajianClient({ kebunList, initialGajianHistory }: GajianClientProps) {
+  const draftKey = 'gajian:draft'
+  // State for Gajian History
+  const [gajianHistory, setGajianHistory] = useState(initialGajianHistory.finalized || []);
+  const [draftsGajian, setDraftsGajian] = useState(initialGajianHistory.drafts || []);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [selectedGajianId, setSelectedGajianId] = useState<number | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedGajian, setSelectedGajian] = useState<GajianWithDetails | null>(null);
+  const [editingGajianId, setEditingGajianId] = useState<number | null>(null);
+
+  // State for Draft Deletion
+  const [isDraftConfirmOpen, setIsDraftConfirmOpen] = useState(false);
+  const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  // State for Create New Gajian Form
+  const [kebunId, setKebunId] = useState<string>('');
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [historyKebunId, setHistoryKebunId] = useState<string>('');
+  const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>();
+  const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>();
+  const [detailKaryawan, setDetailKaryawan] = useState<(DetailGajianKaryawan & { user: User })[]>([]);
+  const [importPotonganLoading, setImportPotonganLoading] = useState(false)
+  
+  // Use separate state for Month and Year selection
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>(String(new Date().getFullYear()));
+
+  // Update historyStartDate and historyEndDate whenever month/year changes
+  useEffect(() => {
+    const year = parseInt(selectedYear);
+    
+    if (selectedMonth === 'all') {
+      if (!isNaN(year)) {
+        const start = new Date(year, 0, 1); // Jan 1st
+        const end = new Date(year, 11, 31); // Dec 31st
+        setHistoryStartDate(start);
+        setHistoryEndDate(end);
+      }
+    } else {
+      const monthIndex = parseInt(selectedMonth);
+      if (!isNaN(monthIndex) && !isNaN(year)) {
+        const start = new Date(year, monthIndex, 1);
+        const end = new Date(year, monthIndex + 1, 0); // Last day of month
+        setHistoryStartDate(start);
+        setHistoryEndDate(end);
+      }
+    }
+  }, [selectedMonth, selectedYear]);
+
+  const [notas, setNotas] = useState<NotaSawitWithRelations[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalNotas, setTotalNotas] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [rowSelection, setRowSelection] = useState({});
+  const [notasToProcess, setNotasToProcess] = useState<ProcessingNotaSawit[]>([]);
+  const [biayaLain, setBiayaLain] = useState<BiayaLain[]>([]);
+  const [potongan, setPotongan] = useState<Potongan[]>([]);
+  const [savedBiaya, setSavedBiaya] = useState<BiayaLain[]>([]);
+  const [savedPotongan, setSavedPotongan] = useState<Potongan[]>([]);
+  const [biayaMuatAutoEnabled, setBiayaMuatAutoEnabled] = useState(true)
+  const [editingBiayaId, setEditingBiayaId] = useState<string | null>(null)
+  const [editingPotonganId, setEditingPotonganId] = useState<string | null>(null)
+  const [biayaFieldErrors, setBiayaFieldErrors] = useState<Record<string, { deskripsi?: boolean; jumlah?: boolean; hargaSatuan?: boolean }>>({})
+  const [loading, setLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [searchAttempted, setSearchAttempted] = useState(false);
+  const [boronganPekerjaanIds, setBoronganPekerjaanIds] = useState<number[]>([])
+  const [boronganLoading, setBoronganLoading] = useState(false)
+  const [refreshingData, setRefreshingData] = useState(false)
+  const [hutangRows, setHutangRows] = useState<Array<{ name: string; tanggal: string; saldo: number; potong: number; sisa: number; keterangan?: string }>>([]);
+  const [hutangSaldoMap, setHutangSaldoMap] = useState<Record<number, number>>({});
+  const [hutangLoading, setHutangLoading] = useState(false);
+  const [hutangSaldoKey, setHutangSaldoKey] = useState<string>('');
+  const [openPotongHutangMassal, setOpenPotongHutangMassal] = useState(false);
+  const [massPotongMax, setMassPotongMax] = useState(true);
+  const [massPotongAmount, setMassPotongAmount] = useState('');
+  const [absensiRows] = useState<Array<{ name: string; total: number }>>([]);
+  const [openTambahHutang, setOpenTambahHutang] = useState(false)
+  const [tambahHutangKaryawanId, setTambahHutangKaryawanId] = useState<string>('')
+  const [tambahHutangJumlah, setTambahHutangJumlah] = useState(0)
+  const [tambahHutangTanggal, setTambahHutangTanggal] = useState('')
+  const [tambahHutangDeskripsi, setTambahHutangDeskripsi] = useState('Hutang Karyawan')
+  const [tambahHutangSubmitting, setTambahHutangSubmitting] = useState(false)
+  const [hutangTambahanMap, setHutangTambahanMap] = useState<Record<number, { jumlah: number; date: string; deskripsi: string }>>({})
+
+  const BIAYA_MUAT_DESC = 'Biaya Muat'
+
+  const handleResetForm = () => {
+    setEditingGajianId(null);
+    // Reset to current month
+    const now = new Date();
+    setStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    setNotas([]);
+    setRowSelection({});
+    setNotasToProcess([]);
+    setDetailKaryawan([]);
+    setBiayaLain([]);
+    setSavedBiaya([]);
+    setPotongan([]);
+    setSavedPotongan([]);
+    setEditingBiayaId(null)
+    setEditingPotonganId(null)
+    setBiayaFieldErrors({})
+    setBiayaMuatAutoEnabled(true)
+    setBoronganPekerjaanIds([])
+    setBoronganLoading(false)
+    setRefreshingData(false)
+    setHutangRows([])
+    setHutangSaldoMap({})
+    setHutangSaldoKey('')
+    setHutangLoading(false)
+    setOpenPotongHutangMassal(false)
+    setMassPotongMax(true)
+    setMassPotongAmount('')
+    setHutangTambahanMap({})
+    setOpenTambahHutang(false)
+    setTambahHutangKaryawanId('')
+    setTambahHutangJumlah(0)
+    setTambahHutangTanggal('')
+    setTambahHutangDeskripsi('Hutang Karyawan')
+    setIsPreviewOpen(false)
+    setPreviewGajian(null)
+    setSearchAttempted(false);
+    try { localStorage.removeItem(draftKey) } catch {}
+  };
+  const handleConfirmReset = () => {
+    handleResetForm();
+    setKebunId('');
+    setIsResetConfirmOpen(false);
+  };
+
+  useEffect(() => {
+    const now = new Date();
+    setStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  }, []);
+  const [keterangan, setKeterangan] = useState('');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewGajian, setPreviewGajian] = useState<GajianWithDetails | null>(null);
+
+  // Removed localStorage auto-restore and auto-save logic as per user request to clear form on reload
+
+  // --- LOGIC FOR UNSAVED CHANGES WARNING --- //
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasUnsavedChanges = notasToProcess.length > 0 || biayaLain.length > 0 || savedBiaya.length > 0 || potongan.length > 0 || savedPotongan.length > 0 || keterangan.length > 0;
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requires returnValue to be set
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [notasToProcess, biayaLain, savedBiaya, potongan, savedPotongan, keterangan]);
+
+  // --- LOGIC FOR HISTORY --- //
+  const fetchAllHistory = async (filters?: { kebunId?: string; startDate?: Date; endDate?: Date }) => {
+    setIsHistoryLoading(true);
+    const params = new URLSearchParams({ fetchHistory: 'true' });
+    if (filters?.kebunId) {
+      params.set('kebunId', filters.kebunId);
+    }
+    if (filters?.startDate && filters?.endDate) {
+      params.set('startDate', filters.startDate.toISOString());
+      params.set('endDate', filters.endDate.toISOString());
+    }
+    const url = `/api/gajian?${params.toString()}`;
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Gagal mengambil riwayat gajian');
+      const data = await response.json();
+      setGajianHistory(data.finalized || []);
+      setDraftsGajian(data.drafts || []);
+    } catch (error) {
+      toast.error('Gagal memperbarui riwayat gajian.');
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllHistory({
+      kebunId: historyKebunId || undefined,
+      startDate: historyStartDate,
+      endDate: historyEndDate,
+    });
+  }, []);
+
+  const handleApplyHistoryFilters = useCallback(() => {
+    fetchAllHistory({
+      kebunId: historyKebunId || undefined,
+      startDate: historyStartDate,
+      endDate: historyEndDate,
+    });
+  }, [historyKebunId, historyStartDate, historyEndDate]);
+
+  // Removed localStorage logic for keterangan to prevent persistence on reload
+
+  const handlePreviewGajian = () => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Data gajian belum lengkap (Kebun/Periode).');
+      return;
+    }
+    if (notasToProcess.length === 0 && savedBiaya.length === 0 && savedPotongan.length === 0 && potongan.length === 0 && detailKaryawan.length === 0) {
+      toast.error('Belum ada data nota, biaya, atau potongan untuk disimpan.');
+      return;
+    }
+
+    const totalBerat = notasToProcess.reduce((sum, nota) => sum + nota.beratAkhir, 0);
+    const totalNota = notasToProcess.length;
+    const totalBiayaLain = savedBiaya.reduce((sum, item) => sum + (item.total || 0), 0);
+    const totalPotonganManual = [...savedPotongan, ...potongan].reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const totalPotonganHutang = detailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.potongan || 0), 0)
+    const totalPotongan = totalPotonganManual + totalPotonganHutang;
+    const totalGaji = totalBiayaLain - totalPotongan;
+
+    const kebunObj = kebunList.find(k => String(k.id) === kebunId);
+    if (!kebunObj) {
+        toast.error('Kebun tidak valid');
+        return;
+    }
+
+    // Construct mock Gajian object for preview
+    const mockGajian: GajianWithDetails = {
+        id: 0, // Mock ID
+        kebunId: Number(kebunId),
+        tanggalMulai: startDate,
+        tanggalSelesai: endDate,
+        totalBerat,
+        totalNota,
+        totalGaji,
+        totalBiayaLain,
+        totalPotongan,
+        keterangan,
+        dibuatOlehName: null,
+        disetujuiOlehName: null,
+        status: 'DRAFT', // Temporary
+        tipe: 'PANEN',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        kebun: kebunObj,
+        detailGajian: notasToProcess.map(n => ({
+            id: 0,
+            gajianId: 0,
+            notaSawitId: n.id,
+            harianKerja: n.harianKerja || 0,
+            keterangan: n.keterangan || null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            notaSawit: {
+                ...n,
+                kebun: n.kebun ?? kebunObj,
+                timbangan: n.timbangan ? { ...n.timbangan, kebun: kebunObj } : null
+            }
+        })),
+        biayaLain: savedBiaya.map(b => ({
+            id: 0,
+            gajianId: 0,
+            deskripsi: b.deskripsi,
+            jumlah: b.jumlah,
+            satuan: b.satuan,
+            hargaSatuan: b.hargaSatuan,
+            total: b.total || (b.jumlah * b.hargaSatuan),
+            keterangan: b.keterangan || null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        })),
+        potongan: [...savedPotongan, ...potongan].map(p => ({
+            id: 0,
+            gajianId: 0,
+            deskripsi: p.deskripsi,
+            total: p.total,
+            keterangan: p.keterangan || null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        })),
+        detailKaryawan: detailKaryawan.map((d: any) => ({
+          id: 0,
+          gajianId: 0,
+          userId: d.userId,
+          hariKerja: d.hariKerja || 0,
+          gajiPokok: d.gajiPokok || 0,
+          bonus: 0,
+          lembur: 0,
+          potongan: d.potongan || 0,
+          total: d.total || 0,
+          keterangan: d.keterangan || null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: d.user,
+        })),
+        hutangTambahan: Object.entries(hutangTambahanMap).map(([userId, v]) => ({
+          userId: Number(userId),
+          jumlah: Math.round(Number((v as any)?.jumlah || 0)),
+          date: (v as any)?.date || null,
+          deskripsi: (v as any)?.deskripsi || 'Hutang Karyawan',
+        })) as any,
+    };
+
+    setPreviewGajian(mockGajian);
+    setIsPreviewOpen(true);
+  };
+
+  const handleOpenConfirm = useCallback((id: number) => {
+    setSelectedGajianId(id);
+    setIsConfirmOpen(true);
+  }, []);
+
+  const handleCloseConfirm = () => {
+    setSelectedGajianId(null);
+    setIsConfirmOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedGajianId) return;
+    
+    const previousHistory = [...gajianHistory];
+    setGajianHistory((prev: (Gajian & { kebun: Kebun })[]) => prev.filter(g => g.id !== selectedGajianId));
+    handleCloseConfirm();
+    const toastId = toast.loading('Menghapus gajian...')
+
+    setLoading(true);
+    setSearchAttempted(true);
+    try {
+      const response = await fetch(`/api/gajian/${selectedGajianId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Gagal menghapus gajian');
+      
+      toast.success('Gajian berhasil dihapus', { id: toastId })
+    } catch (error) {
+      setGajianHistory(previousHistory);
+      toast.error('Gajian gagal dihapus, mengembalikan perubahan.', { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDetail = useCallback(async (id: number) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/gajian/${id}`);
+      if (!response.ok) throw new Error('Gagal mengambil detail gajian');
+      const data = await response.json();
+      setSelectedGajian(data);
+      setIsDetailOpen(true);
+    } catch (error) {
+      toast.error('Gagal mengambil detail gajian.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleCloseDetail = () => {
+    setIsDetailOpen(false);
+    setSelectedGajian(null);
+  };
+
+
+  const historyTotals = useMemo(() => {
+    return {
+      totalNota: gajianHistory.reduce((sum, item) => sum + (item.totalNota || 0), 0),
+      totalBerat: gajianHistory.reduce((sum, item) => sum + (item.totalBerat || 0), 0),
+      totalGaji: gajianHistory.reduce((sum, item) => sum + (item.totalBiayaLain || 0), 0),
+      totalPotongan: gajianHistory.reduce((sum, item) => sum + (item.totalPotongan || 0), 0),
+      totalJumlahGaji: gajianHistory.reduce((sum, item) => sum + (item.totalGaji || 0), 0),
+    };
+  }, [gajianHistory]);
+
+  const historyColumns = useMemo(
+    () => createHistoryColumns(handleOpenConfirm, handleOpenDetail, historyTotals),
+    [handleOpenConfirm, handleOpenDetail, historyTotals]
+  );
+
+  // --- LOGIC FOR DRAFTS --- //
+  const handleContinueDraft = useCallback(async (id: number) => {
+    setLoading(true);
+    try {
+      try { localStorage.removeItem(draftKey) } catch {}
+      const response = await fetch(`/api/gajian/${id}`);
+      if (!response.ok) throw new Error('Gagal memuat data draft');
+      const draftData: GajianWithDetails = await response.json();
+
+      // Set form state with draft data
+      setEditingGajianId(draftData.id);
+      setKebunId(String(draftData.kebunId));
+      setStartDate(new Date(draftData.tanggalMulai));
+      setEndDate(new Date(draftData.tanggalSelesai));
+      setNotasToProcess(draftData.detailGajian.map((d: DetailGajianWithRelations) => d.notaSawit));
+      setSavedBiaya(draftData.biayaLain.map((b: BiayaLainGajian) => ({ 
+        id: String(b.id), 
+        deskripsi: b.deskripsi, 
+        jumlah: b.jumlah || 0, 
+        satuan: b.satuan || '', 
+        hargaSatuan: b.hargaSatuan || 0,
+        total: b.total || (b.jumlah && b.hargaSatuan ? b.jumlah * b.hargaSatuan : 0)
+      })));
+      setBiayaLain([]);
+      setSavedPotongan(draftData.potongan.map((p: PotonganGajian) => ({ id: String(p.id), deskripsi: p.deskripsi, total: p.total, keterangan: p.keterangan ?? undefined })));
+      setPotongan([]);
+      setBoronganPekerjaanIds(Array.isArray((draftData as any).pekerjaanKebun) ? (draftData as any).pekerjaanKebun.map((p: any) => Number(p?.id)).filter((n: any) => Number.isFinite(n) && n > 0) : [])
+      const activeDetailKaryawan = (draftData.detailKaryawan || []).filter((d: any) => String(d?.user?.status || 'AKTIF').toUpperCase() === 'AKTIF')
+      setDetailKaryawan(activeDetailKaryawan);
+      setHutangTambahanMap(() => {
+        const list = Array.isArray((draftData as any).hutangTambahan) ? (draftData as any).hutangTambahan : []
+        const next: Record<number, { jumlah: number; date: string; deskripsi: string }> = {}
+        list.forEach((r: any) => {
+          const userId = Number(r?.userId)
+          const jumlah = Math.round(Number(r?.jumlah || 0))
+          if (!Number.isFinite(userId) || userId <= 0) return
+          if (!Number.isFinite(jumlah) || jumlah <= 0) return
+          next[userId] = {
+            jumlah,
+            date: (r?.date ? String(r.date) : '') || '',
+            deskripsi: (r?.deskripsi ? String(r.deskripsi) : '') || 'Hutang Karyawan',
+          }
+        })
+        return next
+      })
+      const totalGajiPokokKaryawan = activeDetailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.gajiPokok || 0), 0)
+      if (totalGajiPokokKaryawan > 0) {
+        setSavedBiaya(prev => {
+          const others = prev.filter(b => b.deskripsi !== 'Total Gaji Karyawan')
+          return [
+            ...others,
+            {
+              id: `auto-gaji-karyawan-${Date.now()}`,
+              deskripsi: 'Total Gaji Karyawan',
+              jumlah: 1,
+              satuan: 'Paket',
+              hargaSatuan: Math.round(totalGajiPokokKaryawan),
+              total: Math.round(totalGajiPokokKaryawan),
+              keterangan: '',
+            } as any,
+          ]
+        })
+      }
+      
+      // Build hutangRows table for the draft's period (same as in proses gajian)
+      try {
+        const adjustedEndDateForHutang = new Date(draftData.tanggalSelesai);
+        adjustedEndDateForHutang.setHours(23, 59, 59, 999);
+        const hutangParams = new URLSearchParams({
+          kebunId: String(draftData.kebunId),
+          startDate: new Date(draftData.tanggalMulai).toISOString(),
+          endDate: adjustedEndDateForHutang.toISOString(),
+        });
+        const hutangRes = await fetch(`/api/karyawan-kebun?${hutangParams.toString()}`, { cache: 'no-store' });
+        if (hutangRes.ok) {
+          const json = await hutangRes.json();
+          const list = Array.isArray(json.data) ? json.data : [];
+          const tglLabel = adjustedEndDateForHutang.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
+          const mapped = list.map((r: any) => ({
+            name: r.karyawan?.name || '-',
+            tanggal: tglLabel,
+            saldo: Math.round(Number(r.totalPengeluaran || 0)),
+            potong: Math.round(Number(r.totalPembayaran || 0)),
+            sisa: Math.max(0, Math.round(Number(r.hutangSaldo || 0))),
+            keterangan: '',
+          }));
+          setHutangRows(mapped);
+        } else {
+          setHutangRows([]);
+        }
+      } catch {
+        setHutangRows([]);
+      }
+      
+      // Fetch notas that are not yet in the processing list
+      const adjustedEndDate = new Date(draftData.tanggalSelesai);
+      adjustedEndDate.setHours(23, 59, 59, 999);
+      const params = new URLSearchParams({
+        kebunId: String(draftData.kebunId),
+        startDate: new Date(draftData.tanggalMulai).toISOString(),
+        endDate: adjustedEndDate.toISOString(),
+        page: '1',
+        limit: '1000', // Fetch all to compare
+      });
+      params.append('gajianIdToEdit', String(id));
+      const notaResponse = await fetch(`/api/gajian?${params.toString()}`);
+      if (!notaResponse.ok) throw new Error('Gagal mengambil data nota');
+      const { data: allNotas } = await notaResponse.json();
+
+      const processedNotaIds = new Set(draftData.detailGajian.map((d: DetailGajianWithRelations) => d.notaSawitId));
+      setNotas(allNotas.filter((n: NotaSawit) => !processedNotaIds.has(n.id)));
+
+      toast.success('Data draft berhasil dimuat.');
+      window.scrollTo(0, 0); // Scroll to top to the form
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal memuat draft.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleOpenDraftDeleteConfirm = useCallback((id: number) => {
+    setSelectedDraftId(id);
+    setIsDraftConfirmOpen(true);
+  }, []);
+
+  const handleCloseDraftDeleteConfirm = () => {
+    setSelectedDraftId(null);
+    setIsDraftConfirmOpen(false);
+  };
+
+  const handleDeleteDraft = async () => {
+    if (!selectedDraftId) return;
+    
+    const previousDrafts = [...draftsGajian];
+    setDraftsGajian((prev: (Gajian & { kebun: Kebun })[]) => prev.filter(d => d.id !== selectedDraftId));
+    handleCloseDraftDeleteConfirm();
+    const toastId = toast.loading('Menghapus draft...')
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/gajian/${selectedDraftId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Gagal menghapus draft');
+      
+      toast.success('Draft berhasil dihapus', { id: toastId })
+    } catch (error) {
+      setDraftsGajian(previousDrafts);
+      toast.error('Gagal menghapus draft, mengembalikan perubahan.', { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
+  const notasSectionRef = useRef<HTMLDivElement>(null);
+
+  const draftColumns = useMemo(() => createDraftColumns(handleContinueDraft, handleOpenDraftDeleteConfirm, handleOpenDetail), [handleContinueDraft, handleOpenDraftDeleteConfirm, handleOpenDetail]);
+
+  // --- LOGIC FOR CREATE NEW GAJIAN --- //
+  const handleFetchNotas = async (newPage = 1) => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Silakan pilih kebun dan periode tanggal terlebih dahulu.');
+      return;
+    }
+    if (!editingGajianId) {
+      const kebunIdNum = Number(kebunId)
+      const startKey = format(startDate, 'yyyy-MM-dd')
+      const endKey = format(endDate, 'yyyy-MM-dd')
+      const existsDraft = (draftsGajian || []).some((d: any) => {
+        const sameKebun = Number(d?.kebunId) === kebunIdNum
+        if (!sameKebun) return false
+        const dStart = format(new Date(d.tanggalMulai), 'yyyy-MM-dd')
+        const dEnd = format(new Date(d.tanggalSelesai), 'yyyy-MM-dd')
+        return dStart === startKey && dEnd === endKey
+      })
+      if (existsDraft) {
+        toast.error('Draft gajian pada periode ini sudah ada. Lanjutkan atau hapus draft terlebih dahulu.')
+        return
+      }
+    }
+    setLoading(true);
+    setSearchAttempted(true);
+    try {
+      const adjustedEndDate = new Date(endDate);
+      adjustedEndDate.setHours(23, 59, 59, 999);
+      const params = new URLSearchParams({
+        kebunId,
+        startDate: startDate.toISOString(),
+        endDate: adjustedEndDate.toISOString(),
+        page: String(newPage),
+        limit: String(limit),
+      });
+
+      if (editingGajianId) {
+        params.append('gajianIdToEdit', String(editingGajianId));
+      }
+      const response = await fetch(`/api/gajian?${params.toString()}`);
+      if (!response.ok) throw new Error('Gagal mengambil data nota');
+      const { data, total } = await response.json();
+      setNotas(data);
+      setTotalNotas(total);
+      setPage(newPage);
+      setRowSelection({});
+
+      // Scroll to notas section
+      setTimeout(() => {
+        notasSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+
+    } catch (error) {
+      toast.error('Gagal mengambil data nota.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedNotas = useMemo(() => {
+    const selectedIndexes = Object.keys(rowSelection).map(Number);
+    return notas.filter((_, index) => selectedIndexes.includes(index));
+  }, [notas, rowSelection]);
+
+  const handleMoveToProcess = async () => {
+    if (selectedNotas.length === 0) return;
+
+    const totalBerat = selectedNotas.reduce((sum, nota) => sum + nota.beratAkhir, 0);
+
+    const biayaMuat = {
+      id: `biaya-muat-${Date.now()}`,
+      deskripsi: 'Biaya Muat',
+      jumlah: totalBerat,
+      satuan: 'Kg',
+      hargaSatuan: 50,
+    };
+
+    setBiayaLain(prev => [biayaMuat]);
+    // Create new objects to avoid reference sharing issues
+    setNotasToProcess(prev => [...prev, ...selectedNotas.map(n => ({ ...n }))]);
+    setNotas(prev => prev.filter(nota => !selectedNotas.map(n => n.id).includes(nota.id)));
+    setRowSelection({});
+
+    if (detailKaryawan.length === 0 && kebunId && startDate && endDate) {
+      try {
+        const adjustedEndDate = new Date(endDate)
+        adjustedEndDate.setHours(23, 59, 59, 999)
+        const paramsActive = new URLSearchParams({
+          kebunId,
+          jobType: 'KEBUN',
+          status: 'AKTIF',
+          page: '1',
+          limit: '1000',
+        })
+        const paramsAbsensi = new URLSearchParams({
+          kebunId,
+          startDate: startDate.toISOString(),
+          endDate: adjustedEndDate.toISOString(),
+          unpaid: '1',
+        })
+        const [resKaryawan, resAbsensi] = await Promise.all([
+          fetch(`/api/karyawan?${paramsActive.toString()}`, { cache: 'no-store' }),
+          fetch(`/api/karyawan-kebun/absensi?${paramsAbsensi.toString()}`, { cache: 'no-store' }),
+        ])
+        const jsonKaryawan = await resKaryawan.json().catch(() => ({} as any))
+        const jsonAbsensi = await resAbsensi.json().catch(() => ({} as any))
+        const karyawanList = Array.isArray((jsonKaryawan as any).data) ? (jsonKaryawan as any).data : []
+        const absensiList = Array.isArray((jsonAbsensi as any).data) ? (jsonAbsensi as any).data : []
+        const absensiMap = new Map<number, { total: number; hariKerja: number }>(
+          absensiList.map((r: any) => ([
+            Number(r.karyawanId),
+            { total: Number(r.total || 0), hariKerja: Number(r.hariKerja || 0) },
+          ] as [number, { total: number; hariKerja: number }]))
+        )
+
+        const mapped = karyawanList.map((u: any) => {
+          const agg = absensiMap.get(Number(u.id)) ?? { total: 0, hariKerja: 0 }
+          const gajiPokok = Math.round(agg.total || 0)
+          return {
+            userId: u.id,
+            user: u,
+            hariKerja: agg.hariKerja || 0,
+            gajiPokok,
+            potongan: 0,
+            total: gajiPokok,
+            keterangan: '',
+          }
+        })
+        setDetailKaryawan(mapped as any)
+        const totalGajiPokokKaryawan = mapped.reduce((sum: number, d: any) => sum + Number(d?.gajiPokok || 0), 0)
+        if (totalGajiPokokKaryawan > 0) {
+          setSavedBiaya(prev => {
+            const others = prev.filter(b => b.deskripsi !== 'Total Gaji Karyawan')
+            return [
+              ...others,
+              {
+                id: `auto-gaji-karyawan-${Date.now()}`,
+                deskripsi: 'Total Gaji Karyawan',
+                jumlah: 1,
+                satuan: 'Paket',
+                hargaSatuan: Math.round(totalGajiPokokKaryawan),
+                total: Math.round(totalGajiPokokKaryawan),
+                keterangan: '',
+              } as any,
+            ]
+          })
+        }
+      } catch {
+        setDetailKaryawan([])
+      }
+    }
+  };
+
+
+
+  const addBiayaLain = () => {
+    const id = `new-${Date.now()}`
+    setSavedBiaya(prev => [...prev, { id, deskripsi: '', jumlah: 0, satuan: '', hargaSatuan: 0 }]);
+    setEditingBiayaId(id)
+  };
+
+  const refreshNotaSawitDraft = useCallback(async () => {
+    if (!editingGajianId) return
+    const ids = Array.from(new Set(notasToProcess.map((n: any) => Number(n?.id)).filter((n: any) => Number.isFinite(n) && n > 0)))
+    if (ids.length === 0) return
+    const res = await fetch(`/api/nota-sawit/bulk?ids=${encodeURIComponent(ids.join(','))}`, { cache: 'no-store' })
+    if (!res.ok) throw new Error('Gagal memuat ulang data nota sawit')
+    const json = await res.json().catch(() => ({} as any))
+    const list = Array.isArray((json as any)?.data) ? (json as any).data : []
+    const map = new Map<number, any>(list.map((n: any) => [Number(n.id), n]))
+    setNotasToProcess((prev) =>
+      prev.map((n: any) => {
+        const fresh = map.get(Number(n?.id))
+        if (!fresh) return n
+        return { ...fresh, harianKerja: n.harianKerja || 0, keterangan: n.keterangan || null }
+      }),
+    )
+  }, [editingGajianId, notasToProcess])
+
+  const refreshGajiKaryawanDraft = useCallback(async () => {
+    if (!editingGajianId) return
+    if (!kebunId || !startDate || !endDate) throw new Error('Pilih kebun dan periode terlebih dahulu')
+    const adjustedEndDate = new Date(endDate)
+    adjustedEndDate.setHours(23, 59, 59, 999)
+    const paramsActive = new URLSearchParams({
+      kebunId,
+      jobType: 'KEBUN',
+      status: 'AKTIF',
+      page: '1',
+      limit: '1000',
+    })
+    const paramsAbsensi = new URLSearchParams({
+      kebunId,
+      startDate: startDate.toISOString(),
+      endDate: adjustedEndDate.toISOString(),
+      unpaid: '1',
+    })
+    const [resKaryawan, resAbsensi] = await Promise.all([
+      fetch(`/api/karyawan?${paramsActive.toString()}`, { cache: 'no-store' }),
+      fetch(`/api/karyawan-kebun/absensi?${paramsAbsensi.toString()}`, { cache: 'no-store' }),
+    ])
+    if (!resKaryawan.ok) throw new Error('Gagal mengambil data karyawan')
+    if (!resAbsensi.ok) throw new Error('Gagal mengambil data absensi')
+    const jsonKaryawan = await resKaryawan.json().catch(() => ({} as any))
+    const jsonAbsensi = await resAbsensi.json().catch(() => ({} as any))
+    const karyawanList = Array.isArray((jsonKaryawan as any).data) ? (jsonKaryawan as any).data : []
+    const absensiList = Array.isArray((jsonAbsensi as any).data) ? (jsonAbsensi as any).data : []
+    const absensiMap = new Map<number, { total: number; hariKerja: number }>(
+      absensiList.map((r: any) => ([
+        Number(r.karyawanId),
+        { total: Number(r.total || 0), hariKerja: Number(r.hariKerja || 0) },
+      ] as [number, { total: number; hariKerja: number }])),
+    )
+    const prevMap = new Map<number, any>((detailKaryawan || []).map((d: any) => [Number(d.userId), d]))
+    const mapped = karyawanList.map((u: any) => {
+      const agg = absensiMap.get(Number(u.id)) ?? { total: 0, hariKerja: 0 }
+      const gajiPokok = Math.round(agg.total || 0)
+      const prev = prevMap.get(Number(u.id))
+      const potonganPrev = Number(prev?.potongan || 0)
+      const potongan = Math.max(0, Math.min(potonganPrev, gajiPokok))
+      return {
+        userId: u.id,
+        user: u,
+        hariKerja: agg.hariKerja || 0,
+        gajiPokok,
+        potongan,
+        total: gajiPokok - potongan,
+        keterangan: prev?.keterangan || '',
+      }
+    })
+    setDetailKaryawan(mapped as any)
+    const totalGajiPokokKaryawan = mapped.reduce((sum: number, d: any) => sum + Number(d?.gajiPokok || 0), 0)
+    setSavedBiaya((prev) => {
+      const others = prev.filter((b) => b.deskripsi !== 'Total Gaji Karyawan')
+      if (totalGajiPokokKaryawan <= 0) return others
+      return [
+        ...others,
+        {
+          id: `auto-gaji-karyawan-${Date.now()}`,
+          deskripsi: 'Total Gaji Karyawan',
+          jumlah: 1,
+          satuan: 'Paket',
+          hargaSatuan: Math.round(totalGajiPokokKaryawan),
+          total: Math.round(totalGajiPokokKaryawan),
+          keterangan: '',
+        } as any,
+      ]
+    })
+  }, [detailKaryawan, editingGajianId, endDate, kebunId, startDate])
+
+  const importUpahBorongan = useCallback(async () => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Pilih kebun dan periode terlebih dahulu.')
+      return
+    }
+    setBoronganLoading(true)
+    try {
+      const adjustedEndDate = new Date(endDate)
+      adjustedEndDate.setHours(23, 59, 59, 999)
+      const params = new URLSearchParams({
+        startDate: startDate.toISOString(),
+        endDate: adjustedEndDate.toISOString(),
+        unpaid: '1',
+        upahBorongan: '1',
+      })
+      const res = await fetch(`/api/kebun/${kebunId}/pekerjaan?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Gagal mengambil data upah borongan')
+      const rows = await res.json().catch(() => [])
+      const list = Array.isArray(rows) ? rows : []
+
+      const BORONGAN_PREFIX = 'Upah Borongan - '
+      const groups = new Map<string, { total: number; ids: number[] }>()
+      const allIds: number[] = []
+
+      list.forEach((p: any) => {
+        const id = Number(p?.id)
+        if (!Number.isFinite(id) || id <= 0) return
+        const jenis = String(p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
+        const biaya = Number(p?.biaya || 0)
+        if (!Number.isFinite(biaya) || biaya <= 0) return
+        allIds.push(id)
+        const g = groups.get(jenis) || { total: 0, ids: [] }
+        g.total += biaya
+        g.ids.push(id)
+        groups.set(jenis, g)
+      })
+
+      setSavedBiaya(prev => {
+        const filtered = prev.filter(b => !(String(b.deskripsi || '').startsWith(BORONGAN_PREFIX)))
+        const imported = Array.from(groups.entries()).map(([jenis, g]) => ({
+          id: `auto-borongan-${jenis}-${Date.now()}-${Math.random()}`,
+          deskripsi: `${BORONGAN_PREFIX}${jenis}`,
+          jumlah: 1,
+          satuan: 'Paket',
+          hargaSatuan: Math.round(g.total),
+          total: Math.round(g.total),
+          keterangan: 'Otomatis dari Pekerjaan Kebun',
+        })) as any
+        return [...filtered, ...imported]
+      })
+      setBoronganPekerjaanIds(allIds)
+
+      if (allIds.length === 0) {
+        toast.success('Tidak ada upah borongan yang belum tergajikan pada periode ini.')
+      } else {
+        toast.success('Upah borongan berhasil ditambahkan ke biaya gaji')
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal mengambil upah borongan')
+    } finally {
+      setBoronganLoading(false)
+    }
+  }, [endDate, kebunId, startDate])
+
+  const handleRefreshDraftData = useCallback(async () => {
+    if (!editingGajianId) return
+    setRefreshingData(true)
+    try {
+      await Promise.all([
+        refreshNotaSawitDraft(),
+        refreshGajiKaryawanDraft(),
+        importUpahBorongan(),
+      ])
+      toast.success('Data draft berhasil diperbarui')
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal memperbarui data draft')
+    } finally {
+      setRefreshingData(false)
+    }
+  }, [editingGajianId, importUpahBorongan, refreshGajiKaryawanDraft, refreshNotaSawitDraft])
+
+  const removeBiayaLain = (id: string) => {
+    setBiayaLain(prev => prev.filter(item => item.id !== id));
+  };
+
+  const removeSavedBiaya = (id: string) => {
+    setSavedBiaya(prev => {
+      const target = prev.find((x) => x.id === id)
+      if (String(target?.deskripsi || '') === BIAYA_MUAT_DESC) {
+        setBiayaMuatAutoEnabled(false)
+      }
+      return prev.filter(item => item.id !== id)
+    });
+    setEditingBiayaId((curr) => (curr === id ? null : curr))
+  };
+
+  const handleSaveBiayaInputs = () => {
+    if (biayaLain.length === 0) {
+      toast.error('Tidak ada baris biaya untuk disimpan.');
+      return;
+    }
+    const valid = biayaLain
+      .map(item => ({
+        ...item,
+        jumlah: Number(item.jumlah || 0),
+        hargaSatuan: Number(item.hargaSatuan || 0),
+      }))
+      .filter(item => item.deskripsi && item.jumlah > 0 && item.hargaSatuan > 0);
+
+    if (valid.length === 0) {
+      toast.error('Lengkapi deskripsi, jumlah, dan harga satuan sebelum simpan.');
+      return;
+    }
+
+    setSavedBiaya(prev => [...prev, ...valid.map(v => ({ ...v, id: `saved-${Date.now()}-${Math.random()}` }))]);
+    setBiayaLain([]); // kosongkan input setelah simpan
+    toast.success('Biaya berhasil disimpan ke tabel.');
+  };
+
+  const handleSavePotonganInputs = () => {
+    if (potongan.length === 0) {
+      toast.error('Tidak ada baris potongan untuk disimpan.');
+      return;
+    }
+    const valid = potongan
+      .map(item => ({
+        ...item,
+        deskripsi: String(item.deskripsi || '').trim(),
+        total: Number(item.total || 0),
+      }))
+      .filter(item => item.deskripsi && item.total > 0);
+
+    if (valid.length === 0) {
+      toast.error('Lengkapi deskripsi dan total sebelum simpan.');
+      return;
+    }
+
+    setSavedPotongan(prev => [...prev, ...valid.map(v => ({ ...v, id: `saved-${Date.now()}-${Math.random()}` }))]);
+    setPotongan([]);
+    toast.success('Potongan berhasil disimpan ke tabel.');
+  };
+
+  const removeSavedPotongan = (id: string) => {
+    setSavedPotongan(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleConfirmSave = async (payload: { dibuatOlehName: string; disetujuiOlehName: string }) => {
+    await handleSimpanGajian('FINALIZED', payload);
+  };
+
+  const handleSimpanGajian = async (status: 'DRAFT' | 'FINALIZED', approval?: { dibuatOlehName: string; disetujuiOlehName: string }) => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Silakan lengkapi data kebun dan periode.');
+      return;
+    }
+    
+    const invalidBiaya = savedBiaya.filter((b) => !String(b.deskripsi || '').trim() || Number(b.jumlah || 0) <= 0 || Number(b.hargaSatuan || 0) <= 0)
+    if (invalidBiaya.length > 0) {
+      const nextErrors: Record<string, { deskripsi?: boolean; jumlah?: boolean; hargaSatuan?: boolean }> = {}
+      invalidBiaya.forEach((b) => {
+        const id = b.id
+        nextErrors[id] = {
+          deskripsi: !String(b.deskripsi || '').trim(),
+          jumlah: Number(b.jumlah || 0) <= 0,
+          hargaSatuan: Number(b.hargaSatuan || 0) <= 0,
+        }
+      })
+      setBiayaFieldErrors(nextErrors)
+      const first = invalidBiaya[0]
+      setEditingBiayaId(first.id)
+      setTimeout(() => {
+        const rowEl = document.querySelector<HTMLElement>(`[data-biaya-row="${first.id}"]`)
+        rowEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const e = nextErrors[first.id] || {}
+        const field = e.deskripsi ? 'deskripsi' : e.jumlah ? 'jumlah' : 'hargaSatuan'
+        const inputEl = document.querySelector<HTMLInputElement>(`[data-biaya-id="${first.id}"][data-biaya-field="${field}"]`)
+        inputEl?.focus()
+      }, 50)
+      toast.error('Masih ada baris biaya gaji yang belum lengkap. Lengkapi deskripsi, jumlah, dan harga satuan.')
+      return
+    }
+    const invalidPotongan = savedPotongan.filter((p) => !String(p.deskripsi || '').trim() || Number(p.total || 0) <= 0)
+    if (invalidPotongan.length > 0) {
+      toast.error('Masih ada baris potongan yang belum lengkap. Lengkapi deskripsi dan total.')
+      return
+    }
+
+    if (status === 'FINALIZED' && !isPreviewOpen) {
+      handlePreviewGajian();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        gajianId: editingGajianId,
+        kebunId,
+        tanggalMulai: startDate,
+        tanggalSelesai: endDate,
+        ...(status === 'FINALIZED' && approval ? { dibuatOlehName: approval.dibuatOlehName, disetujuiOlehName: approval.disetujuiOlehName } : {}),
+        notas: notasToProcess.map(n => ({ id: n.id, harianKerja: n.harianKerja, keterangan: n.keterangan })),
+        biayaLain: savedBiaya.map(b => ({
+          deskripsi: b.deskripsi,
+          jumlah: b.jumlah,
+          satuan: b.satuan,
+          hargaSatuan: b.hargaSatuan,
+          total: b.total || (b.jumlah * b.hargaSatuan),
+          keterangan: b.keterangan
+        })),
+        potongan: savedPotongan.map(p => ({
+          deskripsi: p.deskripsi,
+          total: p.total,
+          keterangan: p.keterangan
+        })),
+        detailKaryawan: detailKaryawan
+          .filter((d: any) => String(d?.user?.status || 'AKTIF').toUpperCase() === 'AKTIF')
+          .map(d => ({
+            userId: d.userId,
+            hariKerja: d.hariKerja,
+            gajiPokok: d.gajiPokok,
+            potongan: d.potongan,
+            total: d.total,
+            keterangan: d.keterangan
+          })),
+        hutangTambahan: Object.entries(hutangTambahanMap).map(([userId, v]) => ({
+          userId: Number(userId),
+          jumlah: Math.round(Number((v as any)?.jumlah || 0)),
+          date: (v as any)?.date || undefined,
+          deskripsi: (v as any)?.deskripsi || 'Hutang Karyawan',
+        })),
+        pekerjaanBoronganIds: boronganPekerjaanIds,
+        keterangan: keterangan, // Global note
+        status,
+        payAbsensi: status === 'FINALIZED',
+      };
+      
+      const response = await fetch('/api/gajian', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        let errorText = errorData.error || 'Gagal menyimpan gajian.';
+        if (errorData.conflicts) {
+            errorText += ` (ID Nota Konflik: ${errorData.conflicts.join(', ')})`;
+        }
+        throw new Error(errorText);
+      }
+
+      const savedGajian = await response.json();
+      toast.success(`Gajian berhasil disimpan sebagai ${status === 'DRAFT' ? 'draft' : 'final'}!`);
+
+      // Refresh history/draft list before resetting form
+      await fetchAllHistory({
+        kebunId: historyKebunId || undefined,
+        startDate: historyStartDate,
+        endDate: historyEndDate,
+      });
+
+      // Reset form state
+      handleResetForm();
+      setSavedBiaya([]);
+      setSavedPotongan([]);
+      setKeterangan(''); // Reset global note
+      setIsPreviewOpen(false); // Close preview if open
+
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal menyimpan gajian.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addPotongan = () => {
+    const id = `new-${Date.now()}`
+    setSavedPotongan(prev => [...prev, { id, deskripsi: '', total: 0 }]);
+    setEditingPotonganId(id)
+  };
+
+  const importPotonganPengajuan = useCallback(async () => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Pilih kebun dan periode terlebih dahulu.')
+      return
+    }
+    setImportPotonganLoading(true)
+    try {
+      const params = new URLSearchParams({
+        startDate: toYmdLocal(startDate),
+        endDate: toYmdLocal(endDate),
+      })
+      const res = await fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Gagal mengambil potongan pengajuan')
+      const json = await res.json().catch(() => ({} as any))
+      const items = Array.isArray(json?.items) ? json.items : []
+      if (items.length === 0) {
+        toast.error('Tidak ada potongan tersimpan pada pengajuan gajian periode ini.')
+        return
+      }
+
+      const makeKey = (x: any) => `${String(x?.deskripsi || '').trim()}|${Math.round(Number(x?.total || 0))}|${String(x?.keterangan || '').trim()}`
+      const existingKeys = new Set(savedPotongan.map((p) => makeKey(p)))
+      const imported = items
+        .map((x: any, idx: number) => ({
+          id: `pengajuan-${Date.now()}-${idx}`,
+          deskripsi: String(x?.deskripsi || '').trim(),
+          total: Math.round(Number(x?.total || 0)),
+          keterangan: typeof x?.keterangan === 'string' ? x.keterangan : undefined,
+        }))
+        .filter((x: any) => x.deskripsi && x.total > 0)
+        .filter((x: any) => !existingKeys.has(makeKey(x)))
+
+      if (imported.length === 0) {
+        toast.error('Potongan pengajuan sudah ada di daftar potongan.')
+        return
+      }
+
+      setSavedPotongan((prev) => [...prev, ...imported])
+      toast.success(`Potongan pengajuan dimuat: ${imported.length} baris`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal mengambil potongan pengajuan')
+    } finally {
+      setImportPotonganLoading(false)
+    }
+  }, [endDate, kebunId, savedPotongan, startDate])
+
+  const resetPotonganHutang = () => {
+    setDetailKaryawan(prev => prev.map((dk: any) => ({ ...dk, potongan: 0, total: dk.gajiPokok || 0 })))
+    setHutangRows([])
+  }
+
+  const resetHutangBaru = useCallback(() => {
+    setHutangTambahanMap({})
+    setDetailKaryawan(prev => prev.map((dk: any) => {
+      const userId = Number(dk.userId)
+      const baseSaldo = Math.max(0, Math.round(Number(hutangSaldoMap[userId] || 0)))
+      const gajiPokok = Number(dk.gajiPokok || 0)
+      const potong = Math.max(0, Math.min(Number(dk.potongan || 0), baseSaldo, gajiPokok))
+      return { ...dk, potongan: potong, total: gajiPokok - potong }
+    }))
+    toast.success('Hutang baru dihapus dari proses gajian')
+  }, [hutangSaldoMap])
+
+  const fetchHutangSaldoForPeriod = useCallback(async () => {
+    if (!kebunId || !startDate || !endDate) return {} as Record<number, number>
+    const adjustedEndDate = new Date(endDate)
+    adjustedEndDate.setHours(23, 59, 59, 999)
+    const params = new URLSearchParams({
+      kebunId,
+      startDate: startDate.toISOString(),
+      endDate: adjustedEndDate.toISOString(),
+    })
+    const res = await fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' })
+    if (!res.ok) throw new Error('Gagal mengambil data hutang')
+    const json = await res.json()
+    const list = Array.isArray(json.data) ? json.data : []
+    const nextMap: Record<number, number> = {}
+    list.forEach((r: any) => {
+      const id = Number(r?.karyawan?.id)
+      const saldo = Math.max(0, Math.round(Number(r?.hutangSaldo || 0)))
+      if (Number.isFinite(id) && id > 0) nextMap[id] = saldo
+    })
+    setHutangSaldoMap(nextMap)
+    const key = `${kebunId}|${startDate.toISOString()}|${endDate.toISOString()}`
+    setHutangSaldoKey(key)
+    return nextMap
+  }, [kebunId, startDate, endDate])
+
+  const handleOpenTambahHutang = useCallback((userId?: number) => {
+    const id = typeof userId === 'number' ? String(userId) : (detailKaryawan?.[0]?.userId ? String(detailKaryawan[0].userId) : '')
+    const existing = id ? hutangTambahanMap[Number(id)] : undefined
+    setTambahHutangKaryawanId(id)
+    setTambahHutangJumlah(existing?.jumlah || 0)
+    setTambahHutangTanggal(existing?.date || (endDate ? format(endDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')))
+    setTambahHutangDeskripsi(existing?.deskripsi || 'Hutang Karyawan')
+    setOpenTambahHutang(true)
+  }, [detailKaryawan, endDate, hutangTambahanMap])
+
+  const handleSubmitTambahHutang = useCallback(async () => {
+    const karyawanIdNum = Number(tambahHutangKaryawanId)
+    if (!karyawanIdNum) {
+      toast.error('Pilih karyawan terlebih dahulu')
+      return
+    }
+    if (!tambahHutangJumlah || tambahHutangJumlah <= 0) {
+      toast.error('Jumlah hutang wajib diisi')
+      return
+    }
+    setTambahHutangSubmitting(true)
+    try {
+      setHutangTambahanMap((prev) => ({
+        ...prev,
+        [karyawanIdNum]: {
+          jumlah: Math.round(Number(tambahHutangJumlah) || 0),
+          date: tambahHutangTanggal || (endDate ? format(endDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
+          deskripsi: tambahHutangDeskripsi || 'Hutang Karyawan',
+        },
+      }))
+      toast.success('Hutang tambahan disiapkan')
+      setOpenTambahHutang(false)
+      setTambahHutangJumlah(0)
+      setTambahHutangDeskripsi('Hutang Karyawan')
+      setTambahHutangTanggal('')
+      setTambahHutangKaryawanId('')
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menambah hutang')
+    } finally {
+      setTambahHutangSubmitting(false)
+    }
+  }, [endDate, tambahHutangDeskripsi, tambahHutangJumlah, tambahHutangKaryawanId, tambahHutangTanggal])
+
+  useEffect(() => {
+    if (!kebunId || !startDate || !endDate) return
+    if (detailKaryawan.length === 0) return
+    const key = `${kebunId}|${startDate.toISOString()}|${endDate.toISOString()}`
+    if (hutangSaldoKey === key && Object.keys(hutangSaldoMap).length > 0) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        setHutangLoading(true)
+        const map = await fetchHutangSaldoForPeriod()
+        if (cancelled) return
+        setHutangSaldoMap(map)
+      } catch {
+      } finally {
+        if (!cancelled) setHutangLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [kebunId, startDate, endDate, detailKaryawan.length, hutangSaldoKey, hutangSaldoMap, fetchHutangSaldoForPeriod])
+
+  const applyPotongHutangMassal = async (options: { mode: 'MAX' | 'NOMINAL'; amount: number }) => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Pilih kebun dan periode terlebih dahulu')
+      return
+    }
+    if (detailKaryawan.length === 0) {
+      toast.error('Tidak ada data gaji karyawan pada periode ini')
+      return
+    }
+    if (options.mode === 'NOMINAL' && (!options.amount || options.amount <= 0)) {
+      toast.error('Nominal potongan wajib diisi')
+      return
+    }
+
+    setHutangLoading(true)
+    try {
+      const map = Object.keys(hutangSaldoMap).length > 0 ? hutangSaldoMap : await fetchHutangSaldoForPeriod()
+      const adjustedEndDate = new Date(endDate)
+      adjustedEndDate.setHours(23, 59, 59, 999)
+      const tgl = adjustedEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })
+
+      setPotongan(prev => prev.filter(p => p.deskripsi !== 'Potongan Hutang Karyawan Kebun'))
+
+      const nextDetail = detailKaryawan.map((dk: any) => {
+        const baseSaldo = Number(map[Number(dk.userId)] || 0)
+        const tambahan = Math.max(0, Math.round(Number(hutangTambahanMap[Number(dk.userId)]?.jumlah || 0)))
+        const saldo = baseSaldo + tambahan
+        const gajiPokok = Number(dk.gajiPokok || 0)
+        const raw = options.mode === 'MAX' ? saldo : options.amount
+        const potong = Math.max(0, Math.min(raw, saldo, gajiPokok))
+        return { ...dk, potongan: potong, total: gajiPokok - potong }
+      })
+      setDetailKaryawan(nextDetail as any)
+
+      const mapped = nextDetail
+        .map((dk: any) => {
+          const baseSaldo = Number(map[Number(dk.userId)] || 0)
+          const tambahan = Math.max(0, Math.round(Number(hutangTambahanMap[Number(dk.userId)]?.jumlah || 0)))
+          const saldo = baseSaldo + tambahan
+          const potong = Number(dk.potongan || 0)
+          return {
+            name: dk.user?.name || '-',
+            tanggal: tgl,
+            saldo,
+            potong,
+            sisa: Math.max(0, saldo - potong),
+            keterangan: dk.keterangan || '',
+          }
+        })
+        .filter((r: any) => r.saldo > 0 || r.potong > 0)
+      setHutangRows(mapped)
+      toast.success('Potongan hutang diterapkan')
+    } catch {
+      toast.error('Gagal mengambil data hutang')
+    } finally {
+      setHutangLoading(false)
+    }
+  }
+
+  const updatePotonganHutangByUserId = useCallback((userId: number, raw: string) => {
+    const numericValue = Number(String(raw || '').replace(/\D/g, '')) || 0
+    setDetailKaryawan(prev => {
+      const next = [...prev] as any[]
+      const idx = next.findIndex((d: any) => Number(d?.userId) === Number(userId))
+      if (idx < 0) return prev
+      const current = next[idx]
+      const gajiPokok = Number(current.gajiPokok || 0)
+      const baseSaldo = Math.max(0, Math.round(Number(hutangSaldoMap[Number(userId)] || 0)))
+      const tambahan = Math.max(0, Math.round(Number(hutangTambahanMap[Number(userId)]?.jumlah || 0)))
+      const saldo = baseSaldo + tambahan
+      const potong = Math.max(0, Math.min(numericValue, saldo, gajiPokok))
+      next[idx] = { ...current, potongan: potong, total: gajiPokok - potong }
+      return next as any
+    })
+  }, [hutangSaldoMap, hutangTambahanMap])
+  const importGajiAbsensi = async () => {
+  }
+
+  const hutangDisplayRows = useMemo(() => {
+    if (!endDate) return [] as Array<{ userId: number; name: string; tanggal: string; saldo: number; potong: number; sisa: number; keterangan?: string }>
+    const tgl = endDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })
+    const rows = (detailKaryawan || []).map((dk: any) => {
+      const baseSaldo = Math.max(0, Math.round(Number(hutangSaldoMap[Number(dk.userId)] || 0)))
+      const tambahan = Math.max(0, Math.round(Number(hutangTambahanMap[Number(dk.userId)]?.jumlah || 0)))
+      const saldo = baseSaldo + tambahan
+      const potong = Math.max(0, Math.round(Number(dk.potongan || 0)))
+      const tambahanKet = hutangTambahanMap[Number(dk.userId)]?.deskripsi
+      const tambahanText = tambahan > 0 ? `${formatCurrency(tambahan)}` : ''
+      const keteranganBase = tambahanKet ? String(tambahanKet) : (dk.keterangan || '')
+      return {
+        userId: Number(dk.userId),
+        name: dk.user?.name || '-',
+        tanggal: tgl,
+        saldo,
+        potong,
+        sisa: Math.max(0, saldo - potong),
+        keterangan: tambahan > 0 ? `${keteranganBase} (${tambahanText})` : keteranganBase,
+      }
+    })
+    return rows.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+  }, [detailKaryawan, endDate, hutangSaldoMap, hutangTambahanMap])
+
+  const fetchHutangRows = async () => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Pilih kebun dan periode terlebih dahulu');
+      return;
+    }
+    try {
+      const adjustedEndDate = new Date(endDate);
+      adjustedEndDate.setHours(23, 59, 59, 999);
+      const params = new URLSearchParams({
+        kebunId,
+        startDate: startDate.toISOString(),
+        endDate: adjustedEndDate.toISOString(),
+      });
+      const res = await fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Gagal mengambil data hutang');
+      const json = await res.json();
+      const list = Array.isArray(json.data) ? json.data : [];
+      const tgl = adjustedEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
+      const mapped = list.map((r: any) => ({
+        name: r.karyawan?.name || '-',
+        tanggal: tgl,
+        saldo: Math.round(Number(r.totalPengeluaran || 0)),
+        potong: Math.round(Number(r.totalPembayaran || 0)),
+        sisa: Math.max(0, Math.round(Number(r.hutangSaldo || 0))),
+        keterangan: '',
+      }));
+      setHutangRows(mapped);
+      if (mapped.length === 0) toast.error('Tidak ada data hutang pada periode ini');
+    } catch {
+      toast.error('Gagal memuat daftar hutang');
+    }
+  };
+
+  const exportHutangPdf = async () => {
+    if (!kebunId || !startDate || !endDate) {
+      toast.error('Pilih kebun dan periode terlebih dahulu');
+      return;
+    }
+    if (hutangDisplayRows.length === 0) {
+      toast.error('Daftar hutang kosong');
+      return;
+    }
+    try {
+      const jsPDF = (await import('jspdf')).default;
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF();
+      const start = startDate.toLocaleDateString('id-ID', { day: 'numeric' });
+      const end = endDate.toLocaleDateString('id-ID', { day: 'numeric' });
+      const monthLabel = endDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`DAFTAR HUTANG PERIODE  TGL ${start} s/d ${end} - ${monthLabel}`, 14, 20);
+      const body = hutangDisplayRows.map((r, idx) => [
+        String(idx + 1),
+        r.name,
+        r.tanggal,
+        `RP. ${r.saldo.toLocaleString('id-ID')}`,
+        `RP. ${r.potong.toLocaleString('id-ID')}`,
+        `RP. ${r.sisa.toLocaleString('id-ID')}`,
+        r.keterangan || '',
+      ]);
+      autoTable(doc, {
+        head: [['NO', 'NAMA', 'TANGGAL', 'SALDO', 'POTONG', 'SISA', 'KETERANGAN']],
+        body,
+        startY: 28,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 0, 0] },
+        styles: { fontSize: 10 },
+      });
+      const totals = hutangDisplayRows.reduce(
+        (acc, r) => {
+          acc.saldo += r.saldo;
+          acc.potong += r.potong;
+          acc.sisa += r.sisa;
+          return acc;
+        },
+        { saldo: 0, potong: 0, sisa: 0 }
+      );
+      const finalY = (doc as any).lastAutoTable.finalY || 28;
+      autoTable(doc, {
+        head: [['', 'JUMLAH', '', `RP. ${totals.saldo.toLocaleString('id-ID')}`, `RP. ${totals.potong.toLocaleString('id-ID')}`, `RP. ${totals.sisa.toLocaleString('id-ID')}`, '']],
+        body: [],
+        startY: finalY + 2,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+      });
+      doc.save(`daftar-hutang-kebun-${kebunId}-${format(startDate!, 'yyyy-MM-dd')}-${format(endDate!, 'yyyy-MM-dd')}.pdf`);
+    } catch {
+      toast.error('Gagal ekspor PDF hutang');
+    }
+  };
+
+  const removePotongan = (id: string) => {
+    setSavedPotongan(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handlePotonganChange = (id: string, field: keyof Omit<Potongan, 'id'>, value: string | number) => {
+    setSavedPotongan(prev =>
+      prev.map(item => {
+        if (item.id === id) {
+          return { ...item, [field]: value };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleBiayaLainChange = (id: string, field: keyof Omit<BiayaLain, 'id' | 'total'>, value: string | number) => {
+    setSavedBiaya(prev =>
+      prev.map(item => {
+        if (item.id === id) {
+          const updatedItem = { ...item, [field]: value };
+          return updatedItem;
+        }
+        return item;
+      })
+    );
+    if (field === 'deskripsi' || field === 'jumlah' || field === 'hargaSatuan') {
+      setBiayaFieldErrors((prev) => {
+        const current = prev[id]
+        if (!current) return prev
+        const nextRow = { ...current }
+        if (field === 'deskripsi') nextRow.deskripsi = !String(value || '').trim()
+        if (field === 'jumlah') nextRow.jumlah = Number(value || 0) <= 0
+        if (field === 'hargaSatuan') nextRow.hargaSatuan = Number(value || 0) <= 0
+        const hasAny = !!(nextRow.deskripsi || nextRow.jumlah || nextRow.hargaSatuan)
+        if (!hasAny) {
+          const { [id]: _removed, ...rest } = prev
+          return rest
+        }
+        return { ...prev, [id]: nextRow }
+      })
+    }
+  };
+
+  const totalGajian = useMemo(() => {
+    const totalBiayaLain = savedBiaya.reduce((sum, item) => sum + (Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0);
+    const totalPotongan = [...savedPotongan, ...potongan].reduce((sum, item) => sum + Number(item.total || 0), 0);
+    return totalBiayaLain - totalPotongan;
+  }, [savedBiaya, savedPotongan, potongan]);
+
+  const totalBiayaGaji = useMemo(() => {
+    return savedBiaya.reduce((sum, item) => sum + (Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0)
+  }, [savedBiaya])
+
+  const totalPotonganAll = useMemo(() => {
+    const potonganManual = [...savedPotongan, ...potongan].reduce((sum, item) => sum + Number(item.total || 0), 0)
+    const potonganHutang = detailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.potongan || 0), 0)
+    return potonganManual + potonganHutang
+  }, [detailKaryawan, savedPotongan, potongan])
+
+  const summaryData = useMemo(() => {
+    const initial = {
+      totalBerat: 0,
+      totalNota: 0,
+      totalHari: 0,
+    };
+
+    const summary = notasToProcess.reduce(
+      (acc, nota) => {
+        acc.totalBerat += nota.beratAkhir;
+        acc.totalNota += 1;
+        return acc;
+      },
+      initial
+    );
+
+    if (startDate && endDate) {
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+      const dayDifference = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      summary.totalHari = dayDifference >= 0 ? dayDifference + 1 : 0;
+    }
+
+    return summary;
+  }, [notasToProcess, startDate, endDate]);
+
+  useEffect(() => {
+    const totalKg = notasToProcess.reduce((sum, nota) => sum + (Number(nota.beratAkhir) || 0), 0)
+    let createdId: string | null = null
+    setSavedBiaya((prev) => {
+      const idx = prev.findIndex((b) => String(b.deskripsi || '') === BIAYA_MUAT_DESC)
+      if (idx === -1) {
+        if (!biayaMuatAutoEnabled || totalKg <= 0) return prev
+        createdId = `auto-biaya-muat-${Date.now()}`
+        return [
+          ...prev,
+          {
+            id: createdId,
+            deskripsi: BIAYA_MUAT_DESC,
+            jumlah: totalKg,
+            satuan: 'Kg',
+            hargaSatuan: 0,
+            total: 0,
+            keterangan: '',
+          } as any,
+        ]
+      }
+      const current = prev[idx] as any
+      const nextItem = {
+        ...current,
+        jumlah: totalKg,
+        satuan: 'Kg',
+        total: Math.round((Number(totalKg) || 0) * (Number(current?.hargaSatuan) || 0)),
+      }
+      const next = [...prev]
+      next[idx] = nextItem
+      return next
+    })
+    if (createdId) {
+      setEditingBiayaId((curr) => curr || createdId)
+    }
+  }, [BIAYA_MUAT_DESC, biayaMuatAutoEnabled, notasToProcess])
+
+
+
+  const handleRemoveFromProcess = useCallback((notaId: number) => {
+    const removedNota = notasToProcess.find(nota => nota.id === notaId);
+    if (removedNota) {
+      // Find the original full nota object from the initial fetch if available,
+      // otherwise, use the potentially partial data from notasToProcess.
+      // This assumes notasToProcess holds objects that are compatible with NotaSawitWithRelations.
+      const notaToAddBack = notas.find(n => n.id === notaId) || removedNota as NotaSawitWithRelations;
+
+      setNotasToProcess(prev => prev.filter(nota => nota.id !== notaId));
+      setNotas(prev => [...prev, notaToAddBack].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }
+  }, [notas, notasToProcess]);
+
+  const handleKeteranganChange = useCallback((id: number, val: string) => {
+    setNotasToProcess((prev) =>
+      prev.map((nota) =>
+        nota.id === id ? { ...nota, keterangan: val } : nota
+      )
+    );
+  }, []);
+
+  const columns = useMemo(() => createColumns(), []);
+  const processingColumns = useMemo(() => createProcessingColumns(handleRemoveFromProcess, handleKeteranganChange), [handleRemoveFromProcess, handleKeteranganChange]);
+
+  const draftConflict = useMemo(() => {
+    if (editingGajianId) return null
+    if (!kebunId || !startDate || !endDate) return null
+    const kebunIdNum = Number(kebunId)
+    if (!Number.isFinite(kebunIdNum)) return null
+    const startKey = format(startDate, 'yyyy-MM-dd')
+    const endKey = format(endDate, 'yyyy-MM-dd')
+    return (draftsGajian || []).find((d: any) => {
+      const sameKebun = Number(d?.kebunId) === kebunIdNum
+      if (!sameKebun) return false
+      const dStart = format(new Date(d.tanggalMulai), 'yyyy-MM-dd')
+      const dEnd = format(new Date(d.tanggalSelesai), 'yyyy-MM-dd')
+      return dStart === startKey && dEnd === endKey
+    }) || null
+  }, [draftsGajian, editingGajianId, endDate, kebunId, startDate])
+
+  const hasDraftConflict = !!draftConflict
+
+  const canSearchNota = !!kebunId && !!startDate && !!endDate && !loading
+  const canProcessNota = selectedNotas.length > 0 && !loading
+  const canSaveGajian = !!kebunId && !!startDate && !!endDate && !loading && (notasToProcess.length > 0 || savedBiaya.length > 0 || savedPotongan.length > 0 || potongan.length > 0 || detailKaryawan.length > 0)
+
+  return (
+    <div className="space-y-8">
+      {/* Section for Creating New Gajian */}
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+          <div className="w-full flex flex-col gap-1">
+            <h2 className="text-lg md:text-xl font-semibold flex items-center gap-2">
+              <BanknotesIcon className="h-5 w-5 text-blue-600" />
+              {editingGajianId ? 'Edit Gajian Draft' : 'Buat Gajian Baru'}
+            </h2>
+            <div className="hidden md:flex items-center gap-2 text-xs text-gray-500">
+              <StarIcon className="h-4 w-4 text-red-600" />
+              <span>Pilih kebun dan periode gajian terlebih dahulu sebelum mengambil nota.</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {editingGajianId && (
+              <Button
+                onClick={(e) => { e.stopPropagation(); handleRefreshDraftData(); }}
+                variant="outline"
+                disabled={refreshingData || loading || boronganLoading}
+                className="w-full md:w-auto h-9 md:h-10 px-3 md:px-4 text-sm md:text-base whitespace-nowrap"
+              >
+                {refreshingData ? 'Memperbarui...' : 'Perbarui Data'}
+              </Button>
+            )}
+          </div>
+        </div>
+        
+        <div className="transition-all duration-300 overflow-hidden opacity-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start md:items-end mb-6">
+            <div className="lg:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">1. Pilih Kebun</label>
+              <Select onValueChange={id => {
+                setKebunId(id);
+              }} value={kebunId}>
+                <SelectTrigger className="input-style rounded-xl"><SelectValue placeholder="Pilih Kebun">{kebunId ? kebunList.find(k => String(k.id) === kebunId)?.name : "Pilih Kebun"}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  {kebunList.map(kebun => <SelectItem key={kebun.id} value={String(kebun.id)}>{kebun.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="lg:col-span-2 w-full">
+              <label className="block text-sm font-medium text-gray-700 mb-1">2. Pilih Periode</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                <Input 
+                  className="input-style rounded-xl w-full min-w-0" 
+                  type="date" 
+                  value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)} 
+                />
+                <Input 
+                  className="input-style rounded-xl w-full min-w-0" 
+                  type="date" 
+                  value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)} 
+                />
+              </div>
+            </div>
+            <Button
+              onClick={() => handleFetchNotas(1)}
+              disabled={!canSearchNota || hasDraftConflict}
+              className={cn(
+                'w-full rounded-xl lg:col-span-1 h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words border',
+                canSearchNota && !hasDraftConflict
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                  : 'border-gray-300 bg-gray-50 text-gray-400'
+              )}
+            >
+              {loading ? 'Mencari...' : '3. Cari Nota'}
+            </Button>
+          </div>
+          <div className="md:hidden flex items-center gap-2 text-xs text-gray-500 mb-4">
+            <StarIcon className="h-4 w-4 text-red-600" />
+            <span>Pilih kebun dan periode gajian terlebih dahulu sebelum mengambil nota.</span>
+          </div>
+          {hasDraftConflict && (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+              <div className="text-sm font-semibold text-amber-900">Draft gajian untuk periode ini sudah ada.</div>
+              <div className="text-xs text-amber-800 mt-1">
+                Hapus draft terlebih dahulu atau lanjutkan draft yang sudah ada.
+              </div>
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <Button
+                  onClick={() => draftConflict && handleContinueDraft(draftConflict.id)}
+                  className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  Lanjutkan Draft
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => draftConflict && handleOpenDraftDeleteConfirm(draftConflict.id)}
+                  className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
+                >
+                  Hapus Draft
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {searchAttempted && notas.length === 0 && (
+          <div className="mt-6 text-center text-gray-500">
+            <p>Tidak ada nota yang ditemukan untuk kebun dan periode yang dipilih.</p>
+          </div>
+        )}
+
+        {notas.length > 0 && (
+          <div className="mt-6" ref={notasSectionRef}>
+            <h3 className="text-base md:text-lg font-semibold mb-4 flex items-center gap-2">
+              <ClipboardDocumentListIcon className="h-5 w-5 text-indigo-600" />
+              4. Pilih Nota Yang Akan Digaji
+            </h3>
+            <div className="md:hidden space-y-3">
+              {notas.map((nota, index) => {
+                const isSelected = !!(rowSelection as any)[index];
+                return (
+                  <div
+                    key={`nota-card-${nota.id}`}
+                    onClick={() => {
+                      setRowSelection((prev: any) => {
+                        const next = { ...prev };
+                        if (next[index]) delete next[index];
+                        else next[index] = true;
+                        return next;
+                      });
+                    }}
+                    className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3 transition-colors ${isSelected ? 'ring-2 ring-emerald-500' : 'hover:bg-gray-50/50'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-gray-900">{nota.kendaraan?.platNomor || '-'}</div>
+                        <div className="text-xs text-gray-500">{nota.supir?.name || '-'}</div>
+                        <div className="text-xs text-gray-500">{nota.timbangan?.kebun?.name || nota.kebun?.name || '-'}</div>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(v) => {
+                            setRowSelection((prev: any) => {
+                              const next = { ...prev };
+                              if (v) next[index] = true;
+                              else delete next[index];
+                              return next;
+                            });
+                          }}
+                          aria-label="Pilih nota"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-gray-400">Tanggal Nota</div>
+                        <div className="font-medium text-gray-800">{formatDate(new Date(nota.createdAt))}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Netto (Kg)</div>
+                        <div className="font-semibold text-gray-900">
+                          {typeof (nota.timbangan?.netKg ?? nota.netto) === 'number'
+                            ? formatNumber(nota.timbangan?.netKg ?? nota.netto)
+                            : '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Potongan</div>
+                        <div className="font-semibold text-red-600">{formatNumber(nota.potongan || 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Berat Akhir</div>
+                        <div className="font-semibold text-gray-900">{formatNumber(nota.beratAkhir || 0)}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-700">Jumlah Netto</span>
+                  <span className="font-semibold text-gray-900">{formatNumber(notas.reduce((sum, n) => sum + (Number(n.timbangan?.netKg ?? n.netto) || 0), 0))} Kg</span>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="font-semibold text-red-600">Jumlah Potongan</span>
+                  <span className="font-semibold text-red-600">{formatNumber(notas.reduce((sum, n) => sum + (Number(n.potongan) || 0), 0))} Kg</span>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="font-semibold text-gray-700">Jumlah Berat Akhir</span>
+                  <span className="font-semibold text-gray-900">{formatNumber(notas.reduce((sum, n) => sum + (Number(n.beratAkhir) || 0), 0))} Kg</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden md:block">
+              <DataTable columns={columns} data={notas} rowSelection={rowSelection} setRowSelection={setRowSelection} />
+            </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between mt-4 gap-2">
+              <div className="text-xs md:text-sm text-gray-700 w-full whitespace-normal break-words">
+                Menampilkan {Math.min((page - 1) * limit + 1, totalNotas)} - {Math.min(page * limit, totalNotas)} dari {totalNotas} nota
+              </div>
+              <div className="flex space-x-2 w-full md:w-auto md:justify-start justify-end">
+                <Button
+                  onClick={() => handleFetchNotas(page - 1)}
+                  disabled={page <= 1 || loading}
+                  className="border border-gray-400 bg-gray-50 text-black w-full md:w-auto h-auto min-h-[36px] px-3 py-2 text-sm md:text-base whitespace-normal break-words"
+                >
+                  Sebelumnya
+                </Button>
+                <Button
+                  onClick={() => handleFetchNotas(page + 1)}
+                  disabled={page * limit >= totalNotas || loading}
+                  className="border border-gray-400 bg-gray-50 hover:bg-gray-100 text-black w-full md:w-auto h-auto min-h-[36px] px-3 py-2 text-sm md:text-base whitespace-normal break-words"
+                >
+                  Berikutnya
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row justify-end mt-6 gap-4">
+              {Object.keys(rowSelection).length > 0 && (
+                <Button onClick={() => setRowSelection({})} variant="secondary" className="w-full md:w-auto h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words">
+                  Batalkan Pilihan ({Object.keys(rowSelection).length})
+                </Button>
+              )}
+              <Button
+                onClick={handleMoveToProcess}
+                disabled={!canProcessNota}
+                className={cn(
+                  'w-full md:w-auto h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words border rounded-xl',
+                  canProcessNota
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                    : 'border-gray-300 bg-gray-50 text-gray-400'
+                )}
+              >
+                5. Proses Nota Terpilih <ArrowRightIcon className="ml-2 h-4 w-4 flex-shrink-0" />
+              </Button>
+            </div>
+
+            {notasToProcess.length === 0 && detailKaryawan.length === 0 && savedBiaya.length === 0 && potongan.length === 0 && (
+              <div className="mt-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-600">
+                Rincian gajian akan muncul setelah nota dipilih dan diproses.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Section for Processing Gajian */}
+      {(notasToProcess.length > 0 || detailKaryawan.length > 0 || savedBiaya.length > 0 || potongan.length > 0) && (
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
+          <h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center gap-2">
+            <BanknotesIcon className="h-5 w-5 text-emerald-600" />
+            5. Rincian Gajian
+          </h2>
+          
+          {notasToProcess.length > 0 && (
+            <div className="mb-6">
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <ClipboardDocumentListIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Ringkasan Proses Gajian</p>
+                      <p className="text-xs text-gray-500">Total tonase, hari, dan jumlah nota</p>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Periode: <span className="font-semibold text-gray-900">{startDate && endDate ? `${formatDate(startDate)} - ${formatDate(endDate)}` : '-'}</span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
+                    <p className="text-xs text-emerald-700">Total Tonase (Netto)</p>
+                    <p className="text-lg font-semibold text-gray-900">{formatNumber(summaryData.totalBerat)} Kg</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50/70 px-3 py-2">
+                    <p className="text-xs text-amber-700">Total Hari</p>
+                    <p className="text-lg font-semibold text-gray-900">{summaryData.totalHari}</p>
+                  </div>
+                  <div className="rounded-xl bg-sky-50/70 px-3 py-2">
+                    <p className="text-xs text-sky-700">Jumlah Nota</p>
+                    <p className="text-lg font-semibold text-gray-900">{summaryData.totalNota}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {notasToProcess.length > 0 && (
+            <>
+              <div className="md:hidden space-y-3">
+                {notasToProcess.map((nota) => (
+                  <div key={`process-${nota.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-gray-900">{nota.kendaraan?.platNomor || '-'}</div>
+                        <div className="text-xs text-gray-500">{nota.supir?.name || '-'}</div>
+                        <div className="text-xs text-gray-500">{nota.timbangan?.kebun?.name || nota.kebun?.name || '-'}</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                        onClick={() => handleRemoveFromProcess(nota.id)}
+                      >
+                        <span className="sr-only">Hapus Nota</span>
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-gray-400">Tanggal Nota</div>
+                        <div className="font-medium text-gray-800">{formatDate(new Date(nota.createdAt))}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Berat Akhir</div>
+                        <div className="font-semibold text-gray-900">{formatNumber(nota.beratAkhir || 0)} Kg</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Keterangan</div>
+                      <Input
+                        value={nota.keterangan || ''}
+                        onChange={(e) => handleKeteranganChange(nota.id, e.target.value)}
+                        placeholder="Keterangan..."
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block">
+                <DataTable columns={processingColumns} data={notasToProcess} rowSelection={{}} setRowSelection={() => {}} />
+              </div>
+            </>
+          )}
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
+                <div className="flex items-start gap-2 min-w-0">
+                  <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+                  <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
+                    Biaya Gaji
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
+                  <Button
+                    onClick={addBiayaLain}
+                    className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    <span className="sm:hidden">+ Biaya</span>
+                    <span className="hidden sm:inline">+ Tambah Biaya Gaji</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={importUpahBorongan}
+                    disabled={!kebunId || !startDate || !endDate || boronganLoading}
+                    className="border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    {boronganLoading ? (
+                      'Memuat...'
+                    ) : (
+                      <>
+                        <span className="sm:hidden">Upah Borongan</span>
+                        <span className="hidden sm:inline">Ambil Upah Borongan</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            <div className="space-y-4">
+              {savedBiaya.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-500">
+                  Tambahkan biaya gaji untuk menambah total gajian.
+                </div>
+              )}
+              {savedBiaya.map((item) => (
+                <div
+                  key={item.id}
+                  data-biaya-row={item.id}
+                  className={cn(
+                    "rounded-2xl border bg-white p-4 space-y-3",
+                    biayaFieldErrors[item.id] ? "border-red-300 ring-2 ring-red-200" : "border-gray-100"
+                  )}
+                >
+                  {editingBiayaId === item.id ? (
+                    <>
+                      <Input
+                        placeholder="Deskripsi"
+                        value={item.deskripsi}
+                        onChange={(e) => handleBiayaLainChange(item.id, 'deskripsi', e.target.value)}
+                        readOnly={String(item.deskripsi || '') === BIAYA_MUAT_DESC}
+                        data-biaya-id={item.id}
+                        data-biaya-field="deskripsi"
+                        className={cn(
+                          "h-10 rounded-full",
+                          biayaFieldErrors[item.id]?.deskripsi ? "border-red-500 ring-2 ring-red-500/20" : ""
+                        )}
+                      />
+                      <Input
+                        placeholder="Keterangan (opsional)"
+                        value={item.keterangan || ''}
+                        onChange={(e) => handleBiayaLainChange(item.id, 'keterangan', e.target.value)}
+                        className="h-10 rounded-full"
+                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Jumlah"
+                          value={item.jumlah ? formatNumber(item.jumlah) : ''}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '')
+                            const numericValue = digits ? Number(digits) : 0
+                            handleBiayaLainChange(item.id, 'jumlah', numericValue)
+                          }}
+                          readOnly={String(item.deskripsi || '') === BIAYA_MUAT_DESC}
+                          data-biaya-id={item.id}
+                          data-biaya-field="jumlah"
+                          className={cn(
+                            "h-10 rounded-full text-right",
+                            biayaFieldErrors[item.id]?.jumlah ? "border-red-500 ring-2 ring-red-500/20" : ""
+                          )}
+                        />
+                        <Input
+                          placeholder="Satuan"
+                          value={item.satuan}
+                          onChange={(e) => handleBiayaLainChange(item.id, 'satuan', e.target.value)}
+                          readOnly={String(item.deskripsi || '') === BIAYA_MUAT_DESC}
+                          className="h-10 rounded-full"
+                        />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Harga Satuan"
+                          value={item.hargaSatuan ? formatNumber(item.hargaSatuan) : ''}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '')
+                            const numericValue = digits ? Number(digits) : 0
+                            handleBiayaLainChange(item.id, 'hargaSatuan', numericValue)
+                          }}
+                          data-biaya-id={item.id}
+                          data-biaya-field="hargaSatuan"
+                          className={cn(
+                            "h-10 rounded-full text-right",
+                            biayaFieldErrors[item.id]?.hargaSatuan ? "border-red-500 ring-2 ring-red-500/20" : ""
+                          )}
+                        />
+                      </div>
+                      {String(item.deskripsi || '') === BIAYA_MUAT_DESC ? (
+                        <div className="text-xs text-gray-500">
+                          Jumlah otomatis mengikuti total berat akhir nota.
+                        </div>
+                      ) : null}
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Total</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          onClick={() => setEditingBiayaId(null)}
+                        >
+                          Simpan
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="rounded-full"
+                          onClick={() => {
+                            removeSavedBiaya(item.id)
+                            setEditingBiayaId(null)
+                          }}
+                        >
+                          Hapus
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 break-words">{item.deskripsi || '-'}</div>
+                          {item.keterangan ? <div className="text-xs text-gray-500 break-words mt-1">{item.keterangan}</div> : null}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            onClick={() => setEditingBiayaId(item.id)}
+                          >
+                            <PencilSquareIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => removeSavedBiaya(item.id)}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Total</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
+                      </div>
+                      {String(item.deskripsi || '') === BIAYA_MUAT_DESC ? (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Jumlah berat akhir</span>
+                          <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0))} Kg</span>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ))}
+              {savedBiaya.length > 0 && (
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-gray-700">Jumlah Biaya</span>
+                    <span className="text-lg font-extrabold text-gray-900">{formatCurrency(savedBiaya.reduce((sum, b) => sum + (b.jumlah * b.hargaSatuan), 0))}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            </div>
+            <div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
+              <div className="flex items-start gap-2 min-w-0">
+                <AdjustmentsHorizontalIcon className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
+                <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
+                  Potongan
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
+                <Button
+                  variant="outline"
+                  onClick={importPotonganPengajuan}
+                  disabled={!kebunId || !startDate || !endDate || importPotonganLoading}
+                  className="border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                >
+                  {importPotonganLoading ? (
+                    'Memuat...'
+                  ) : (
+                    <>
+                      <span className="sm:hidden">Pengajuan</span>
+                      <span className="hidden sm:inline">Ambil dari Pengajuan</span>
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={addPotongan}
+                  className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                >
+                  <span className="sm:hidden">+ Potongan</span>
+                  <span className="hidden sm:inline">+ Tambah Potongan</span>
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {savedPotongan.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-500">
+                  Tambahkan potongan lain (di luar potongan hutang) untuk mengurangi total gaji.
+                </div>
+              )}
+              {savedPotongan.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                  {editingPotonganId === item.id ? (
+                    <>
+                      <Input
+                        placeholder="Deskripsi"
+                        value={item.deskripsi}
+                        onChange={(e) => handlePotonganChange(item.id, 'deskripsi', e.target.value)}
+                        className="h-10 rounded-full"
+                      />
+                      <Input
+                        placeholder="Keterangan (opsional)"
+                        value={item.keterangan || ''}
+                        onChange={(e) => handlePotonganChange(item.id, 'keterangan', e.target.value)}
+                        className="h-10 rounded-full"
+                      />
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Total"
+                        value={item.total ? formatNumber(item.total) : ''}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '')
+                          const numericValue = digits ? Number(digits) : 0
+                          handlePotonganChange(item.id, 'total', numericValue)
+                        }}
+                        className="h-10 rounded-full text-right"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          onClick={() => setEditingPotonganId(null)}
+                        >
+                          Simpan
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="rounded-full"
+                          onClick={() => {
+                            removeSavedPotongan(item.id)
+                            setEditingPotonganId(null)
+                          }}
+                        >
+                          Hapus
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 break-words">{item.deskripsi || '-'}</div>
+                          {item.keterangan ? <div className="text-xs text-gray-500 break-words mt-1">{item.keterangan}</div> : null}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            onClick={() => setEditingPotonganId(item.id)}
+                          >
+                            <PencilSquareIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => removeSavedPotongan(item.id)}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Total</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(Number(item.total || 0))}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            {savedPotongan.length > 0 ? (
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 mt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-700">Total Potongan</span>
+                  <span className="text-lg font-extrabold text-red-600">-{formatCurrency(savedPotongan.reduce((sum, p) => sum + (Number(p.total) || 0), 0))}</span>
+                </div>
+              </div>
+            ) : null}
+            </div>
+          </div>
+
+            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
+                <div className="flex items-start gap-2 min-w-0">
+                  <BanknotesIcon className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                  <h4 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
+                    Daftar Hutang Karyawan <span className="text-gray-700">(Periode)</span>
+                  </h4>
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
+                  <Button
+                    variant="outline"
+                    onClick={() => setOpenPotongHutangMassal(true)}
+                    disabled={!kebunId || !startDate || !endDate || detailKaryawan.length === 0 || hutangLoading}
+                    className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    {hutangLoading ? (
+                      'Memuat...'
+                    ) : (
+                      <>
+                        <span className="sm:hidden">Potong Hutang</span>
+                        <span className="hidden sm:inline">Potong Hutang Massal</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={resetPotonganHutang}
+                    disabled={detailKaryawan.length === 0 || detailKaryawan.every(d => Number(d.potongan || 0) === 0)}
+                    className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    <span className="sm:hidden">Reset</span>
+                    <span className="hidden sm:inline">Reset Potongan</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleOpenTambahHutang()}
+                    disabled={detailKaryawan.length === 0 || hutangLoading}
+                    className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    <span className="sm:hidden">+ Hutang</span>
+                    <span className="hidden sm:inline">+ Tambah Hutang</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={resetHutangBaru}
+                    disabled={Object.keys(hutangTambahanMap).length === 0}
+                    className="border border-red-200 bg-white hover:bg-red-50 text-red-700 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    <span className="sm:hidden">Reset Hutang</span>
+                    <span className="hidden sm:inline">Reset Hutang Baru</span>
+                  </Button>
+                </div>
+              </div>
+              {hutangDisplayRows.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-500">
+                  Tidak ada data karyawan untuk ditampilkan.
+                </div>
+              ) : (
+                <>
+                  <div className="md:hidden space-y-3">
+                    {hutangDisplayRows.map((r, idx) => (
+                      <div key={`hutang-${idx}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-2">
+                        <div className="font-semibold text-gray-900">{r.name}</div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <div className="text-gray-400">Tanggal</div>
+                            <div className="font-medium text-gray-800">{r.tanggal}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Saldo</div>
+                            <div className="font-semibold text-gray-900">Rp {r.saldo.toLocaleString('id-ID')}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Potong</div>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={formatNumber(r.potong || 0)}
+                              onChange={(e) => updatePotonganHutangByUserId(Number(r.userId), e.target.value)}
+                              className="h-9 mt-1 text-right"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Sisa</div>
+                            <div className="font-semibold text-emerald-700">Rp {r.sisa.toLocaleString('id-ID')}</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500">{r.keterangan || '-'}</div>
+                      </div>
+                    ))}
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-700">Jumlah Saldo</span>
+                        <span className="font-semibold text-gray-900">Rp {hutangDisplayRows.reduce((a, r) => a + r.saldo, 0).toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="font-semibold text-red-600">Total Potong</span>
+                        <span className="font-semibold text-red-600">Rp {hutangDisplayRows.reduce((a, r) => a + r.potong, 0).toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="font-semibold text-emerald-700">Total Sisa</span>
+                        <span className="font-semibold text-emerald-700">Rp {hutangDisplayRows.reduce((a, r) => a + r.sisa, 0).toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="min-w-full text-xs md:text-sm border">
+                    <thead>
+                      <tr className="border">
+                        <th className="p-2 border">NO</th>
+                        <th className="p-2 border">NAMA</th>
+                        <th className="p-2 border">TANGGAL</th>
+                        <th className="p-2 border">SALDO</th>
+                        <th className="p-2 border">POTONG</th>
+                        <th className="p-2 border">SISA</th>
+                        <th className="p-2 border">KETERANGAN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hutangDisplayRows.map((r, idx) => (
+                        <tr key={idx} className="border">
+                          <td className="p-2 border">{idx + 1}</td>
+                          <td className="p-2 border">{r.name}</td>
+                          <td className="p-2 border">{r.tanggal}</td>
+                          <td className="p-2 border text-right">RP. {r.saldo.toLocaleString('id-ID')}</td>
+                          <td className="p-2 border">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={formatNumber(r.potong || 0)}
+                              onChange={(e) => updatePotonganHutangByUserId(Number(r.userId), e.target.value)}
+                              className="w-32 ml-auto text-right"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="p-2 border text-right">RP. {r.sisa.toLocaleString('id-ID')}</td>
+                          <td className="p-2 border">{r.keterangan}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border font-bold">
+                        <td className="p-2 border" colSpan={2}></td>
+                        <td className="p-2 border text-center">JUMLAH</td>
+                        <td className="p-2 border text-right">RP. {hutangDisplayRows.reduce((a, r) => a + r.saldo, 0).toLocaleString('id-ID')}</td>
+                        <td className="p-2 border text-right">RP. {hutangDisplayRows.reduce((a, r) => a + r.potong, 0).toLocaleString('id-ID')}</td>
+                        <td className="p-2 border text-right">RP. {hutangDisplayRows.reduce((a, r) => a + r.sisa, 0).toLocaleString('id-ID')}</td>
+                        <td className="p-2 border"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                  </div>
+                </>
+              )}
+            </div>
+          {/* Employee Detail Table */}
+          {detailKaryawan.length > 0 && (
+            <div className="mb-6 mt-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                <h3 className="text-base md:text-lg font-semibold flex items-center gap-2">
+                  <UserIcon className="h-5 w-5 text-gray-700" />
+                  Detail Gaji Karyawan
+                </h3>
+              </div>
+              <div className="md:hidden space-y-3">
+                {detailKaryawan.map((dk, idx) => (
+                  <div key={`detail-karyawan-${idx}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-2">
+                    <div className="font-semibold text-gray-900">{dk.user?.name || '-'}</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-gray-400">Hari Kerja</div>
+                        <div className="font-medium text-gray-800">{dk.hariKerja}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Gaji Pokok</div>
+                        <div className="font-semibold text-gray-900">{formatCurrency(dk.gajiPokok)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Potongan</div>
+                        <div className="font-semibold text-red-600">-{formatCurrency(Number((dk as any).potongan || 0))}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Total Terima</div>
+                        <div className="font-semibold text-emerald-700">{formatCurrency(dk.total)}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500">{dk.keterangan || '-'}</div>
+                  </div>
+                ))}
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-gray-700">Total</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(detailKaryawan.reduce((acc, curr) => acc + (curr.gajiPokok || 0), 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="font-semibold text-emerald-700">Total Terima</span>
+                    <span className="font-semibold text-emerald-700">{formatCurrency(detailKaryawan.reduce((acc, curr) => acc + (curr.total || 0), 0))}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-700 font-semibold border-b">
+                    <tr>
+                      <th className="px-4 py-3">Nama Karyawan</th>
+                      <th className="px-4 py-3 text-right">Hari Kerja</th>
+                      <th className="px-4 py-3 text-right">Gaji Pokok</th>
+                      <th className="px-4 py-3 text-right">Potongan</th>
+                      <th className="px-4 py-3 text-right">Total Terima</th>
+                      <th className="px-4 py-3">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {detailKaryawan.map((dk, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium">{dk.user?.name || '-'}</td>
+                        <td className="px-4 py-3 text-right">{dk.hariKerja}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(dk.gajiPokok)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-red-600">-{formatCurrency(Number((dk as any).potongan || 0))}</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatCurrency(dk.total)}</td>
+                        <td className="px-4 py-3 text-gray-500">{dk.keterangan || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 font-bold border-t">
+                    <tr>
+                      <td colSpan={2} className="px-4 py-3 text-right">TOTAL</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(detailKaryawan.reduce((acc, curr) => acc + (curr.gajiPokok || 0), 0))}</td>
+                      <td className="px-4 py-3 text-right text-red-600">-{formatCurrency(detailKaryawan.reduce((acc, curr: any) => acc + Number(curr?.potongan || 0), 0))}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{formatCurrency(detailKaryawan.reduce((acc, curr) => acc + (curr.total || 0), 0))}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+          <div className="mt-6 pt-4 border-t">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan / Keterangan Tambahan</label>
+              <Input
+                placeholder="Masukkan catatan tambahan untuk gajian ini..."
+                value={keterangan}
+                onChange={(e) => setKeterangan(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-600">
+                <div className="flex items-center justify-end gap-3">
+                  <span>Biaya Gaji</span>
+                  <span className="font-semibold text-gray-900">{formatCurrency(totalBiayaGaji)}</span>
+                </div>
+                <div className="flex items-center justify-end gap-3 mt-1">
+                  <span>Potongan</span>
+                  <span className="font-semibold text-red-600">-{formatCurrency(totalPotonganAll)}</span>
+                </div>
+              </div>
+              <div className="text-xl font-bold mt-2">Total Gajian: {formatCurrency(totalBiayaGaji - totalPotonganAll)}</div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 mt-6 md:flex md:justify-end md:gap-4">
+            <Button
+              onClick={() => handleSimpanGajian('DRAFT')}
+              variant="outline"
+              disabled={!canSaveGajian}
+              className={cn(
+                'w-full md:w-auto h-auto min-h-[40px] px-2 py-2 text-xs sm:text-sm md:text-base whitespace-normal break-words rounded-xl',
+                canSaveGajian ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'opacity-50'
+              )}
+            >
+              <ArrowDownTrayIcon className="mr-1 sm:mr-2 h-4 w-4 flex-shrink-0" />
+              {loading ? 'Menyimpan...' : (editingGajianId ? 'Simpan Perubahan Draft' : 'Simpan sebagai Draft')}
+            </Button>
+            <Button
+              onClick={() => handleSimpanGajian('FINALIZED')}
+              disabled={!canSaveGajian}
+              className={cn(
+                'w-full md:w-auto h-auto min-h-[40px] px-2 py-2 text-xs sm:text-sm md:text-base whitespace-normal break-words rounded-xl',
+                canSaveGajian ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-200 text-gray-400'
+              )}
+            >
+              {loading ? 'Menyimpan...' : 'Simpan Gajian'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Section for Gajian History & Drafts */}
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+          <div className="flex items-center gap-2 cursor-pointer w-full justify-between" onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}>
+            <h2 className="text-lg md:text-xl font-semibold flex items-center gap-2">
+              <ClockIcon className="h-5 w-5 text-gray-700" />
+              Riwayat & Draft
+            </h2>
+            <div className="flex items-center gap-2">
+              {isHistoryExpanded ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-gray-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-gray-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className={cn("transition-all duration-300 overflow-hidden", isHistoryExpanded ? "opacity-100" : "max-h-0 opacity-0")}>
+          <Tabs defaultValue="drafts" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="history">Riwayat Gajian</TabsTrigger>
+              <TabsTrigger value="drafts">Draft Tersimpan ({draftsGajian.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="history">
+              <div className="mt-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Kebun</label>
+                    <Select onValueChange={(val) => setHistoryKebunId(val === "all" ? "" : val)} value={historyKebunId || "all"}>
+                      <SelectTrigger className="input-style rounded-xl">
+                        <SelectValue placeholder="Semua Kebun" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Kebun</SelectItem>
+                        {kebunList.map(kebun => (
+                          <SelectItem key={kebun.id} value={String(kebun.id)}>
+                            {kebun.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Periode</label>
+                    <div className="flex gap-2">
+                      <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <SelectTrigger className="w-full input-style rounded-xl">
+                          <SelectValue placeholder="Bulan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Bulan</SelectItem>
+                          {Array.from({ length: 12 }, (_, i) => (
+                            <SelectItem key={i} value={String(i)}>
+                              {format(new Date(2000, i, 1), 'MMMM', { locale: idLocale })}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={selectedYear} onValueChange={setSelectedYear}>
+                        <SelectTrigger className="w-full input-style rounded-xl">
+                          <SelectValue placeholder="Tahun" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 5 }, (_, i) => {
+                            const year = new Date().getFullYear() - 2 + i;
+                            return (
+                              <SelectItem key={year} value={String(year)}>
+                                {year}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleApplyHistoryFilters}
+                    disabled={isHistoryLoading}
+                    className="border border-gray-400 bg-gray-50 hover:bg-gray-100 text-black w-full h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words"
+                  >
+                    {isHistoryLoading ? 'Memuat...' : 'Terapkan Filter'}
+                  </Button>
+                </div>
+                <div className="md:hidden space-y-3">
+                  {isHistoryLoading ? (
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-400">
+                      Memuat riwayat...
+                    </div>
+                  ) : gajianHistory.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
+                      Belum ada riwayat gajian
+                    </div>
+                  ) : (
+                    gajianHistory.map((g) => (
+                      <div key={`history-${g.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-gray-900">{g.kebun?.name || '-'}</div>
+                            <div className="text-xs text-gray-500">{formatDate(new Date(g.tanggalMulai))} - {formatDate(new Date(g.tanggalSelesai))}</div>
+                          </div>
+                          <div className="text-xs text-gray-400">{formatDate(new Date(g.createdAt))}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <div className="text-gray-400">Total Nota</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(g.totalNota || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Total Berat</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(g.totalBerat || 0)} Kg</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Total Gaji</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(g.totalBiayaLain || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Potongan</div>
+                            <div className="font-semibold text-red-600">-{formatNumber(g.totalPotongan || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Jumlah Gaji</div>
+                            <div className="font-semibold text-emerald-700">{formatNumber(g.totalGaji || 0)}</div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleOpenDetail(g.id)}>
+                            Detail
+                          </Button>
+                          <Button size="sm" variant="destructive" className="rounded-full" onClick={() => handleOpenConfirm(g.id)}>
+                            Hapus
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="hidden md:block">
+                  <DataTable
+                    columns={historyColumns}
+                    data={gajianHistory}
+                    isLoading={isHistoryLoading}
+                    meta={{ onRowClick: (row: Gajian) => handleOpenDetail(row.id) }}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="drafts">
+              <div className="mt-4">
+                <div className="md:hidden space-y-3">
+                  {isHistoryLoading ? (
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-400">
+                      Memuat draft...
+                    </div>
+                  ) : draftsGajian.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
+                      Tidak ada draft
+                    </div>
+                  ) : (
+                    draftsGajian.map((g) => (
+                      <div key={`draft-${g.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-gray-900">{g.kebun?.name || '-'}</div>
+                            <div className="text-xs text-gray-500">{formatDate(new Date(g.tanggalMulai))} - {formatDate(new Date(g.tanggalSelesai))}</div>
+                          </div>
+                          <div className="text-xs text-gray-400">{formatDate(new Date(g.updatedAt))}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <div className="text-gray-400">Total Nota</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(g.totalNota || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Total Gaji</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(g.totalBiayaLain || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Potongan</div>
+                            <div className="font-semibold text-red-600">-{formatNumber(g.totalPotongan || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Jumlah Gaji</div>
+                            <div className="font-semibold text-emerald-700">{formatNumber(g.totalGaji || 0)}</div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleContinueDraft(g.id)}>
+                            Lanjutkan
+                          </Button>
+                          <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleOpenDetail(g.id)}>
+                            Detail
+                          </Button>
+                          <Button size="sm" variant="destructive" className="rounded-full" onClick={() => handleOpenDraftDeleteConfirm(g.id)}>
+                            Hapus
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="hidden md:block">
+                  <DataTable columns={draftColumns} data={draftsGajian} isLoading={isHistoryLoading} />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        onClose={handleCloseConfirm}
+        onConfirm={handleDelete}
+        title="Konfirmasi Hapus Gajian"
+        description="Apakah Anda yakin ingin menghapus gajian ini? Tindakan ini tidak dapat dibatalkan."
+      />
+
+      <ConfirmationModal
+        isOpen={isDraftConfirmOpen}
+        onClose={handleCloseDraftDeleteConfirm}
+        onConfirm={handleDeleteDraft}
+        title="Konfirmasi Hapus Draft"
+        description="Apakah Anda yakin ingin menghapus draft gajian ini?"
+      />
+
+      <ConfirmationModal
+        isOpen={isResetConfirmOpen}
+        onClose={() => setIsResetConfirmOpen(false)}
+        onConfirm={handleConfirmReset}
+        title="Konfirmasi Reset"
+        description="Mengatur ulang form akan menghapus data yang belum disimpan. Lanjutkan?"
+      />
+
+      <Dialog open={openPotongHutangMassal} onOpenChange={setOpenPotongHutangMassal}>
+        <DialogContent className="bg-white p-0 overflow-hidden [&>button.absolute]:hidden sm:max-w-[520px]">
+          <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <BanknotesIcon className="h-5 w-5 text-white" />
+                </div>
+                <DialogTitle className="text-white">Potong Hutang Massal</DialogTitle>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenPotongHutangMassal(false)}
+                className="h-9 w-9 rounded-md border border-white/70 bg-white text-emerald-600 flex items-center justify-center hover:bg-white/90"
+                aria-label="Tutup"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={massPotongMax}
+                onCheckedChange={(v) => setMassPotongMax(Boolean(v))}
+              />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-gray-900">Potong maksimal</div>
+                <div className="text-xs text-gray-500">Potongan = min(saldo hutang, gaji pokok).</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nominal Potongan per Karyawan (Rp)</Label>
+              <Input
+                disabled={massPotongMax}
+                value={massPotongAmount}
+                onChange={(e) => setMassPotongAmount(e.target.value.replace(/\D/g, ''))}
+                placeholder="Contoh: 100000"
+                className="rounded-xl text-right"
+                inputMode="numeric"
+              />
+              <div className="text-xs text-gray-500">Jika potong maksimal aktif, nominal ini diabaikan.</div>
+            </div>
+          </div>
+
+          <DialogFooter className="bg-gray-50 border-t px-6 py-4 flex flex-col-reverse sm:flex-row gap-3 sm:gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setOpenPotongHutangMassal(false)}
+              className="rounded-full"
+              disabled={hutangLoading}
+            >
+              <XMarkIcon className="h-4 w-4 mr-2" />
+              Batal
+            </Button>
+            <Button
+              onClick={async () => {
+                const amount = Number(String(massPotongAmount || '').replace(/\D/g, '')) || 0
+                await applyPotongHutangMassal({ mode: massPotongMax ? 'MAX' : 'NOMINAL', amount })
+                setOpenPotongHutangMassal(false)
+              }}
+              className="rounded-full bg-emerald-600 hover:bg-emerald-700"
+              disabled={hutangLoading || (!massPotongMax && (Number(String(massPotongAmount || '').replace(/\D/g, '')) || 0) <= 0)}
+            >
+              <CheckIcon className="h-4 w-4 mr-2" />
+              Terapkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openTambahHutang} onOpenChange={setOpenTambahHutang}>
+        <DialogContent className="bg-white p-0 overflow-hidden [&>button.absolute]:hidden sm:max-w-[520px]">
+          <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <BanknotesIcon className="h-5 w-5 text-white" />
+                </div>
+                <DialogTitle className="text-white">Tambah Hutang Karyawan</DialogTitle>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenTambahHutang(false)}
+                className="h-9 w-9 rounded-md border border-white/70 bg-white text-emerald-700 flex items-center justify-center hover:bg-white/90"
+                aria-label="Tutup"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            <div className="space-y-2">
+              <Label>Karyawan</Label>
+              <Select value={tambahHutangKaryawanId} onValueChange={setTambahHutangKaryawanId}>
+                <SelectTrigger className="input-style rounded-xl">
+                  <SelectValue placeholder="Pilih karyawan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {detailKaryawan.map((dk: any) => (
+                    <SelectItem key={dk.userId} value={String(dk.userId)}>
+                      {dk.user?.name || '-'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Jumlah Hutang (Rp)</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="0"
+                value={formatNumber(tambahHutangJumlah || 0)}
+                onChange={(e) => setTambahHutangJumlah(Number(e.target.value.replace(/\D/g, '')) || 0)}
+                className="rounded-xl text-right"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tanggal</Label>
+              <Input
+                type="date"
+                value={tambahHutangTanggal}
+                onChange={(e) => setTambahHutangTanggal(e.target.value)}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Keterangan</Label>
+              <Input
+                value={tambahHutangDeskripsi}
+                onChange={(e) => setTambahHutangDeskripsi(e.target.value)}
+                placeholder="Hutang Karyawan"
+                className="rounded-xl"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="bg-gray-50 border-t px-6 py-4 flex flex-col-reverse sm:flex-row gap-3 sm:gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setOpenTambahHutang(false)}
+              className="rounded-full"
+              disabled={tambahHutangSubmitting}
+            >
+              <XMarkIcon className="h-4 w-4 mr-2" />
+              Batal
+            </Button>
+            {Number(tambahHutangKaryawanId) > 0 && Boolean(hutangTambahanMap[Number(tambahHutangKaryawanId)]) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const idNum = Number(tambahHutangKaryawanId)
+                  setHutangTambahanMap((prev) => {
+                    const next = { ...prev }
+                    delete (next as any)[idNum]
+                    return next
+                  })
+                  setOpenTambahHutang(false)
+                }}
+                className="rounded-full text-red-600 border-red-200 hover:bg-red-50"
+                disabled={tambahHutangSubmitting}
+              >
+                <TrashIcon className="h-4 w-4 mr-2" />
+                Hapus
+              </Button>
+            )}
+            <Button
+              onClick={handleSubmitTambahHutang}
+              className="rounded-full bg-emerald-600 hover:bg-emerald-700"
+              disabled={tambahHutangSubmitting || !tambahHutangKaryawanId || (tambahHutangJumlah || 0) <= 0}
+            >
+              <CheckIcon className="h-4 w-4 mr-2" />
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {(selectedGajian || isPreviewOpen) && (
+        <DetailGajianModal
+        isOpen={isDetailOpen || isPreviewOpen}
+        onClose={isPreviewOpen ? () => setIsPreviewOpen(false) : handleCloseDetail}
+        gajian={isPreviewOpen ? previewGajian : selectedGajian}
+        isPreview={isPreviewOpen}
+        onConfirm={handleConfirmSave}
+        isLoading={loading}
+        onRevert={handleApplyHistoryFilters}
+      />
+      )}
+    </div>
+  );
+}

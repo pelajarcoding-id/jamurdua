@@ -1,0 +1,145 @@
+import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/route-auth'
+import { Prisma } from '@prisma/client'
+import { getWibRangeUtcFromParams, parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: Request) {
+  try {
+    const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR'])
+    if (guard.response) return guard.response
+
+    const url = new URL(request.url)
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
+    const search = url.searchParams.get('search') || ''
+    const kebunId = url.searchParams.get('kebunId')
+    const supirId = url.searchParams.get('supirId')
+    const pabrikId = url.searchParams.get('pabrikId')
+    const statusPembayaran = url.searchParams.get('statusPembayaran')
+    const perusahaanId = url.searchParams.get('perusahaanId')
+
+    const range = getWibRangeUtcFromParams(url.searchParams)
+    const start = range?.startUtc
+    const end = range?.endExclusiveUtc
+
+    const where: Prisma.NotaSawitWhereInput = {
+      deletedAt: null,
+      ...(start || end
+        ? {
+            tanggalBongkar: {
+              ...(start ? { gte: start } : {}),
+              ...(end ? { lt: end } : {}),
+            },
+          }
+        : {}),
+    }
+
+    if (kebunId) {
+      const kid = parseInt(kebunId, 10)
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { OR: [{ kebunId: kid }, { timbangan: { kebunId: kid } }] },
+      ]
+    }
+    if (supirId) where.supirId = parseInt(supirId, 10)
+    if (pabrikId) where.pabrikSawitId = parseInt(pabrikId, 10)
+    if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
+      where.statusPembayaran = statusPembayaran
+    }
+    if (perusahaanId) {
+      ;(where as any).perusahaanId = parseInt(perusahaanId, 10)
+    }
+
+    if (search) {
+      const orConditions: Prisma.NotaSawitWhereInput[] = []
+      const s = search.trim()
+      const sLower = s.toLowerCase()
+      const isNumeric = /^\d+(\.\d+)?$/.test(s)
+      const ymd = parseWibYmd(s)
+      if (ymd) orConditions.push({ tanggalBongkar: { gte: wibStartUtc(ymd), lt: wibEndExclusiveUtc(ymd) } })
+      if (isNumeric) {
+        const like = `%${s}%`
+        const baseConds: Prisma.Sql[] = [
+          Prisma.sql`(n."deletedAt" IS NULL) AND (CAST(n.id AS TEXT) ILIKE ${like}
+            OR CAST(n.bruto AS TEXT) ILIKE ${like}
+            OR CAST(n.tara AS TEXT) ILIKE ${like}
+            OR CAST(n.netto AS TEXT) ILIKE ${like}
+            OR CAST(n.potongan AS TEXT) ILIKE ${like}
+            OR CAST(n."hargaPerKg" AS TEXT) ILIKE ${like}
+            OR CAST(n."totalPembayaran" AS TEXT) ILIKE ${like})`,
+        ]
+        const startYmd = parseWibYmd(startDate)
+        const endYmd = parseWibYmd(endDate)
+        if (startYmd) baseConds.push(Prisma.sql`n."tanggalBongkar" >= ${wibStartUtc(startYmd)}`)
+        if (endYmd) baseConds.push(Prisma.sql`n."tanggalBongkar" < ${wibEndExclusiveUtc(endYmd)}`)
+        if (kebunId) baseConds.push(Prisma.sql`t."kebunId" = ${parseInt(kebunId, 10)}`)
+        if (supirId) baseConds.push(Prisma.sql`n."supirId" = ${parseInt(supirId, 10)}`)
+        if (pabrikId) baseConds.push(Prisma.sql`n."pabrikSawitId" = ${parseInt(pabrikId, 10)}`)
+        if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
+          baseConds.push(Prisma.sql`n."statusPembayaran" = ${statusPembayaran}`)
+        }
+        const whereSql = baseConds.slice(1).reduce((acc, curr) => Prisma.sql`${acc} AND ${curr}`, baseConds[0])
+        const idsRows: Array<{ id: number }> = await prisma.$queryRaw(
+          Prisma.sql`SELECT n.id
+                     FROM "NotaSawit" n
+                     LEFT JOIN "Timbangan" t ON t.id = n."timbanganId"
+                     WHERE ${whereSql}`,
+        )
+        const numericIds = idsRows.map((r) => r.id)
+        if (numericIds.length > 0) orConditions.push({ id: { in: numericIds } })
+      }
+      if (sLower.includes('lunas')) orConditions.push({ statusPembayaran: 'LUNAS' })
+      if (sLower.includes('belum') || sLower.includes('pending')) orConditions.push({ statusPembayaran: 'BELUM_LUNAS' })
+      orConditions.push(
+        { supir: { name: { contains: s, mode: 'insensitive' } } },
+        { kendaraan: { platNomor: { contains: s, mode: 'insensitive' } } },
+        { kendaraanPlatNomor: { contains: s } },
+        { pabrikSawit: { name: { contains: s, mode: 'insensitive' } } },
+        { kebun: { name: { contains: s, mode: 'insensitive' } } },
+        { timbangan: { kebun: { name: { contains: s, mode: 'insensitive' } } } },
+      )
+      where.OR = orConditions
+    }
+
+    const rows = await prisma.notaSawit.findMany({
+      where,
+      select: {
+        id: true,
+        netto: true,
+        beratAkhir: true,
+        pembayaranAktual: true,
+        pembayaranSetelahPph: true,
+        totalPembayaran: true,
+        statusPembayaran: true,
+        timbangan: { select: { netKg: true } },
+      },
+    })
+
+    const totalNota = rows.length
+    const totalBerat = rows.reduce((sum, r) => {
+      const beratAkhir = Number(r.beratAkhir || 0)
+      return sum + (Number.isFinite(beratAkhir) ? beratAkhir : 0)
+    }, 0)
+    const totalPembayaran = rows.reduce((sum, r) => {
+      const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
+      return sum + (Number.isFinite(val) ? val : 0)
+    }, 0)
+    const lunasCount = rows.filter((r) => r.statusPembayaran === 'LUNAS').length
+    const belumLunasCount = rows.filter((r) => r.statusPembayaran === 'BELUM_LUNAS').length
+
+    return NextResponse.json({
+      count: totalNota,
+      totalNota,
+      totalBerat: Math.round(totalBerat),
+      totalPembayaran: Math.round(totalPembayaran),
+      lunasCount,
+      belumLunasCount,
+    })
+  } catch (error) {
+    console.error('GET /api/nota-sawit/summary error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

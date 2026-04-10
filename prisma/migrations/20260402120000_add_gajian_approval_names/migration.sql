@@ -1,0 +1,6 @@
+ALTER TABLE "Gajian"
+ADD COLUMN IF NOT EXISTS "dibuatOlehName" TEXT;
+
+ALTER TABLE "Gajian"
+ADD COLUMN IF NOT EXISTS "disetujuiOlehName" TEXT;
+

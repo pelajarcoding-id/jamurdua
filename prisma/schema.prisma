@@ -1,0 +1,874 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Perusahaan {
+  id         Int           @id @default(autoincrement())
+  name       String
+  address    String?
+  logoUrl    String?
+  email      String?
+  phone      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  pabriks    PabrikSawit[]
+  notasSawit NotaSawit[]
+  invoices   InvoiceTbs[]
+  documents  PerusahaanDocument[]
+  biaya      PerusahaanBiaya[]
+  biayaKategori PerusahaanBiayaKategori[]
+  taxSetting PerusahaanTaxSetting?
+  financeSnapshots PerusahaanFinanceSnapshot[]
+  ppnReports PerusahaanPpnReport[]
+  ppnSetting PerusahaanPpnSetting?
+  assets     PerusahaanAsset[]
+}
+
+model PerusahaanAsset {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int
+  name         String
+  group        String
+  acquiredAt   DateTime   @db.Date
+  cost         Float      @default(0)
+  salvage      Float      @default(0)
+  disposedAt   DateTime?  @db.Date
+  disposalType String?
+  disposalProceeds Float  @default(0)
+  disposalNotes String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@index([perusahaanId])
+  @@index([perusahaanId, acquiredAt])
+  @@index([perusahaanId, disposedAt])
+}
+
+model PerusahaanDocument {
+  id          Int        @id @default(autoincrement())
+  perusahaanId Int
+  type        String
+  fileName    String
+  fileUrl     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  perusahaan  Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@unique([perusahaanId, type])
+  @@index([perusahaanId])
+}
+
+model PerusahaanBiaya {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int
+  date         DateTime   @db.Date
+  type         String     @default("PENGELUARAN")
+  kategori     String     @default("UMUM")
+  deskripsi    String?
+  jumlah       Float      @default(0)
+  gambarUrl    String?
+  source       String     @default("MANUAL")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@index([perusahaanId])
+  @@index([date])
+}
+
+model PerusahaanBiayaKategori {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int
+  name         String
+  nameLower    String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@unique([perusahaanId, nameLower])
+  @@index([perusahaanId])
+}
+
+model PerusahaanTaxSetting {
+  id                      Int        @id @default(autoincrement())
+  perusahaanId             Int        @unique
+  scheme                  String     @default("AUTO")
+  standardRate            Float      @default(0.22)
+  umkmFinalRate           Float      @default(0.005)
+  umkmOmzetThreshold      Float      @default(4800000000)
+  facilityOmzetThreshold  Float      @default(50000000000)
+  facilityPortionThreshold Float     @default(4800000000)
+  facilityDiscount        Float      @default(0.5)
+  rounding                String     @default("THOUSAND")
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+
+  perusahaan               Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@index([perusahaanId])
+}
+
+model PerusahaanFinanceSnapshot {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int
+  startDate    DateTime?  @db.Date
+  endDate      DateTime?  @db.Date
+  data         Json
+  createdById  Int?
+  createdAt    DateTime   @default(now())
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+  createdBy    User?      @relation(fields: [createdById], references: [id])
+
+  @@index([perusahaanId])
+  @@index([createdAt])
+}
+
+model PerusahaanPpnReport {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int
+  year         Int
+  month        Int
+  ppnMasukan   Float      @default(0)
+  ppnKeluaranOverride Float?
+  sptFileName  String?
+  sptFileUrl   String?
+  status       String     @default("DRAFT")
+  submittedAt  DateTime?
+  createdById  Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+  createdBy    User?      @relation(fields: [createdById], references: [id])
+
+  @@unique([perusahaanId, year, month])
+  @@index([perusahaanId])
+  @@index([year, month])
+}
+
+model PerusahaanPpnSetting {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int        @unique
+  ppnRate      Float      @default(0.11)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                    Int                    @id @default(autoincrement())
+  name                  String
+  email                 String                 @unique
+  photoUrl              String?
+  passwordHash          String
+  role                  String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  passwordChangedAt     DateTime?
+  kebunId               Int?
+  jobType               String?
+  status                String?                @default("AKTIF")
+  kendaraanPlatNomor    String?
+  auditLogs             AuditLog[]
+  inventoryTransactions InventoryTransaction[]
+  kebunInventoryTransactions KebunInventoryTransaction[]
+  deletedKasTransaksi   KasTransaksi[]         @relation("DeleterRelation")
+  kasTransaksi          KasTransaksi[]         @relation("KaryawanRelation")
+  createdKasTransaksi   KasTransaksi[]         @relation("CreatorRelation")
+  notasSawit            NotaSawit[]
+  notifications         Notification[]
+  pekerjaanKebun        PekerjaanKebun[]
+  permintaanKebun       PermintaanKebun[]
+  pushSubscriptions     PushSubscription[]
+  sesiUangJalan         SesiUangJalan[]
+  timbangan             Timbangan[]
+  kebun                 Kebun?                 @relation(fields: [kebunId], references: [id])
+  kebuns                Kebun[]                @relation("UserKebuns")
+  detailGajianKaryawan  DetailGajianKaryawan[]
+  passwordResetTokens   PasswordResetToken[]
+  assignments           KaryawanAssignment[]
+  deleteRequests        KaryawanDeleteRequest[] @relation("DeleteRequestRequester")
+  deleteApprovals       KaryawanDeleteRequest[] @relation("DeleteRequestReviewer")
+  karyawanDeleteRequests KaryawanDeleteRequest[] @relation("DeleteRequestKaryawan")
+  perusahaanFinanceSnapshots PerusahaanFinanceSnapshot[]
+  perusahaanPpnReports PerusahaanPpnReport[]
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+}
+
+model Kendaraan {
+  platNomor           String           @id @unique
+  merk                String
+  jenis               String
+  tanggalMatiStnk     DateTime
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  imageUrl            String?
+  speksi              DateTime?
+  tanggalPajakTahunan DateTime?
+  fotoPajakUrl        String?
+  fotoSpeksiUrl       String?
+  fotoStnkUrl         String?
+  kasTransaksi        KasTransaksi[]
+  notasSawit          NotaSawit[]
+  riwayatDokumen      RiwayatDokumen[]
+  serviceLogs         ServiceLog[]
+  sesiUangJalan       SesiUangJalan[]
+  timbangan           Timbangan[]
+  kebunInventoryItems KebunInventoryItem[]
+}
+
+model RiwayatDokumen {
+  id            Int       @id @default(autoincrement())
+  kendaraanPlat String
+  jenis         String
+  tanggalBayar  DateTime  @default(now())
+  berlakuHingga DateTime
+  biaya         Float     @default(0)
+  keterangan    String?
+  fotoUrl       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  kendaraan     Kendaraan @relation(fields: [kendaraanPlat], references: [platNomor], onDelete: Cascade)
+}
+
+model ServiceLog {
+  id              Int              @id @default(autoincrement())
+  kendaraanPlat   String
+  date            DateTime         @default(now())
+  description     String
+  cost            Float
+  odometer        Int?
+  nextServiceDate DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  fotoUrl         String?
+  kendaraan       Kendaraan        @relation(fields: [kendaraanPlat], references: [platNomor])
+  items           ServiceLogItem[]
+
+  @@index([date])
+  @@index([kendaraanPlat, date])
+}
+
+model ServiceLogItem {
+  id              Int           @id @default(autoincrement())
+  serviceLogId    Int
+  inventoryItemId Int
+  quantity        Float
+  createdAt       DateTime      @default(now())
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  serviceLog      ServiceLog    @relation(fields: [serviceLogId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  action    String
+  entity    String
+  entityId  String
+  details   Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model InventoryItem {
+  id              Int                    @id @default(autoincrement())
+  name            String
+  sku             String                 @unique
+  category        String?
+  unit            String
+  stock           Float                  @default(0)
+  minStock        Float                  @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  imageUrl        String?
+  deletedAt       DateTime?
+  deletedById     Int?
+  price           Float                  @default(0)
+  initialStock    Float                  @default(0)
+  transactions    InventoryTransaction[]
+  serviceLogItems ServiceLogItem[]
+}
+
+model InventoryTransaction {
+  id        Int           @id @default(autoincrement())
+  itemId    Int
+  type      String
+  quantity  Float
+  notes     String?
+  userId    Int
+  createdAt DateTime      @default(now())
+  imageUrl  String?
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+}
+
+model KebunInventoryItem {
+  id        Int           @id @default(autoincrement())
+  kebunId   Int
+  name      String
+  category  String?
+  unit      String
+  stock     Float         @default(0)
+  minStock  Float         @default(0)
+  imageUrl  String?
+  kendaraanPlatNomor String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  kebun     Kebun         @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+  transactions KebunInventoryTransaction[]
+  kendaraan Kendaraan? @relation(fields: [kendaraanPlatNomor], references: [platNomor])
+
+  @@index([kebunId])
+}
+
+model KebunInventoryTransaction {
+  id        Int           @id @default(autoincrement())
+  kebunId   Int
+  itemId    Int
+  type      String
+  quantity  Float
+  notes     String?
+  imageUrl  String?
+  date      DateTime      @default(now())
+  createdAt DateTime      @default(now())
+  userId    Int
+  kebun     Kebun         @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+  item      KebunInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@index([kebunId, date])
+}
+
+model Kebun {
+  id            Int               @id @default(autoincrement())
+  name          String
+  location      String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  gajian        Gajian[]
+  kasTransaksi  KasTransaksi[]
+  notas         NotaSawit[]
+  pekerjaan     PekerjaanKebun[]
+  permintaan    PermintaanKebun[]
+  timbang       Timbangan[]
+  inventoryItems KebunInventoryItem[]
+  inventoryTransactions KebunInventoryTransaction[]
+  users         User[]
+  assignedUsers User[]            @relation("UserKebuns")
+  workLocation  WorkLocation?
+  potonganDrafts KebunGajianPotonganDraft[]
+}
+
+model KebunGajianPotonganDraft {
+  id        Int      @id @default(autoincrement())
+  kebunId   Int
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kebun     Kebun    @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+
+  @@unique([kebunId, startDate, endDate])
+  @@index([kebunId, startDate, endDate])
+}
+
+model PermintaanKebun {
+  id          Int      @id @default(autoincrement())
+  kebunId     Int
+  userId      Int
+  date        DateTime @default(now())
+  title       String
+  description String?
+  imageUrl    String?
+  status      String   @default("PENDING")
+  priority    String   @default("NORMAL")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  quantity    Float?
+  unit        String?
+  kebun       Kebun    @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model PekerjaanKebun {
+  id             Int      @id @default(autoincrement())
+  kebunId        Int
+  userId         Int?
+  date           DateTime @default(now())
+  jenisPekerjaan String
+  keterangan     String?
+  biaya          Float    @default(0)
+  imageUrl       String?
+  gajianId       Int?
+  upahBorongan   Boolean  @default(false)
+  jumlah         Float?
+  satuan         String?
+  hargaSatuan    Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  kebun          Kebun    @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+  user           User?    @relation(fields: [userId], references: [id])
+  gajian         Gajian?  @relation(fields: [gajianId], references: [id], onDelete: SetNull)
+
+  @@index([kebunId, date])
+  @@index([gajianId])
+}
+
+model WorkLocation {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String
+  kebunId   Int?     @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  kebun     Kebun?   @relation(fields: [kebunId], references: [id], onDelete: SetNull)
+  assignments KaryawanAssignment[]
+
+  @@index([type])
+  @@index([kebunId])
+}
+
+model KaryawanAssignment {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  locationId Int
+  startDate  DateTime
+  endDate    DateTime?
+  status     String   @default("AKTIF")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location   WorkLocation @relation(fields: [locationId], references: [id])
+
+  @@index([userId])
+  @@index([locationId])
+}
+
+model PabrikSawit {
+  id           Int          @id @default(autoincrement())
+  perusahaanId Int?
+  name         String
+  address      String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  invoices     InvoiceTbs[]
+  notasSawit   NotaSawit[]
+  perusahaan   Perusahaan?  @relation(fields: [perusahaanId], references: [id])
+}
+
+model NotaSawit {
+  id                   Int              @id @default(autoincrement())
+  pabrikSawitId        Int
+  perusahaanId         Int?
+  tanggalBongkar       DateTime?
+  timbanganId          Int?             @unique
+  supirId              Int
+  kendaraanPlatNomor   String?
+  potongan             Float            @default(0)
+  beratAkhir           Float
+  hargaPerKg           Float            @default(0)
+  totalPembayaran      Float            @default(0)
+  statusPembayaran     String           @default("BELUM_LUNAS")
+  statusGajian         String           @default("BELUM_DIPROSES")
+  gajianId             Int?
+  gambarNotaUrl        String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  deletedAt            DateTime?
+  deletedById          Int?
+  pembayaranSetelahPph Float            @default(0)
+  pph                  Float            @default(0)
+  pembayaranAktual     Float?
+  pph25                Float            @default(0)
+  bruto                Float            @default(0)
+  netto                Float            @default(0)
+  tara                 Float            @default(0)
+  kebunId              Int?
+  detailGajian         DetailGajian?
+  invoiceItems         InvoiceTbsItem[]
+  gajian               Gajian?          @relation(fields: [gajianId], references: [id])
+  kebun                Kebun?           @relation(fields: [kebunId], references: [id])
+  kendaraan            Kendaraan?       @relation(fields: [kendaraanPlatNomor], references: [platNomor])
+  pabrikSawit          PabrikSawit      @relation(fields: [pabrikSawitId], references: [id])
+  supir                User             @relation(fields: [supirId], references: [id])
+  timbangan            Timbangan?       @relation(fields: [timbanganId], references: [id])
+  perusahaan           Perusahaan?      @relation(fields: [perusahaanId], references: [id])
+
+  @@index([tanggalBongkar])
+  @@index([supirId])
+  @@index([kendaraanPlatNomor])
+  @@index([pabrikSawitId])
+}
+
+model Timbangan {
+  id                 Int        @id @default(autoincrement())
+  kebunId            Int
+  supirId            Int?
+  kendaraanPlatNomor String?
+  date               DateTime   @default(now())
+  grossKg            Float
+  tareKg             Float
+  netKg              Float
+  notes              String?
+  photoUrl           String?
+  notaSawit          NotaSawit?
+  kebun              Kebun      @relation(fields: [kebunId], references: [id])
+  kendaraan          Kendaraan? @relation(fields: [kendaraanPlatNomor], references: [platNomor])
+  supir              User?      @relation(fields: [supirId], references: [id])
+}
+
+model Gajian {
+  id             Int               @id @default(autoincrement())
+  kebunId        Int
+  tanggalMulai   DateTime
+  tanggalSelesai DateTime
+  totalNota      Int
+  totalBerat     Float
+  totalGaji      Float
+  totalBiayaLain Float             @default(0)
+  totalPotongan  Float             @default(0)
+  keterangan     String?
+  dibuatOlehName String?
+  disetujuiOlehName String?
+  status         String            @default("DRAFT")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  biayaLain      BiayaLainGajian[]
+  detailGajian   DetailGajian[]
+  kebun          Kebun             @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+  notas          NotaSawit[]
+  potongan       PotonganGajian[]
+  detailKaryawan DetailGajianKaryawan[]
+  tipe           String                 @default("PANEN") // PANEN, BULANAN
+  absensiGajiHarian AbsensiGajiHarian[]
+  pekerjaanKebun    PekerjaanKebun[]
+  kasTransaksi      KasTransaksi[]
+}
+
+model DetailGajianKaryawan {
+  id          Int      @id @default(autoincrement())
+  gajian      Gajian   @relation(fields: [gajianId], references: [id], onDelete: Cascade)
+  gajianId    Int
+  user        User     @relation(fields: [userId], references: [id])
+  userId      Int
+  hariKerja   Float    @default(0)
+  gajiPokok   Float    @default(0)
+  bonus       Float    @default(0)
+  lembur      Float    @default(0)
+  potongan    Float    @default(0)
+  total       Float    @default(0)
+  keterangan  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PotonganGajian {
+  id         Int      @id @default(autoincrement())
+  gajianId   Int
+  deskripsi  String
+  total      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  keterangan String?
+  gajian     Gajian   @relation(fields: [gajianId], references: [id])
+}
+
+model DetailGajian {
+  id          Int       @id @default(autoincrement())
+  gajianId    Int
+  notaSawitId Int       @unique
+  harianKerja Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  keterangan  String?
+  gajian      Gajian    @relation(fields: [gajianId], references: [id])
+  notaSawit   NotaSawit @relation(fields: [notaSawitId], references: [id])
+}
+
+model BiayaLainGajian {
+  id          Int      @id @default(autoincrement())
+  gajianId    Int
+  deskripsi   String
+  jumlah      Float?
+  satuan      String?
+  hargaSatuan Float?
+  total       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  keterangan  String?
+  gajian      Gajian   @relation(fields: [gajianId], references: [id])
+}
+
+model SesiUangJalan {
+  id                 Int         @id @default(autoincrement())
+  supirId            Int
+  kendaraanPlatNomor String?
+  tanggalMulai       DateTime    @default(now())
+  keterangan         String?
+  status             String      @default("Berjalan")
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?
+  deletedById        Int?
+  kendaraan          Kendaraan?  @relation(fields: [kendaraanPlatNomor], references: [platNomor])
+  supir              User        @relation(fields: [supirId], references: [id])
+  rincian            UangJalan[]
+}
+
+model UangJalan {
+  id              Int           @id @default(autoincrement())
+  sesiUangJalanId Int
+  tipe            String
+  amount          Float
+  date            DateTime      @default(now())
+  description     String?
+  gambarUrl       String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+  deletedById     Int?
+  sesiUangJalan   SesiUangJalan @relation(fields: [sesiUangJalanId], references: [id])
+}
+
+model Jurnal {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @default(now())
+  akun      String
+  deskripsi String?
+  debit     Float    @default(0)
+  kredit    Float    @default(0)
+  refType   String?
+  refId     Int?
+}
+
+model KasTransaksi {
+  id                 Int        @id @default(autoincrement())
+  date               DateTime   @default(now())
+  tipe               String
+  deskripsi          String
+  jumlah             Float
+  keterangan         String?
+  gambarUrl          String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  karyawanId         Int?
+  kategori           String?    @default("UMUM")
+  kebunId            Int?
+  kendaraanPlatNomor String?
+  userId             Int?
+  hutangBankId       Int?
+  gajianId           Int?
+  deletedAt          DateTime?
+  deletedById        Int?
+  deletedBy          User?      @relation("DeleterRelation", fields: [deletedById], references: [id])
+  karyawan           User?      @relation("KaryawanRelation", fields: [karyawanId], references: [id])
+  kebun              Kebun?     @relation(fields: [kebunId], references: [id])
+  kendaraan          Kendaraan? @relation(fields: [kendaraanPlatNomor], references: [platNomor])
+  user               User?      @relation("CreatorRelation", fields: [userId], references: [id])
+  hutangBank         HutangBank? @relation(fields: [hutangBankId], references: [id])
+  gajian             Gajian?    @relation(fields: [gajianId], references: [id], onDelete: SetNull)
+
+  @@index([gajianId])
+}
+
+model HutangBank {
+  id               Int            @id @default(autoincrement())
+  namaBank         String
+  jumlahHutang     Float          @default(0)
+  angsuranBulanan  Float          @default(0)
+  lamaPinjaman     Int
+  tanggalMulai     DateTime       @db.Date
+  jatuhTempo       Int?           @default(1)
+  keterangan       String?
+  status           String         @default("AKTIF")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  kasTransaksi     KasTransaksi[]
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PendingFileDeletion {
+  id        Int      @id @default(autoincrement())
+  url       String
+  key       String?
+  driver    String   @default("local")
+  entity    String?
+  entityId  String?
+  reason    String?
+  deleteAt  DateTime
+  createdAt DateTime @default(now())
+
+  @@index([deleteAt])
+  @@index([url])
+}
+
+model KaryawanDeleteRequest {
+  id            Int      @id @default(autoincrement())
+  karyawanId    Int
+  requesterId   Int
+  status        String   @default("PENDING")
+  reason        String?
+  reviewedById  Int?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  karyawan   User   @relation("DeleteRequestKaryawan", fields: [karyawanId], references: [id], onDelete: Cascade)
+  requester  User   @relation("DeleteRequestRequester", fields: [requesterId], references: [id])
+  reviewer   User?  @relation("DeleteRequestReviewer", fields: [reviewedById], references: [id])
+
+  @@index([karyawanId])
+  @@index([status])
+}
+
+model InvoiceTbs {
+  id            Int                 @id @default(autoincrement())
+  pabrikId      Int
+  perusahaanId  Int?
+  year          Int
+  month         Int
+  number        String              @unique
+  status        String              @default("DRAFT")
+  letterName    String              @default("CV. SARAKAN JAYA")
+  letterAddress String?
+  letterEmail   String?
+  letterLogoUrl String?
+  perihal       String              @default("Permohonan Pembayaran")
+  tujuan        String?
+  lokasiTujuan  String?
+  ppnPct        Float               @default(10)
+  pph22Pct      Float               @default(0.25)
+  bankInfo      String?
+  penandatangan String?
+  jabatanTtd    String?
+  signedPdfUrl  String?
+  detailMode    String?
+  totalKg       Float               @default(0)
+  totalRp       Float               @default(0)
+  totalPpn      Float               @default(0)
+  totalPph22    Float               @default(0)
+  grandTotal    Float               @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  pabrik        PabrikSawit         @relation(fields: [pabrikId], references: [id], onDelete: Cascade)
+  histories     InvoiceTbsHistory[]
+  items         InvoiceTbsItem[]
+  perusahaan    Perusahaan?         @relation(fields: [perusahaanId], references: [id])
+
+  @@index([pabrikId, year, month])
+}
+
+model InvoiceTbsItem {
+  id          Int        @id @default(autoincrement())
+  invoiceId   Int
+  notaSawitId Int?
+  bulanLabel  String
+  jumlahKg    Float      @default(0)
+  harga       Float      @default(0)
+  jumlahRp    Float      @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  invoice     InvoiceTbs @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  notaSawit   NotaSawit? @relation(fields: [notaSawitId], references: [id])
+}
+
+model InvoiceTbsHistory {
+  id        Int        @id @default(autoincrement())
+  invoiceId Int
+  action    String
+  details   Json?
+  createdAt DateTime   @default(now())
+  invoice   InvoiceTbs @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model AbsensiDefaultHarian {
+  id         Int      @id @default(autoincrement())
+  kebunId    Int
+  karyawanId Int
+  amount     Decimal  @default(0) @db.Decimal
+  updatedAt  DateTime @default(now()) @db.Timestamp(6)
+
+  @@unique([kebunId, karyawanId])
+}
+
+model AbsensiGajiHarian {
+  id         Int      @id @default(autoincrement())
+  kebunId    Int
+  karyawanId Int
+  date       DateTime @db.Date
+  jumlah     Decimal  @default(0) @db.Decimal
+  gajianId   Int?
+  createdAt  DateTime @default(now()) @db.Timestamp(6)
+  gajian     Gajian?  @relation(fields: [gajianId], references: [id], onDelete: SetNull)
+
+  @@unique([kebunId, karyawanId, date])
+  @@index([gajianId])
+}
+
+model AbsensiHarian {
+  id         Int      @id @default(autoincrement())
+  kebunId    Int
+  karyawanId Int
+  date       DateTime @db.Date
+  jumlah     Decimal  @default(0) @db.Decimal
+  kerja      Boolean  @default(false)
+  libur      Boolean  @default(false)
+  note       String?
+  createdAt  DateTime @default(now()) @db.Timestamp(6)
+  updatedAt  DateTime @default(now()) @db.Timestamp(6)
+  jamKerja   Decimal? @db.Decimal
+  ratePerJam Decimal? @db.Decimal
+  uangMakan  Decimal? @db.Decimal
+  useHourly  Boolean?
+
+  @@unique([kebunId, karyawanId, date])
+}
