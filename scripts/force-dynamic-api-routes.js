@@ -19,6 +19,16 @@ function isRouteFile(filePath) {
   return filePath.endsWith(`${path.sep}route.ts`) || filePath.endsWith(`${path.sep}route.tsx`)
 }
 
+function stripUseServerDirective(source) {
+  const lines = source.split(/\r?\n/)
+  if (lines.length === 0) return null
+  const first = lines[0].trim()
+  if (first !== "'use server'" && first !== '"use server"') return null
+  let i = 1
+  while (i < lines.length && lines[i].trim() === '') i++
+  return [...lines.slice(i)].join('\n')
+}
+
 function insertDynamicExport(source) {
   if (source.includes("export const dynamic = 'force-dynamic'") || source.includes('export const dynamic = "force-dynamic"')) {
     return null
@@ -43,9 +53,10 @@ function main() {
   const files = walk(apiRoot).filter(isRouteFile)
   let changed = 0
   for (const f of files) {
-    const src = fs.readFileSync(f, 'utf8')
-    const next = insertDynamicExport(src)
-    if (next && next !== src) {
+    const src0 = fs.readFileSync(f, 'utf8')
+    const src1 = stripUseServerDirective(src0) ?? src0
+    const next = insertDynamicExport(src1) ?? src1
+    if (next !== src0) {
       fs.writeFileSync(f, next, 'utf8')
       changed++
     }
@@ -54,4 +65,3 @@ function main() {
 }
 
 main()
-

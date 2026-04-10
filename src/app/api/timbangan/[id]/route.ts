@@ -1,5 +1,3 @@
-'use server'
-
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/audit';
