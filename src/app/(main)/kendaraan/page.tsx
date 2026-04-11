@@ -8,7 +8,7 @@ import { KendaraanModal, ConfirmationModal } from './modal'
 import { ServiceModal } from './service-modal'
 import { DocumentRenewalModal } from './document-renewal-modal'
 import { DetailModal } from './detail-modal'
-import ServiceAlerts from '@/components/kendaraan/ServiceAlerts'
+import VehicleSummary from './components/VehicleSummary'
 import type { Kendaraan } from '@prisma/client'
 import toast from 'react-hot-toast'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -449,7 +449,7 @@ export default function KendaraanPage() {
     <div className="w-full">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">Manajemen Kendaraan</h1>
-        <ServiceAlerts />
+        <VehicleSummary />
         <RoleGate allow={["ADMIN", "KASIR", "PEMILIK"]}>
             <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
             <div className="flex justify-end mb-3">

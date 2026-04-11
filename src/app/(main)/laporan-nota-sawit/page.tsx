@@ -59,6 +59,7 @@ export default function LaporanNotaSawitPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const toYmd = useCallback((d: Date | undefined) => (d ? format(d, 'yyyy-MM-dd') : ''), []);
   
   // Date filter state - Default "this_month"
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -99,6 +100,7 @@ export default function LaporanNotaSawitPage() {
         case 'last_week': return '7 Hari Terakhir';
         case 'last_30_days': return '30 Hari Terakhir';
         case 'this_month': return 'Bulan Ini';
+        case 'this_year': return 'Tahun Ini';
         default: return 'Pilih Rentang Waktu';
       }
     }
@@ -135,6 +137,10 @@ export default function LaporanNotaSawitPage() {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
       setStartDate(start);
       setEndDate(today);
+    } else if (val === 'this_year') {
+      const start = new Date(today.getFullYear(), 0, 1);
+      setStartDate(start);
+      setEndDate(today);
     }
   }, []);
 
@@ -157,11 +163,12 @@ export default function LaporanNotaSawitPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const startDateString = startDate?.toISOString();
-      const endDateString = endDate?.toISOString();
+      const startDateString = toYmd(startDate);
+      const endDateString = toYmd(endDate);
 
       if (!startDateString || !endDateString) {
         setItems([]);
+        setTotalItems(0);
         return;
       }
       setIsTableLoading(true);
@@ -176,7 +183,7 @@ export default function LaporanNotaSawitPage() {
         if (selectedSupir) params.append('supirId', selectedSupir);
         if (selectedPabrik) params.append('pabrikId', selectedPabrik);
 
-        const res = await fetch(`/api/nota-sawit?${params.toString()}`);
+        const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data tabel');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -189,12 +196,12 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchData();
-  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik]);
+  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik, toYmd]);
 
   useEffect(() => {
     async function fetchStats() {
-      const startDateString = startDate?.toISOString();
-      const endDateString = endDate?.toISOString();
+      const startDateString = toYmd(startDate);
+      const endDateString = toYmd(endDate);
 
       if (!startDateString || !endDateString) {
         setMonthlyData([]);
@@ -212,7 +219,7 @@ export default function LaporanNotaSawitPage() {
         if (selectedSupir) params.append('supirId', selectedSupir);
         if (selectedPabrik) params.append('pabrikId', selectedPabrik);
 
-        const res = await fetch(`/api/laporan-nota-sawit/statistik?${params.toString()}`);
+        const res = await fetch(`/api/laporan-nota-sawit/statistik?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data statistik');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -227,12 +234,12 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchStats();
-  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik]);
+  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik, toYmd]);
 
   const handleExport = async () => {
     try {
-      const startDateString = startDate?.toISOString();
-      const endDateString = endDate?.toISOString();
+      const startDateString = toYmd(startDate);
+      const endDateString = toYmd(endDate);
       if (!startDate || !endDate || !startDateString || !endDateString) {
         toast.error('Rentang waktu belum dipilih')
         return
@@ -247,7 +254,7 @@ export default function LaporanNotaSawitPage() {
       if (selectedSupir) params.append('supirId', selectedSupir);
       if (selectedPabrik) params.append('pabrikId', selectedPabrik);
 
-      const res = await fetch(`/api/nota-sawit?${params.toString()}`);
+      const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data untuk ekspor');
       const exportData = await res.json();
       if (exportData.error) throw new Error(exportData.error);
@@ -366,8 +373,8 @@ export default function LaporanNotaSawitPage() {
 
   const handleExportPdf = async () => {
     try {
-      const startDateString = startDate?.toISOString();
-      const endDateString = endDate?.toISOString();
+      const startDateString = toYmd(startDate);
+      const endDateString = toYmd(endDate);
       if (!startDate || !endDate || !startDateString || !endDateString) {
         toast.error('Rentang waktu belum dipilih')
         return
@@ -382,7 +389,7 @@ export default function LaporanNotaSawitPage() {
       if (selectedSupir) params.append('supirId', selectedSupir);
       if (selectedPabrik) params.append('pabrikId', selectedPabrik);
 
-      const res = await fetch(`/api/nota-sawit?${params.toString()}`);
+      const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data untuk ekspor');
       const exportData = await res.json();
       if (exportData.error) throw new Error(exportData.error);
@@ -549,6 +556,7 @@ export default function LaporanNotaSawitPage() {
                         <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_week')} className={quickRange === 'last_week' ? 'bg-accent' : ''}>7 Hari</Button>
                         <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_30_days')} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
                         <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_month')} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_year')} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                       </div>
                       <div className="border-t pt-4 space-y-2">
                         <h4 className="font-medium leading-none">Kustom</h4>
