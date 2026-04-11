@@ -374,13 +374,14 @@ export default function KaryawanKebunPage() {
   // Load attendance from server
   useEffect(() => {
     const loadServerData = async () => {
-      if (!selectedKebunId || !absenUserId) return
+      if (!absenUserId) return
+      const kebunKey = selectedKebunId ?? 0
       
       const start = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
       const end = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
       
       const params = new URLSearchParams({
-        kebunId: String(selectedKebunId),
+        kebunId: String(kebunKey),
         karyawanId: String(absenUserId),
         startDate: formatDateKey(start),
         endDate: formatDateKey(end),
@@ -396,6 +397,11 @@ export default function KaryawanKebunPage() {
           const nextWork: Record<string, boolean> = {}
           const nextOff: Record<string, boolean> = {}
           const nextNote: Record<string, string> = {}
+          const nextHourly: Record<string, boolean> = {}
+          const nextHour: Record<string, string> = {}
+          const nextRate: Record<string, string> = {}
+          const nextMealEnabled: Record<string, boolean> = {}
+          const nextMeal: Record<string, string> = {}
           
           records.forEach((r: any) => {
             const raw = r?.date ? String(r.date).trim() : ''
@@ -416,21 +422,40 @@ export default function KaryawanKebunPage() {
             if (r.kerja) nextWork[key] = true
             if (r.libur) nextOff[key] = true
             if (r.note) nextNote[key] = r.note
+            if (r.useHourly) {
+              nextHourly[key] = true
+              nextHour[key] = r.jamKerja != null ? String(r.jamKerja) : ''
+              nextRate[key] = r.ratePerJam != null ? formatRibuanId(String(Math.round(Number(r.ratePerJam) || 0))) : ''
+            }
+            if (r.uangMakan != null && Number(r.uangMakan) > 0) {
+              nextMealEnabled[key] = true
+              nextMeal[key] = formatRibuanId(String(Math.round(Number(r.uangMakan) || 0)))
+            }
           })
           
           setAbsenMap(nextAmount)
           setAbsenWorkMap(nextWork)
           setAbsenOffMap(nextOff)
           setAbsenNoteMap(nextNote)
+          setAbsenHourlyMap(nextHourly)
+          setAbsenHourMap(nextHour)
+          setAbsenRateMap(nextRate)
+          setAbsenMealEnabledMap(nextMealEnabled)
+          setAbsenMealMap(nextMeal)
           
           // Also update localStorage to keep it in sync
           const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-          const storageKey = `absensi:v2:${selectedKebunId}:${absenUserId}:${ym}`
+          const storageKey = `absensi:v2:${kebunKey}:${absenUserId}:${ym}`
           localStorage.setItem(storageKey, JSON.stringify({
             amount: nextAmount,
             work: nextWork,
             off: nextOff,
-            note: nextNote
+            note: nextNote,
+            hourly: nextHourly,
+            hour: nextHour,
+            rate: nextRate,
+            mealEnabled: nextMealEnabled,
+            meal: nextMeal
           }))
         }
       } catch (e) {
@@ -443,9 +468,10 @@ export default function KaryawanKebunPage() {
 
   // Load attendance from localStorage (fallback/initial)
   useEffect(() => {
-    if (!selectedKebunId || !absenUserId) return
+    if (!absenUserId) return
+    const kebunKey = selectedKebunId ?? 0
     const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-    const key = `absensi:v2:${selectedKebunId}:${absenUserId}:${ym}`
+    const key = `absensi:v2:${kebunKey}:${absenUserId}:${ym}`
     try {
       const raw = localStorage.getItem(key)
       if (raw) {
@@ -588,11 +614,11 @@ export default function KaryawanKebunPage() {
     setAbsenPaidMap(next)
   }, [formatDateKey])
   useEffect(() => {
-    if (!selectedKebunId || !absenUserId) {
+    if (!absenUserId) {
       setAbsenPaidMap({})
       return
     }
-    loadPaid(selectedKebunId, absenUserId, absenMonth)
+    loadPaid(selectedKebunId ?? 0, absenUserId, absenMonth)
   }, [selectedKebunId, absenUserId, absenMonth, loadPaid])
   useEffect(() => {
     const start = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
@@ -601,12 +627,13 @@ export default function KaryawanKebunPage() {
     setAbsenPayHistoryEnd(formatDateKey(end))
   }, [absenMonth, formatDateKey])
   const fetchAbsenPayHistory = useCallback(async () => {
-    if (!selectedKebunId || !absenUserId) {
+    if (!absenUserId) {
       setAbsenPayHistoryRows([])
       return
     }
+    const kebunKey = selectedKebunId ?? 0
     const params = new URLSearchParams({
-      kebunId: String(selectedKebunId),
+      kebunId: String(kebunKey),
       karyawanId: String(absenUserId),
       startDate: absenPayHistoryStart || formatDateKey(new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)),
       endDate: absenPayHistoryEnd || formatDateKey(new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)),
@@ -629,10 +656,11 @@ export default function KaryawanKebunPage() {
     fetchAbsenPayHistory()
   }, [fetchAbsenPayHistory])
   const handleDeleteAbsenPay = useCallback(async () => {
-    if (!selectedKebunId || !absenUserId) return
+    if (!absenUserId) return
+    const kebunKey = selectedKebunId ?? 0
     try {
       const params = new URLSearchParams({
-        kebunId: String(selectedKebunId),
+        kebunId: String(kebunKey),
         karyawanId: String(absenUserId),
       })
       if (deleteAbsenPayPaidAt) {
@@ -649,7 +677,7 @@ export default function KaryawanKebunPage() {
       }
       toast.success('Pembayaran gaji dihapus')
       await fetchAbsenPayHistory()
-      await loadPaid(selectedKebunId, absenUserId, absenMonth)
+      await loadPaid(kebunKey, absenUserId, absenMonth)
     } catch (e: any) {
       toast.error(e?.message || 'Gagal menghapus pembayaran')
     } finally {
@@ -659,10 +687,11 @@ export default function KaryawanKebunPage() {
     }
   }, [deleteAbsenPayId, deleteAbsenPayPaidAt, fetchAbsenPayHistory, selectedKebunId, absenUserId, absenMonth, loadPaid])
   const handleCancelPaidDate = useCallback(async () => {
-    if (!cancelPaidDate || !selectedKebunId || !absenUserId) return
+    if (!cancelPaidDate || !absenUserId) return
+    const kebunKey = selectedKebunId ?? 0
     try {
       const params = new URLSearchParams({
-        kebunId: String(selectedKebunId),
+        kebunId: String(kebunKey),
         karyawanId: String(absenUserId),
         date: cancelPaidDate,
       })
@@ -673,7 +702,7 @@ export default function KaryawanKebunPage() {
       }
       toast.success('Pembayaran gaji dibatalkan')
       await fetchAbsenPayHistory()
-      await loadPaid(selectedKebunId, absenUserId, absenMonth)
+      await loadPaid(kebunKey, absenUserId, absenMonth)
     } catch (e: any) {
       toast.error(e?.message || 'Gagal membatalkan pembayaran')
     } finally {
@@ -723,9 +752,10 @@ export default function KaryawanKebunPage() {
     mealEnabled: Record<string, boolean>,
     meal: Record<string, string>
   ) => {
-    if (!selectedKebunId || !absenUserId) return
+    if (!absenUserId) return
+    const kebunKey = selectedKebunId ?? 0
     const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-    const key = `absensi:v2:${selectedKebunId}:${absenUserId}:${ym}`
+    const key = `absensi:v2:${kebunKey}:${absenUserId}:${ym}`
     try {
       localStorage.setItem(key, JSON.stringify({ amount, work, off, note, hourly, hour, rate, mealEnabled, meal }))
     } catch {}
@@ -2470,10 +2500,6 @@ export default function KaryawanKebunPage() {
                 <Button
                   className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600"
                   onClick={() => {
-                    if (!selectedKebunId) {
-                      toast.error('Pilih kebun terlebih dahulu')
-                      return
-                    }
                     const next: Record<string, boolean> = {}
                     unpaidDates.forEach(d => { next[d.date] = true })
                     setAbsenPaySelection(next)
@@ -2481,7 +2507,7 @@ export default function KaryawanKebunPage() {
                     setAbsenPayPotongDesc('Potong Hutang dari Pembayaran Gaji')
                     setAbsenPayOpen(true)
                   }}
-                  disabled={!selectedKebunId || !absenUserId || unpaidDates.length === 0}
+                  disabled={!absenUserId || unpaidDates.length === 0}
                 >
                   Bayar Gaji
                 </Button>
@@ -3209,11 +3235,12 @@ export default function KaryawanKebunPage() {
         description={`Apakah Anda yakin ingin menghapus data absensi tanggal ${absenSelectedDate ? format(new Date(absenSelectedDate), 'dd MMMM yyyy', { locale: idLocale }) : ''}? Tindakan ini tidak dapat dibatalkan.`}
         variant="emerald"
         onConfirm={async () => {
-          if (!selectedKebunId || !absenUserId || !absenSelectedDate) return;
+          const kebunKey = selectedKebunId ?? 0
+          if (!absenUserId || !absenSelectedDate) return;
           
           setIsDeletingAbsen(true);
           try {
-            const res = await fetch(`/api/karyawan/operasional/absensi?kebunId=${selectedKebunId}&karyawanId=${absenUserId}&date=${absenSelectedDate}`, {
+            const res = await fetch(`/api/karyawan/operasional/absensi?kebunId=${kebunKey}&karyawanId=${absenUserId}&date=${absenSelectedDate}`, {
               method: 'DELETE'
             });
             if (res.ok) {
@@ -3250,11 +3277,12 @@ export default function KaryawanKebunPage() {
         description={`Apakah Anda yakin ingin membatalkan pembayaran gaji untuk tanggal ${absenSelectedDate ? format(new Date(absenSelectedDate), 'dd MMMM yyyy', { locale: idLocale }) : ''}? Seluruh transaksi kas yang terkait dengan pembayaran hari ini akan dihapus.`}
         variant="emerald"
         onConfirm={async () => {
-          if (!selectedKebunId || !absenUserId || !absenSelectedDate) return;
+          const kebunKey = selectedKebunId ?? 0
+          if (!absenUserId || !absenSelectedDate) return;
           
           setIsCancellingGaji(true);
           try {
-            const res = await fetch(`/api/karyawan-kebun/absensi-payments?kebunId=${selectedKebunId}&karyawanId=${absenUserId}&date=${absenSelectedDate}`, {
+            const res = await fetch(`/api/karyawan-kebun/absensi-payments?kebunId=${kebunKey}&karyawanId=${absenUserId}&date=${absenSelectedDate}`, {
               method: 'DELETE'
             });
             if (res.ok) {
@@ -3511,6 +3539,11 @@ export default function KaryawanKebunPage() {
               disabled={absenSaving || (!!absenSelectedDate && !!absenPaidMap[absenSelectedDate])}
               onClick={async () => {
                 if (!absenSelectedDate) return
+                if (!absenUserId) {
+                  toast.error('Pilih karyawan terlebih dahulu')
+                  return
+                }
+                const kebunKey = selectedKebunId ?? 0
                 const baseManual = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
                 const hours = parseFloat((absenHour || '').toString().replace(',', '.')) || 0
                 const rate = Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
@@ -3538,34 +3571,42 @@ export default function KaryawanKebunPage() {
                 setAbsenMealEnabledMap(nextMealEnabled)
                 setAbsenMealMap(nextMeal)
                 persistAbsensiLocal(nextAmount, nextWork, nextOff, nextNote, nextHourly, nextHour, nextRate, nextMealEnabled, nextMeal)
-                if (selectedKebunId && absenUserId) {
-                  const jumlah = totalAmount
-                  const entries = [{
-                    date: absenSelectedDate,
-                    jumlah,
-                    kerja: absenWork || totalAmount > 0,
-                    libur: absenOff,
-                    note: absenNote || '',
-                  }]
-                  setAbsenSaving(true)
-                  let savedOk = false
-                  try {
-                    const res = await fetch('/api/karyawan/operasional/absensi', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ kebunId: selectedKebunId, karyawanId: absenUserId, entries }),
-                    })
-                    savedOk = res.ok
-                  } catch {
-                    savedOk = false
-                  } finally {
-                    setAbsenSaving(false)
+                const jumlah = totalAmount
+                const entries = [{
+                  date: absenSelectedDate,
+                  jumlah,
+                  kerja: absenWork || totalAmount > 0,
+                  libur: absenOff,
+                  note: absenNote || '',
+                  jamKerja: useHourly ? hours : null,
+                  ratePerJam: useHourly ? rate : null,
+                  uangMakan: absenMealEnabled ? mealVal : null,
+                  useHourly: absenUseHourly,
+                }]
+                setAbsenSaving(true)
+                try {
+                  const res = await fetch('/api/karyawan/operasional/absensi', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kebunId: kebunKey, karyawanId: absenUserId, entries }),
+                  })
+                  if (!res.ok) {
+                    let msg = 'Gagal menyimpan absensi'
+                    try {
+                      const j = await res.json()
+                      if (j?.error) msg = j.error
+                    } catch {}
+                    toast.error(msg)
+                    return
                   }
-                  if (savedOk) {
-                    setAbsenSaved(true)
-                    if (absenSaveTimerRef.current) clearTimeout(absenSaveTimerRef.current)
-                    absenSaveTimerRef.current = setTimeout(() => setAbsenSaved(false), 1500)
-                  }
+                  setAbsenSaved(true)
+                  if (absenSaveTimerRef.current) clearTimeout(absenSaveTimerRef.current)
+                  absenSaveTimerRef.current = setTimeout(() => setAbsenSaved(false), 1500)
+                } catch {
+                  toast.error('Kesalahan jaringan saat menyimpan absensi')
+                  return
+                } finally {
+                  setAbsenSaving(false)
                 }
                 if (absenSetDefault && selectedKebunId && absenUserId) {
                   const num = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
@@ -3659,10 +3700,11 @@ export default function KaryawanKebunPage() {
             <Button
               className="rounded-full w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700"
               onClick={async () => {
-                if (!selectedKebunId || !absenUserId) {
-                  toast.error('Pilih kebun dan karyawan terlebih dahulu')
+                if (!absenUserId) {
+                  toast.error('Pilih karyawan terlebih dahulu')
                   return
                 }
+                const kebunKey = selectedKebunId ?? 0
                 const selectedEntries = unpaidDates.filter(d => absenPaySelection[d.date])
                 const entries = selectedEntries.map(d => ({ date: d.date, jumlah: d.amount }))
                 if (entries.length === 0) {
@@ -3675,7 +3717,7 @@ export default function KaryawanKebunPage() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      kebunId: selectedKebunId,
+                      kebunId: kebunKey,
                       karyawanId: absenUserId,
                       entries,
                       batchKey,
@@ -3696,7 +3738,7 @@ export default function KaryawanKebunPage() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        kebunId: selectedKebunId,
+                        kebunId: kebunKey,
                         karyawanId: absenUserId,
                         jumlah: potongHutangEffective,
                         date: lastDate || undefined,
@@ -3710,7 +3752,7 @@ export default function KaryawanKebunPage() {
                     }
                   }
                   await fetchAbsenPayHistory()
-                  await loadPaid(selectedKebunId, absenUserId, absenMonth)
+                  await loadPaid(kebunKey, absenUserId, absenMonth)
                   setAbsenPaySelection({})
                   setAbsenPayPotong('')
                   setAbsenPayPotongDesc('Potong Hutang dari Pembayaran Gaji')
@@ -3720,7 +3762,7 @@ export default function KaryawanKebunPage() {
                   toast.error('Gagal menyimpan pembayaran (network)')
                 }
               }}
-              disabled={!selectedKebunId || !absenUserId || payTotal <= 0}
+              disabled={!absenUserId || payTotal <= 0}
             >
               Simpan
             </Button>

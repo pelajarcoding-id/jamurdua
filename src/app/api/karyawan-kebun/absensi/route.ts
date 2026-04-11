@@ -10,6 +10,8 @@ const canWriteForKebun = (session: any, kebunId: number) => {
   const role = session?.user?.role as string | undefined
   if (!role) return false
   if (role === 'ADMIN' || role === 'PEMILIK') return true
+  if (role === 'KASIR') return true
+  if (kebunId === 0) return false
   if (role === 'MANDOR') {
     const mandorKebunId = Number((session.user as any)?.kebunId)
     return Number.isFinite(mandorKebunId) && mandorKebunId === kebunId
@@ -74,6 +76,7 @@ const ensureTable = async () => {
 }
 
 const isAssignedToKebunOnDate = async (karyawanId: number, kebunId: number, dateKey: string) => {
+  if (kebunId === 0) return true
   const ymd = parseWibYmd(dateKey)
   if (!ymd) return true
   const dayStartUtc = wibStartUtc(ymd)
@@ -191,11 +194,11 @@ export async function POST(request: Request) {
     }
     const body = await request.json()
     const { kebunId, karyawanId, entries } = body || {}
-    if (!kebunId || !karyawanId || !Array.isArray(entries)) {
+    if (kebunId === undefined || kebunId === null || !karyawanId || !Array.isArray(entries)) {
       return NextResponse.json({ error: 'kebunId, karyawanId, dan entries wajib diisi' }, { status: 400 })
     }
     const kebunIdNum = Number(kebunId)
-    if (!Number.isFinite(kebunIdNum) || kebunIdNum <= 0) {
+    if (!Number.isFinite(kebunIdNum) || kebunIdNum < 0) {
       return NextResponse.json({ error: 'kebunId tidak valid' }, { status: 400 })
     }
     if (!canWriteForKebun(session, kebunIdNum)) {
@@ -285,7 +288,7 @@ export async function DELETE(request: Request) {
     const karyawanId = Number(searchParams.get('karyawanId'))
     const date = searchParams.get('date')
 
-    if (!kebunId || !karyawanId || !date) {
+    if (!Number.isFinite(kebunId) || kebunId < 0 || !karyawanId || !date) {
       return NextResponse.json({ error: 'kebunId, karyawanId, dan date wajib diisi' }, { status: 400 })
     }
     if (!canWriteForKebun(session, kebunId)) {

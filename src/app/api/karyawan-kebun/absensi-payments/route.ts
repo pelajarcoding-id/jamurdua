@@ -588,21 +588,21 @@ export async function POST(request: Request) {
     }
     const body = await request.json()
     const { kebunId, karyawanId, entries, batchKey } = body || {}
-    if (!kebunId || !karyawanId || !Array.isArray(entries)) {
+    if (kebunId === undefined || kebunId === null || !karyawanId || !Array.isArray(entries)) {
       return NextResponse.json({ error: 'kebunId, karyawanId, dan entries wajib diisi' }, { status: 400 })
     }
     const kebunIdNum = Number(kebunId)
     const karyawanIdNum = Number(karyawanId)
-    if (!Number.isFinite(kebunIdNum) || kebunIdNum <= 0 || !Number.isFinite(karyawanIdNum) || karyawanIdNum <= 0) {
+    if (!Number.isFinite(kebunIdNum) || kebunIdNum < 0 || !Number.isFinite(karyawanIdNum) || karyawanIdNum <= 0) {
       return NextResponse.json({ error: 'kebunId/karyawanId tidak valid' }, { status: 400 })
     }
 
     const [kebunExists, karyawanExists, creatorExists] = await Promise.all([
-      prisma.kebun.findUnique({ where: { id: kebunIdNum }, select: { id: true } }),
+      kebunIdNum > 0 ? prisma.kebun.findUnique({ where: { id: kebunIdNum }, select: { id: true } }) : Promise.resolve({ id: 0 } as any),
       prisma.user.findUnique({ where: { id: karyawanIdNum }, select: { id: true } }),
       prisma.user.findUnique({ where: { id: currentUserId }, select: { id: true } }),
     ])
-    if (!kebunExists) return NextResponse.json({ error: 'Kebun tidak ditemukan' }, { status: 400 })
+    if (kebunIdNum > 0 && !kebunExists) return NextResponse.json({ error: 'Kebun tidak ditemukan' }, { status: 400 })
     if (!karyawanExists) return NextResponse.json({ error: 'Karyawan tidak ditemukan' }, { status: 400 })
     if (!creatorExists) return NextResponse.json({ error: 'User pembuat transaksi tidak ditemukan' }, { status: 400 })
 
@@ -664,6 +664,7 @@ export async function POST(request: Request) {
         const ymd = parseWibYmd(startDate)
         return ymd ? wibStartUtc(ymd) : new Date()
       })()
+      const kasKebunId = kebunIdNum > 0 ? kebunIdNum : null
       await prisma.kasTransaksi.create({
         data: {
           date: trxDate,
@@ -672,7 +673,7 @@ export async function POST(request: Request) {
           keterangan: `Periode ${periodeText}${batchKey ? ` | Batch ${batchKey}` : ''}`,
           jumlah: totalJumlah,
           kategori: 'GAJI',
-          kebunId: kebunIdNum,
+          kebunId: kasKebunId,
           karyawanId: karyawanIdNum,
           userId: currentUserId,
           createdAt: batchCreatedAt,
@@ -739,17 +740,18 @@ export async function DELETE(request: Request) {
         where: { id },
       })
       const batchMatch = trx.keterangan?.match(/Batch\s+([A-Za-z0-9\-_:.]+)/)
-      if (batchMatch && trx.kebunId && trx.karyawanId) {
+      if (batchMatch && trx.karyawanId) {
         await prisma.kasTransaksi.deleteMany({
           where: {
-            kebunId: trx.kebunId,
+            kebunId: trx.kebunId ?? null,
             karyawanId: trx.karyawanId,
             kategori: 'PEMBAYARAN_HUTANG',
             deskripsi: { contains: `Batch ${batchMatch[1]}` },
           },
         })
       }
-      if (trx.kebunId && trx.karyawanId) {
+      if (trx.karyawanId) {
+        const absensiKebunId = trx.kebunId ?? 0
         const dateKey = (() => {
           const wib = new Date(trx.date.getTime() + 7 * 60 * 60 * 1000)
           const y = wib.getUTCFullYear()
@@ -774,7 +776,7 @@ export async function DELETE(request: Request) {
         if (remaining === 0) {
           await prisma.$executeRaw`
             DELETE FROM "AbsensiGajiHarian"
-            WHERE "kebunId" = ${trx.kebunId}
+            WHERE "kebunId" = ${absensiKebunId}
               AND "karyawanId" = ${trx.karyawanId}
               AND "date" = ${dateKey}::DATE
           `
@@ -783,14 +785,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    if (!kebunIdParam || !karyawanIdParam) {
+    if (kebunIdParam === null || kebunIdParam === undefined || karyawanIdParam === null || karyawanIdParam === undefined) {
       return NextResponse.json({ error: 'kebunId dan karyawanId wajib diisi' }, { status: 400 })
     }
     const kebunId = Number(kebunIdParam)
     const karyawanId = Number(karyawanIdParam)
-    if (Number.isNaN(kebunId) || Number.isNaN(karyawanId)) {
+    if (Number.isNaN(kebunId) || kebunId < 0 || Number.isNaN(karyawanId) || karyawanId <= 0) {
       return NextResponse.json({ error: 'Parameter tidak valid' }, { status: 400 })
     }
+    const kasKebunId = kebunId > 0 ? kebunId : null
     if (paidAtParam) {
       const paidAt = new Date(paidAtParam)
       if (Number.isNaN(paidAt.getTime())) {
@@ -798,7 +801,7 @@ export async function DELETE(request: Request) {
       }
       const trxRows = await prisma.kasTransaksi.findMany({
         where: {
-          kebunId,
+          kebunId: kasKebunId,
           karyawanId,
           kategori: 'GAJI',
           createdAt: paidAt,
@@ -810,17 +813,19 @@ export async function DELETE(request: Request) {
       }
       const minDate = trxRows.reduce((acc, r) => acc && acc < r.date ? acc : r.date, trxRows[0].date)
       const maxDate = trxRows.reduce((acc, r) => acc && acc > r.date ? acc : r.date, trxRows[0].date)
-      const gajianLocked = await prisma.gajian.findFirst({
-        where: {
-          kebunId,
-          status: 'FINALIZED',
-          tanggalMulai: { lte: maxDate },
-          tanggalSelesai: { gte: minDate },
-        },
-        select: { id: true },
-      })
-      if (gajianLocked) {
-        return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+      if (kebunId > 0) {
+        const gajianLocked = await prisma.gajian.findFirst({
+          where: {
+            kebunId,
+            status: 'FINALIZED',
+            tanggalMulai: { lte: maxDate },
+            tanggalSelesai: { gte: minDate },
+          },
+          select: { id: true },
+        })
+        if (gajianLocked) {
+          return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+        }
       }
       const ids = trxRows.map(r => r.id)
       await prisma.jurnal.deleteMany({
@@ -833,7 +838,7 @@ export async function DELETE(request: Request) {
       if (batchMatch) {
         await prisma.kasTransaksi.deleteMany({
           where: {
-            kebunId,
+            kebunId: kasKebunId,
             karyawanId,
             kategori: 'PEMBAYARAN_HUTANG',
             deskripsi: { contains: `Batch ${batchMatch[1]}` },
@@ -885,21 +890,23 @@ export async function DELETE(request: Request) {
     const dateKey = `${String(dateYmd.y).padStart(4, '0')}-${String(dateYmd.m).padStart(2, '0')}-${String(dateYmd.d).padStart(2, '0')}`
     const dayStart = wibStartUtc(dateYmd)
     const dayEnd = wibEndUtcInclusive(dateYmd)
-    const gajianLocked = await prisma.gajian.findFirst({
-      where: {
-        kebunId,
-        status: 'FINALIZED',
-        tanggalMulai: { lte: dayStart },
-        tanggalSelesai: { gte: dayStart },
-      },
-      select: { id: true },
-    })
-    if (gajianLocked) {
-      return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+    if (kebunId > 0) {
+      const gajianLocked = await prisma.gajian.findFirst({
+        where: {
+          kebunId,
+          status: 'FINALIZED',
+          tanggalMulai: { lte: dayStart },
+          tanggalSelesai: { gte: dayStart },
+        },
+        select: { id: true },
+      })
+      if (gajianLocked) {
+        return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+      }
     }
     const trxRows = await prisma.kasTransaksi.findMany({
       where: {
-        kebunId,
+        kebunId: kasKebunId,
         karyawanId,
         kategori: 'GAJI',
         date: {
