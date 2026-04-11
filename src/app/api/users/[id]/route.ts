@@ -119,7 +119,7 @@ END $$;`);
                     Prisma.sql`DELETE FROM "_UserKebuns" WHERE "B" = ${id}`
                 ),
                 ...(role === 'MANAGER'
-                    ? kebunIds.map((kid) =>
+                    ? kebunIds.map((kid: number) =>
                           prisma.$executeRaw(
                               Prisma.sql`INSERT INTO "_UserKebuns" ("A", "B") VALUES (${kid}, ${id}) ON CONFLICT DO NOTHING`
                           )
