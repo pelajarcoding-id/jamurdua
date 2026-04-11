@@ -350,7 +350,7 @@ const DetailTransaksiModal: React.FC<DetailTransaksiModalProps> = ({ isOpen, onC
             </div>
           )}
         </ModalContentWrapper>
-        <ModalFooter className="items-center justify-center sm:justify-center gap-2">
+        <ModalFooter className="flex-row items-center justify-center sm:justify-center gap-2">
           <Button
             type="button"
             variant="outline"

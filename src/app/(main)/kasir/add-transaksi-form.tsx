@@ -1004,7 +1004,7 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
                     </ReactCrop>
                 )}
             </div>
-            <ModalFooter className="flex-shrink-0 pb-[calc(16px+env(safe-area-inset-bottom))]">
+            <ModalFooter className="flex-row flex-shrink-0 pb-[calc(16px+env(safe-area-inset-bottom))]">
                 <Button type="button" variant="outline" onClick={() => { setIsCropping(false); setPreview(null); setSelectedFile(null); }} className="rounded-full">
                   <XMarkIcon className="h-4 w-4 mr-2" />
                   Batal
