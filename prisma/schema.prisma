@@ -500,6 +500,7 @@ model NotaSawit {
   pabrikSawitId        Int
   perusahaanId         Int?
   tanggalBongkar       DateTime?
+  keterangan           String?
   timbanganId          Int?             @unique
   supirId              Int
   kendaraanPlatNomor   String?

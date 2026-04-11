@@ -290,6 +290,7 @@ export async function POST(request: Request) {
     const supirId = Number(body.supirId);
     const kendaraanPlatNomor = body.kendaraanPlatNomor as string;
     const pabrikSawitId = Number(body.pabrikSawitId);
+    const keteranganRaw = body.keterangan !== undefined && body.keterangan !== null ? String(body.keterangan).trim() : ''
     const tanggalBongkarValue = body.tanggalBongkar;
     const tanggalBongkarRaw = tanggalBongkarValue !== undefined && tanggalBongkarValue !== null ? String(tanggalBongkarValue).trim() : ''
     let tanggalBongkar: Date | null = null
@@ -385,6 +386,7 @@ export async function POST(request: Request) {
         pabrikSawitId,
         perusahaanId,
         tanggalBongkar,
+        keterangan: keteranganRaw || null,
         potongan, 
         beratAkhir, 
         kendaraanPlatNomor, 

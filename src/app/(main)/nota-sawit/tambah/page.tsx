@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import ImageUpload from '@/components/ui/ImageUpload';
 import { convertImageFileToWebp } from '@/lib/image-webp';
+import { Textarea } from '@/components/ui/textarea';
 import type { Timbangan, User as Supir, Kebun, Kendaraan, PabrikSawit } from '@prisma/client';
 import { useAuth } from '@/components/AuthProvider';
 import { DocumentDuplicateIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -36,6 +37,7 @@ export default function TambahNotaSawitPage() {
   const [beratTotal, setBeratTotal] = useState(0);
   const [totalPembayaran, setTotalPembayaran] = useState(0);
   const [tanggalBongkar, setTanggalBongkar] = useState<string>('');
+  const [keterangan, setKeterangan] = useState('');
   
   const [isManualInput, setIsManualInput] = useState(false);
   const [manualGross, setManualGross] = useState(0);
@@ -170,6 +172,7 @@ export default function TambahNotaSawitPage() {
         setPembayaranAktual(d.pembayaranAktual ?? null);
         setIsPembayaranAktualManual(!!d.isPembayaranAktualManual);
         setStatusPembayaran(d.statusPembayaran ?? 'BELUM_LUNAS');
+        setKeterangan(String(d.keterangan ?? ''));
         if (d.tanggalBongkar) {
           const rawTgl = String(d.tanggalBongkar)
           if (/^\d{4}-\d{2}-\d{2}$/.test(rawTgl)) {
@@ -206,6 +209,7 @@ export default function TambahNotaSawitPage() {
       isPembayaranAktualManual,
       statusPembayaran,
       tanggalBongkar,
+      keterangan,
       selectedTimbanganId: selectedTimbangan?.id ?? null,
     };
     const id = setTimeout(() => {
@@ -226,6 +230,7 @@ export default function TambahNotaSawitPage() {
     isPembayaranAktualManual,
     statusPembayaran,
     tanggalBongkar,
+    keterangan,
     selectedTimbangan
   ]);
   // --- Event Handlers ---
@@ -457,6 +462,7 @@ export default function TambahNotaSawitPage() {
 
       const payload: any = {
         tanggalBongkar: tanggalBongkar || undefined,
+        keterangan: keterangan ? keterangan.trim() : null,
         supirId,
         kendaraanPlatNomor,
         pabrikSawitId,
@@ -575,6 +581,17 @@ export default function TambahNotaSawitPage() {
                 <label htmlFor="tanggalBongkar" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Bongkar</label>
                 <input type="date" name="tanggalBongkar" id="tanggalBongkar" required value={tanggalBongkar} onChange={(e) => setTanggalBongkar(e.target.value)} className={`input-style w-full ${errors.tanggalBongkar ? 'border-red-500 focus-visible:ring-red-500' : ''}`} />
                 {errors.tanggalBongkar && <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.tanggalBongkar}</p>}
+              </div>
+              <div className="md:col-span-2">
+                <label htmlFor="keterangan" className="block text-sm font-medium text-gray-700 mb-2">Keterangan</label>
+                <Textarea
+                  id="keterangan"
+                  name="keterangan"
+                  value={keterangan}
+                  onChange={(e) => setKeterangan(e.target.value)}
+                  placeholder="Tambah keterangan nota (opsional)"
+                  className="w-full rounded-xl"
+                />
               </div>
             </div>
 

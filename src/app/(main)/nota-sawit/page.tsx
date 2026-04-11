@@ -356,6 +356,7 @@ export default function NotaSawitPage() {
         statusPembayaran: formDataRaw.statusPembayaran || 'BELUM_LUNAS',
         pembayaranAktual: (formDataRaw.pembayaranAktual !== undefined && formDataRaw.pembayaranAktual !== null) ? Number(formDataRaw.pembayaranAktual) : null,
         tanggalBongkar: formDataRaw.tanggalBongkar || undefined,
+        keterangan: formDataRaw.keterangan ? String(formDataRaw.keterangan).trim() : null,
         bruto: formDataRaw.bruto !== undefined ? Number(formDataRaw.bruto) : undefined,
         tara: formDataRaw.tara !== undefined ? Number(formDataRaw.tara) : undefined,
         netto: formDataRaw.netto !== undefined ? Number(formDataRaw.netto) : undefined,

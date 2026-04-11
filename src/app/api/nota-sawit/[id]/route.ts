@@ -109,6 +109,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const hargaPerKg = body.hargaPerKg;
     const statusPembayaran = body.statusPembayaran;
     const tanggalBongkarValue = body.tanggalBongkar;
+    const keteranganValue = body.keterangan;
     const grossKg = body.grossKg;
     const tareKg = body.tareKg;
     const bruto = body.bruto;
@@ -207,6 +208,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         return new Response('Tanggal bongkar tidak valid', { status: 400 })
       }
       dataToUpdate.tanggalBongkar = wibStartUtc(ymd)
+    }
+    
+    if (keteranganValue !== undefined) {
+      const raw = keteranganValue !== null ? String(keteranganValue).trim() : ''
+      dataToUpdate.keterangan = raw || null
     }
 
     if (kendaraanPlatNomor !== undefined && kendaraanPlatNomor !== null) {

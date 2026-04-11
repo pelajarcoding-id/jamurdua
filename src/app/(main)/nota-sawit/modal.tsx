@@ -14,6 +14,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import toast from 'react-hot-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CheckIcon, ChevronUpDownIcon, DocumentDuplicateIcon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -141,6 +142,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     manualNet?: number,
     timbanganId?: number,
     kebunId?: number,
+    keterangan?: string,
     pembayaranAktual?: number | null,
     pph25?: number | null,
     bruto?: number,
@@ -194,6 +196,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             setFormData({
                 ...nota,
                 tanggalBongkar: nota.tanggalBongkar ? (toLocalYmd(new Date(nota.tanggalBongkar as any)) as any) : undefined,
+                keterangan: (nota as any).keterangan || '',
                 timbanganId: nota.timbanganId || undefined,
                 kebunId: nota.timbangan?.kebunId || undefined, // Initialize kebunId from timbangan relation
                 pembayaranAktual: typeof nota.pembayaranAktual === 'number' ? Math.round(nota.pembayaranAktual) : nota.pembayaranAktual,
@@ -234,6 +237,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             // Add Mode
             setFormData({
                 tanggalBongkar: toLocalYmd(new Date()) as any,
+                keterangan: '',
                 potongan: 0,
                 hargaPerKg: 0,
                 statusPembayaran: 'BELUM_LUNAS',
@@ -408,7 +412,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   };
 
   // Handle Input Changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
     if (name === 'tanggalBongkar') {
@@ -977,6 +981,17 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                             {errors.tanggalBongkar && (
                               <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.tanggalBongkar}</p>
                             )}
+                        </div>
+                        
+                        <div>
+                            <Label>Keterangan</Label>
+                            <Textarea
+                              name="keterangan"
+                              value={String((formData as any).keterangan || '')}
+                              onChange={handleChange}
+                              placeholder="Tambah keterangan nota (opsional)"
+                              className="rounded-xl border-gray-200"
+                            />
                         </div>
 
                         <div>
