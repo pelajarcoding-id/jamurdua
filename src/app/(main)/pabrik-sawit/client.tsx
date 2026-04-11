@@ -49,14 +49,18 @@ interface PabrikSawitSummary {
     totalNilai: number
     totalNota: number
   } | null
-  selisihPerKebun?: Array<{
-    kebunId: number
-    kebunName: string
+  selisihPerPabrik?: Array<{
+    pabrikSawitId: number
+    pabrikName: string
     jumlahNota: number
     totalBrutoKebun: number
     totalBrutoPabrik: number
     totalSelisihKg: number
     selisihPercent: number
+    avgHargaPerKg: number
+    estimasiPendapatanSelisih: number
+    totalPembayaran: number
+    totalBeratAkhir: number
   }>
 }
 
@@ -379,12 +383,12 @@ export default function PabrikSawitClient() {
           </div>
         )}
 
-        {!loading && summary?.selisihPerKebun && summary.selisihPerKebun.length > 0 ? (
+        {!loading && summary?.selisihPerPabrik && summary.selisihPerPabrik.length > 0 ? (
           <div className="bg-white p-6 rounded-lg shadow-md mb-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-base font-semibold text-gray-900">Selisih Timbangan Kebun vs Pabrik</div>
-                <div className="text-xs text-gray-500">Akumulasi selisih bruto per kebun pada periode terpilih</div>
+                <div className="text-xs text-gray-500">Akumulasi selisih bruto per pabrik pada periode terpilih</div>
               </div>
               <div className="text-xs text-gray-500 whitespace-nowrap">Periode: <span className="font-semibold text-gray-900">{dateDisplay}</span></div>
             </div>
@@ -392,30 +396,92 @@ export default function PabrikSawitClient() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                   <tr>
-                    <th className="px-3 py-2 text-left">Kebun</th>
+                    <th className="px-3 py-2 text-left">Pabrik</th>
                     <th className="px-3 py-2 text-right">Nota</th>
-                    <th className="px-3 py-2 text-right">Bruto Kebun</th>
-                    <th className="px-3 py-2 text-right">Bruto Pabrik</th>
+                    <th className="hidden md:table-cell px-3 py-2 text-right">Bruto Kebun</th>
+                    <th className="hidden md:table-cell px-3 py-2 text-right">Bruto Pabrik</th>
                     <th className="px-3 py-2 text-right">Selisih</th>
-                    <th className="px-3 py-2 text-right">Selisih %</th>
+                    <th className="hidden lg:table-cell px-3 py-2 text-right">Selisih %</th>
+                    <th className="hidden md:table-cell px-3 py-2 text-right">Harga Rata2</th>
+                    <th className="px-3 py-2 text-right">Estimasi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {summary.selisihPerKebun.map((r) => (
-                    <tr key={r.kebunId} className="hover:bg-gray-50/50">
-                      <td className="px-3 py-2 text-left font-medium text-gray-900 whitespace-nowrap">{r.kebunName}</td>
+                  {summary.selisihPerPabrik.map((r) => (
+                    <tr key={r.pabrikSawitId} className="hover:bg-gray-50/50">
+                      <td className="px-3 py-2 text-left font-medium text-gray-900 whitespace-nowrap">{r.pabrikName}</td>
                       <td className="px-3 py-2 text-right text-gray-700">{formatNumber(Number(r.jumlahNota || 0))}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{formatNumber(Math.round(Number(r.totalBrutoKebun || 0)))} kg</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{formatNumber(Math.round(Number(r.totalBrutoPabrik || 0)))} kg</td>
+                      <td className="hidden md:table-cell px-3 py-2 text-right text-gray-700">{formatNumber(Math.round(Number(r.totalBrutoKebun || 0)))} kg</td>
+                      <td className="hidden md:table-cell px-3 py-2 text-right text-gray-700">{formatNumber(Math.round(Number(r.totalBrutoPabrik || 0)))} kg</td>
                       <td className={`px-3 py-2 text-right font-semibold ${Number(r.totalSelisihKg || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                         {Number(r.totalSelisihKg || 0) >= 0 ? '+' : ''}{formatNumber(Math.round(Number(r.totalSelisihKg || 0)))} kg
                       </td>
-                      <td className={`px-3 py-2 text-right font-semibold ${Number(r.selisihPercent || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      <td className={`hidden lg:table-cell px-3 py-2 text-right font-semibold ${Number(r.selisihPercent || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                         {Number(r.selisihPercent || 0) >= 0 ? '+' : ''}{Number(r.selisihPercent || 0).toFixed(2)}%
+                      </td>
+                      <td className="hidden md:table-cell px-3 py-2 text-right text-gray-700 whitespace-nowrap" title={formatCurrency(Number(r.avgHargaPerKg || 0))}>
+                        {formatCurrency(Number(r.avgHargaPerKg || 0))} /kg
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${Number(r.estimasiPendapatanSelisih || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {formatCurrency(Number(r.estimasiPendapatanSelisih || 0))}
                       </td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-gray-50 border-t border-gray-200">
+                  <tr>
+                    <td className="px-3 py-2 font-bold text-gray-900 whitespace-nowrap">TOTAL</td>
+                    <td className="px-3 py-2 font-bold text-gray-900 text-right">
+                      {formatNumber(summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.jumlahNota || 0), 0))}
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-2 font-bold text-gray-900 text-right">
+                      {formatNumber(Math.round(summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalBrutoKebun || 0), 0)))} kg
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-2 font-bold text-gray-900 text-right">
+                      {formatNumber(Math.round(summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalBrutoPabrik || 0), 0)))} kg
+                    </td>
+                    <td className="px-3 py-2 font-bold text-gray-900 text-right">
+                      {(() => {
+                        const totalSelisih = summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalSelisihKg || 0), 0)
+                        return (
+                          <span className={totalSelisih >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                            {totalSelisih >= 0 ? '+' : ''}{formatNumber(Math.round(totalSelisih))} kg
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className="hidden lg:table-cell px-3 py-2 font-bold text-gray-900 text-right">
+                      {(() => {
+                        const totalKebun = summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalBrutoKebun || 0), 0)
+                        const totalSelisih = summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalSelisihKg || 0), 0)
+                        const pct = totalKebun > 0 ? (totalSelisih / totalKebun) * 100 : 0
+                        return (
+                          <span className={pct >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                            {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className="hidden md:table-cell px-3 py-2 font-bold text-gray-900 text-right whitespace-nowrap">
+                      {(() => {
+                        const totalPembayaran = summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalPembayaran || 0), 0)
+                        const totalBeratAkhir = summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.totalBeratAkhir || 0), 0)
+                        const avg = totalBeratAkhir > 0 ? totalPembayaran / totalBeratAkhir : 0
+                        return `${formatCurrency(avg)} /kg`
+                      })()}
+                    </td>
+                    <td className="px-3 py-2 font-bold text-gray-900 text-right whitespace-nowrap">
+                      {(() => {
+                        const est = summary.selisihPerPabrik.reduce((acc, r) => acc + Number(r.estimasiPendapatanSelisih || 0), 0)
+                        return (
+                          <span className={est >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                            {formatCurrency(est)}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>

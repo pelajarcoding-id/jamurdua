@@ -81,12 +81,14 @@ export async function GET(request: Request) {
       .sort((a, b) => b.totalNilai - a.totalNilai)[0] || null
 
     const selisihAgg = pabrikIds.length > 0
-      ? await prisma.$queryRaw<Array<{ kebunId: number; kebunBruto: number; pabrikBruto: number; jumlahNota: number }>>(
+      ? await prisma.$queryRaw<Array<{ pabrikSawitId: number; kebunBruto: number; pabrikBruto: number; jumlahNota: number; totalPembayaran: number; totalBeratAkhir: number }>>(
           Prisma.sql`
             SELECT
-              t."kebunId"::int as "kebunId",
+              n."pabrikSawitId"::int as "pabrikSawitId",
               COALESCE(SUM(t."grossKg"), 0)::float as "kebunBruto",
               COALESCE(SUM(n."bruto"), 0)::float as "pabrikBruto",
+              COALESCE(SUM(n."totalPembayaran"), 0)::float as "totalPembayaran",
+              COALESCE(SUM(n."beratAkhir"), 0)::float as "totalBeratAkhir",
               COUNT(*)::int as "jumlahNota"
             FROM "NotaSawit" n
             INNER JOIN "Timbangan" t ON t."id" = n."timbanganId"
@@ -94,33 +96,38 @@ export async function GET(request: Request) {
               AND n."timbanganId" IS NOT NULL
               AND n."pabrikSawitId" IN (${Prisma.join(pabrikIds)})
               ${range ? Prisma.sql`AND n."tanggalBongkar" >= ${range.startUtc} AND n."tanggalBongkar" < ${range.endExclusiveUtc}` : Prisma.empty}
-            GROUP BY t."kebunId"
+            GROUP BY n."pabrikSawitId"
             ORDER BY COUNT(*) DESC
           `
         )
       : []
 
-    const kebunIds = Array.from(new Set(selisihAgg.map(r => r.kebunId)))
-    const kebunDetails = kebunIds.length > 0
-      ? await prisma.kebun.findMany({ where: { id: { in: kebunIds } }, select: { id: true, name: true } })
-      : []
-    const kebunMap = new Map(kebunDetails.map(k => [k.id, k.name]))
-
-    const selisihPerKebun = selisihAgg
+    const selisihPerPabrik = selisihAgg
       .map((r) => {
         const totalSelisihKg = Number(r.pabrikBruto || 0) - Number(r.kebunBruto || 0)
         const selisihPercent = Number(r.kebunBruto || 0) > 0 ? (totalSelisihKg / Number(r.kebunBruto || 0)) * 100 : 0
+        const avgHargaPerKg = Number(r.totalBeratAkhir || 0) > 0 ? Number(r.totalPembayaran || 0) / Number(r.totalBeratAkhir || 0) : 0
+        const estimasiPendapatanSelisih = totalSelisihKg * avgHargaPerKg
         return {
-          kebunId: r.kebunId,
-          kebunName: kebunMap.get(r.kebunId) || `Kebun #${r.kebunId}`,
+          pabrikSawitId: r.pabrikSawitId,
+          pabrikName: pabrikMap.get(r.pabrikSawitId) || `Pabrik #${r.pabrikSawitId}`,
           jumlahNota: Number(r.jumlahNota || 0),
           totalBrutoKebun: Number(r.kebunBruto || 0),
           totalBrutoPabrik: Number(r.pabrikBruto || 0),
           totalSelisihKg,
           selisihPercent,
+          avgHargaPerKg,
+          estimasiPendapatanSelisih,
+          totalPembayaran: Number(r.totalPembayaran || 0),
+          totalBeratAkhir: Number(r.totalBeratAkhir || 0),
         }
       })
-      .sort((a, b) => Math.abs(b.totalSelisihKg) - Math.abs(a.totalSelisihKg))
+      .sort((a, b) => {
+        const da = Math.abs(a.totalSelisihKg)
+        const db = Math.abs(b.totalSelisihKg)
+        if (da !== db) return da - db
+        return a.pabrikName.localeCompare(b.pabrikName)
+      })
 
     return NextResponse.json({
       totalPabrik,
@@ -128,7 +135,7 @@ export async function GET(request: Request) {
       highestPotonganPercent,
       highestTonase,
       highestPembayaran,
-      selisihPerKebun,
+      selisihPerPabrik,
     });
   } catch (error) {
     console.error('Error fetching pabrik sawit summary:', error);
