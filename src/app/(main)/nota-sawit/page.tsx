@@ -876,6 +876,13 @@ export default function NotaSawitPage() {
   };
 
   useEffect(() => {
+    let ignore = false;
+    
+    // Skip fetching if dates are not yet initialized for a quick range
+    if (quickRange !== 'custom' && (!startDate || !endDate)) {
+      return;
+    }
+
     setLoading(true);
     setRowSelection({}); // Reset row selection
 
@@ -914,19 +921,26 @@ export default function NotaSawitPage() {
         const dataPayload = await dataRes.json();
         const summaryPayload = await summaryRes.json();
 
+        if (ignore) return;
+
         setData(dataPayload.data);
         setTotalNotas(dataPayload.total);
         setSummary(summaryPayload);
         setNextCursor(dataPayload.nextCursor || null);
       } catch (error) {
+        if (ignore) return;
         toast.error('Gagal memuat data.');
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     };
 
     fetchData();
-  }, [refreshToggle, page, limit, debouncedSearchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, cursorId]);
+
+    return () => {
+      ignore = true;
+    };
+  }, [refreshToggle, page, limit, debouncedSearchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, cursorId, quickRange]);
 
   const tableMeta = useMemo(() => ({
     role,
