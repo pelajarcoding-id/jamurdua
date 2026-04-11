@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { convertImageFileToWebp } from '@/lib/image-webp';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox'
@@ -311,129 +312,111 @@ export default function NotaSawitPage() {
 
   const handleSave = useCallback(async (formDataRaw: any, file?: File) => {
     
-    const formData = new FormData();
-    formData.append('kendaraanPlatNomor', formDataRaw.kendaraanPlatNomor || '');
-    formData.append('supirId', String(formDataRaw.supirId));
-    formData.append('pabrikSawitId', String(formDataRaw.pabrikSawitId));
-    formData.append('potongan', String(formDataRaw.potongan));
-    formData.append('hargaPerKg', String(formDataRaw.hargaPerKg || 0));
-    formData.append('statusPembayaran', formDataRaw.statusPembayaran || 'BELUM_LUNAS');
-    
-    // Handle pembayaranAktual
-    if (formDataRaw.pembayaranAktual !== undefined && formDataRaw.pembayaranAktual !== null) {
-      formData.append('pembayaranAktual', String(formDataRaw.pembayaranAktual));
-    } else {
-      formData.append('pembayaranAktual', '');
-    }
+    let finalGambarUrl = selectedNota?.gambarNotaUrl || '';
 
-    // Handle tanggalBongkar
-    if (formDataRaw.tanggalBongkar) {
-        formData.append('tanggalBongkar', new Date(formDataRaw.tanggalBongkar).toISOString());
-    }
+    const toastId = toast.loading(selectedNota ? 'Menyimpan nota...' : 'Menambahkan nota...');
 
-    // Add Bruto/Tara/Netto/PPh25
-    if (formDataRaw.bruto !== undefined) formData.append('bruto', String(formDataRaw.bruto));
-    if (formDataRaw.tara !== undefined) formData.append('tara', String(formDataRaw.tara));
-    if (formDataRaw.netto !== undefined) formData.append('netto', String(formDataRaw.netto));
-    if (formDataRaw.pph25 !== undefined) formData.append('pph25', String(formDataRaw.pph25));
-
-    // Add timbanganId if present (and not manual)
-    if (formDataRaw.timbanganId && !formDataRaw.isManual) {
-         formData.append('timbanganId', String(formDataRaw.timbanganId));
-    }
-    if (formDataRaw.useTimbanganKebun) {
-      formData.append('useTimbanganKebun', 'true')
-      if (formDataRaw.grossKg !== undefined) formData.append('grossKg', String(formDataRaw.grossKg))
-      if (formDataRaw.tareKg !== undefined) formData.append('tareKg', String(formDataRaw.tareKg))
-      if (formDataRaw.kebunId) formData.append('kebunId', String(formDataRaw.kebunId))
-    }
-
-    if (file) {
-      formData.append('gambarNota', file);
-    }
-
-    if (selectedNota) {
-        // UPDATE (PUT)
-        const previousData = [...data];
-        const updatedData = data.map(item => 
-          item.id === selectedNota.id ? { ...item, ...formDataRaw } : item
-        );
-        setData(updatedData);
-        handleCloseModal();
-
-        const toastId = toast.loading('Menyimpan nota...')
-        try {
-          // 2. Background API Call
-          // If Manual, we might need to send timbanganId as empty/null if it was previously set?
-          // The API likely expects 'timbanganId' to be present to update it, or maybe a special flag?
-          // If we want to disconnect, we might need to send null.
-          // FormData sends strings. Sending empty string or "null" might be needed.
+    try {
+      if (file) {
+          const uploadFormData = new FormData();
+          const converted = await convertImageFileToWebp(file, { quality: 0.9, maxDimension: 1920 })
+          uploadFormData.append('file', converted);
           
+          const uploadRes = await fetch('/api/upload', {
+              method: 'POST',
+              body: uploadFormData
+          });
+
+          if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              if (uploadData.success) {
+                  finalGambarUrl = uploadData.url;
+              } else {
+                  console.error('Upload failed:', uploadData.error);
+                  toast.error(`Gagal upload gambar: ${uploadData.error}`, { id: toastId });
+                  return;
+              }
+          } else {
+             console.error('Upload request failed:', uploadRes.statusText);
+             toast.error('Gagal upload gambar: Server Error', { id: toastId });
+             return;
+          }
+      }
+
+      const payload: any = {
+        kendaraanPlatNomor: formDataRaw.kendaraanPlatNomor || '',
+        supirId: Number(formDataRaw.supirId),
+        pabrikSawitId: Number(formDataRaw.pabrikSawitId),
+        potongan: Number(formDataRaw.potongan),
+        hargaPerKg: Number(formDataRaw.hargaPerKg || 0),
+        statusPembayaran: formDataRaw.statusPembayaran || 'BELUM_LUNAS',
+        pembayaranAktual: (formDataRaw.pembayaranAktual !== undefined && formDataRaw.pembayaranAktual !== null) ? Number(formDataRaw.pembayaranAktual) : null,
+        tanggalBongkar: formDataRaw.tanggalBongkar ? new Date(formDataRaw.tanggalBongkar).toISOString() : undefined,
+        bruto: formDataRaw.bruto !== undefined ? Number(formDataRaw.bruto) : undefined,
+        tara: formDataRaw.tara !== undefined ? Number(formDataRaw.tara) : undefined,
+        netto: formDataRaw.netto !== undefined ? Number(formDataRaw.netto) : undefined,
+        pph25: formDataRaw.pph25 !== undefined ? Number(formDataRaw.pph25) : undefined,
+        gambarNotaUrl: finalGambarUrl,
+        isManual: !!formDataRaw.isManual,
+        useTimbanganKebun: !!formDataRaw.useTimbanganKebun,
+      };
+
+      if (formDataRaw.timbanganId && !formDataRaw.isManual) {
+          payload.timbanganId = Number(formDataRaw.timbanganId);
+      }
+
+      if (formDataRaw.useTimbanganKebun) {
+          payload.grossKg = Number(formDataRaw.grossKg);
+          payload.tareKg = Number(formDataRaw.tareKg);
+          payload.kebunId = Number(formDataRaw.kebunId);
+      } else if (formDataRaw.isManual) {
+          payload.grossKg = Number(formDataRaw.manualGross || 0);
+          payload.tareKg = Number(formDataRaw.manualTare || 0);
+          payload.kebunId = Number(formDataRaw.kebunId);
+      }
+
+      if (selectedNota) {
+          // UPDATE (PUT)
           if (formDataRaw.isManual) {
-              // Explicitly disconnect timbangan if switching to manual
-              formData.append('disconnectTimbangan', 'true');
-              formData.append('isManual', 'true');
-              formData.append('kebunId', String(formDataRaw.kebunId));
+              payload.disconnectTimbangan = true;
           }
 
           const response = await fetch(`/api/nota-sawit/${selectedNota.id}`, {
             method: 'PUT',
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
           });
 
           if (!response.ok) {
-            throw new Error('Gagal memperbarui data');
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || 'Gagal memperbarui data');
           }
 
           refreshData();
-          toast.success('Nota berhasil diperbarui', { id: toastId })
-        } catch (error) {
-          // 4. Rollback
-          setData(previousData);
-          toast.error('Gagal memperbarui data, mengembalikan perubahan.', { id: toastId });
-          console.error(error);
-        }
-    } else {
-        // CREATE (POST)
-        // Add specific Create fields
-        if (formDataRaw.timbanganId) {
-             formData.append('timbanganId', String(formDataRaw.timbanganId));
-        }
-
-        if (formDataRaw.isManual) {
-            formData.append('isManual', 'true');
-            // Jika isManual (tanpa timbangan), grossKg dan tareKg untuk timbangan boleh 0 atau kosong
-            // Tapi API mungkin butuh nilai, kita kirim 0 saja jika tidak ada input manual
-            formData.append('grossKg', String(formDataRaw.manualGross || 0));
-            formData.append('tareKg', String(formDataRaw.manualTare || 0));
-            
-            if (formDataRaw.kebunId) {
-                formData.append('kebunId', String(formDataRaw.kebunId));
-            }
-        }
-
-        try {
-             const loadingToast = toast.loading('Menyimpan data...');
-             const response = await fetch('/api/nota-sawit', {
-                method: 'POST',
-                body: formData,
-            });
-             
-             if (!response.ok) {
-                 const errData = await response.json().catch(() => ({}));
-                 toast.error(errData.error || 'Gagal menambahkan data', { id: loadingToast });
-                 return;
-             }
-             
-             refreshData();
-             handleCloseModal();
-             toast.success('Nota berhasil ditambahkan', { id: loadingToast });
-        } catch (error: any) {
-             toast.error(error.message || 'Gagal menambahkan data');
-             console.error(error);
-        }
+          handleCloseModal();
+          toast.success('Nota berhasil diperbarui', { id: toastId });
+      } else {
+          // CREATE (POST)
+          const response = await fetch('/api/nota-sawit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+          });
+           
+           if (!response.ok) {
+               const errData = await response.json().catch(() => ({}));
+               throw new Error(errData.error || 'Gagal menambahkan data');
+           }
+           
+           refreshData();
+           handleCloseModal();
+           toast.success('Nota berhasil ditambahkan', { id: toastId });
+      }
+    } catch (error: any) {
+         toast.error(error.message || 'Gagal menyimpan data', { id: toastId });
+         console.error(error);
     }
-  }, [selectedNota, data, refreshData, handleCloseModal]);
+  }, [selectedNota, refreshData, handleCloseModal]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedNota) return;

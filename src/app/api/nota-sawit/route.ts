@@ -1,7 +1,5 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
 import { Prisma } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit';
 import { auth } from '@/auth';
@@ -10,11 +8,6 @@ import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib';
 
 export const dynamic = 'force-dynamic'
-
-function sanitizeFileName(name: string) {
-  const cleaned = String(name || '').replace(/[^a-zA-Z0-9._-]/g, '')
-  return cleaned || 'file'
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -291,26 +284,25 @@ export async function POST(request: Request) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR'])
     if (guard.response) return guard.response
-    const data = await request.formData();
+    const body = await request.json();
     const roundInt = (v: any) => Math.round(Number(v) || 0)
-    const useTimbanganKebun = data.get('useTimbanganKebun') === 'true'
-    const supirId = Number(data.get('supirId'));
-    const kendaraanPlatNomor = data.get('kendaraanPlatNomor') as string;
-    const pabrikSawitId = Number(data.get('pabrikSawitId'));
-    const tanggalBongkarValue = data.get('tanggalBongkar');
+    const useTimbanganKebun = body.useTimbanganKebun === true || body.useTimbanganKebun === 'true'
+    const supirId = Number(body.supirId);
+    const kendaraanPlatNomor = body.kendaraanPlatNomor as string;
+    const pabrikSawitId = Number(body.pabrikSawitId);
+    const tanggalBongkarValue = body.tanggalBongkar;
     let tanggalBongkar = (tanggalBongkarValue && tanggalBongkarValue.toString()) ? new Date(tanggalBongkarValue.toString()) : null;
-    const potongan = roundInt(data.get('potongan'));
-    const hargaPerKg = roundInt(data.get('hargaPerKg'));
-    const statusPembayaran = data.get('statusPembayaran') as string;
-    const gambarNota = data.get('gambarNota') as File | null;
-    const isManual = data.get('isManual') === 'true';
+    const potongan = roundInt(body.potongan);
+    const hargaPerKg = roundInt(body.hargaPerKg);
+    const statusPembayaran = body.statusPembayaran as string;
+    const isManual = body.isManual === true || body.isManual === 'true';
 
     if (!supirId || !kendaraanPlatNomor || !pabrikSawitId) {
       return NextResponse.json({ error: 'Supir, Kendaraan, dan Pabrik Sawit harus diisi' }, { status: 400 });
     }
 
     let timbanganId: number | null = null;
-    const timbanganIdRaw = data.get('timbanganId');
+    const timbanganIdRaw = body.timbanganId;
 
     if (timbanganIdRaw && timbanganIdRaw !== 'undefined' && timbanganIdRaw !== 'null') {
       timbanganId = Number(timbanganIdRaw);
@@ -319,7 +311,7 @@ export async function POST(request: Request) {
     let kebunId: number | null = null;
     if (!timbanganId) {
         // Kasus: Tidak pilih Timbangan (Manual/Kebun saja)
-        kebunId = Number(data.get('kebunId'));
+        kebunId = Number(body.kebunId);
         if (!kebunId) {
              return NextResponse.json({ error: 'Kebun harus dipilih jika tidak menggunakan data timbangan' }, { status: 400 });
         }
@@ -336,8 +328,8 @@ export async function POST(request: Request) {
     }
 
     if (!timbanganId && useTimbanganKebun) {
-      const grossKg = roundInt(data.get('grossKg'))
-      const tareKg = roundInt(data.get('tareKg'))
+      const grossKg = roundInt(body.grossKg)
+      const tareKg = roundInt(body.tareKg)
       const netKg = Math.max(0, grossKg - tareKg)
       const createdTimbangan = await prisma.timbangan.create({
         data: {
@@ -355,33 +347,22 @@ export async function POST(request: Request) {
     }
 
     // Get Nota Sawit specific weights
-    const bruto = roundInt(data.get('bruto') || 0);
-    const tara = roundInt(data.get('tara') || 0);
-    const netto = roundInt(data.get('netto') || 0);
+    const bruto = roundInt(body.bruto || 0);
+    const tara = roundInt(body.tara || 0);
+    const netto = roundInt(body.netto || 0);
     
     const effectiveNetto = netto; 
 
     const beratAkhir = Math.max(0, effectiveNetto - potongan);
     const totalPembayaran = roundInt(beratAkhir * hargaPerKg);
     const pph = roundInt(totalPembayaran * 0.0025);
-    const pph25 = roundInt(data.get('pph25') || 0);
+    const pph25 = roundInt(body.pph25 || 0);
     const pembayaranSetelahPph = totalPembayaran - pph - pph25;
 
-    const pembayaranAktualValue = data.get('pembayaranAktual');
-    const pembayaranAktual = pembayaranAktualValue ? roundInt(pembayaranAktualValue) : null;
+    const pembayaranAktualValue = body.pembayaranAktual;
+    const pembayaranAktual = (pembayaranAktualValue !== undefined && pembayaranAktualValue !== null && pembayaranAktualValue !== '') ? roundInt(pembayaranAktualValue) : null;
 
-    let gambarNotaUrl = null;
-    if (gambarNota) {
-        const bytes = await gambarNota.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        const safeName = sanitizeFileName(gambarNota.name)
-        const filename = `${Date.now()}-${safeName}`;
-        const dir = join(process.cwd(), 'public', 'uploads', 'nota-sawit')
-        await mkdir(dir, { recursive: true })
-        const filepath = join(dir, filename);
-        await writeFile(filepath, buffer);
-        gambarNotaUrl = `/uploads/nota-sawit/${filename}`;
-    }
+    let gambarNotaUrl = body.gambarNotaUrl || null;
 
     if (!tanggalBongkar) {
         tanggalBongkar = new Date();

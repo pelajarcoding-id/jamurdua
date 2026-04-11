@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import ImageUpload from '@/components/ui/ImageUpload';
+import { convertImageFileToWebp } from '@/lib/image-webp';
 import type { Timbangan, User as Supir, Kebun, Kendaraan, PabrikSawit } from '@prisma/client';
 import { useAuth } from '@/components/AuthProvider';
 import { DocumentDuplicateIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -406,50 +407,69 @@ export default function TambahNotaSawitPage() {
     const kendaraanPlatNomor = formData.get('kendaraanPlatNomor') as string;
     const pabrikSawitId = Number(formData.get('pabrikSawitId'));
 
-    const data = new FormData();
-
-    if (tanggalBongkar) {
-      data.append('tanggalBongkar', tanggalBongkar.toISOString());
-    }
-
-    if (isManualInput) {
-        const kebunId = Number(formData.get('kebunId'));
-        data.append('supirId', String(supirId));
-        data.append('potongan', String(potongan));
-        data.append('kebunId', String(kebunId));
-        data.append('grossKg', String(manualGross));
-        data.append('tareKg', String(manualTare));
-        data.append('isManual', 'true');
-        data.append('kendaraanPlatNomor', kendaraanPlatNomor);
-        data.append('pabrikSawitId', String(pabrikSawitId));
-        data.append('hargaPerKg', String(hargaPerKg));
-        data.append('statusPembayaran', statusPembayaran);
-        data.append('pembayaranAktual', pembayaranAktual !== null ? String(pembayaranAktual) : '');
-    } else if (selectedTimbangan) {
-        const timbanganId = Number(formData.get('timbanganId'));
-        data.append('timbanganId', String(timbanganId));
-        data.append('supirId', String(supirId));
-        data.append('potongan', String(potongan));
-        data.append('isManual', 'false');
-        data.append('kendaraanPlatNomor', kendaraanPlatNomor);
-        data.append('pabrikSawitId', String(pabrikSawitId));
-        data.append('hargaPerKg', String(hargaPerKg));
-        data.append('pph25', String(pph25));
-        data.append('statusPembayaran', statusPembayaran);
-        data.append('grossKg', String(timbanganGross));
-        data.append('tareKg', String(timbanganTare));
-        data.append('kebunId', String(selectedTimbangan.kebunId));
-        data.append('pembayaranAktual', pembayaranAktual !== null ? String(pembayaranAktual) : '');
-    }
-
-    if (gambarNota) {
-      data.append('gambarNota', gambarNota);
-    }
-
     try {
+      let finalGambarUrl = '';
+
+      if (gambarNota) {
+          const uploadFormData = new FormData();
+          const converted = await convertImageFileToWebp(gambarNota, { quality: 0.9, maxDimension: 1920 })
+          uploadFormData.append('file', converted);
+          
+          const uploadRes = await fetch('/api/upload', {
+              method: 'POST',
+              body: uploadFormData
+          });
+
+          if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              if (uploadData.success) {
+                  finalGambarUrl = uploadData.url;
+              } else {
+                  console.error('Upload failed:', uploadData.error);
+                  toast.error(`Gagal upload gambar: ${uploadData.error}`, { id: loadingToast });
+                  setIsSubmitting(false);
+                  return;
+              }
+          } else {
+             console.error('Upload request failed:', uploadRes.statusText);
+             toast.error('Gagal upload gambar: Server Error', { id: loadingToast });
+             setIsSubmitting(false);
+             return;
+          }
+      }
+
+      const payload: any = {
+        tanggalBongkar: tanggalBongkar?.toISOString(),
+        supirId,
+        kendaraanPlatNomor,
+        pabrikSawitId,
+        potongan,
+        hargaPerKg,
+        pph25,
+        statusPembayaran,
+        pembayaranAktual,
+        gambarNotaUrl: finalGambarUrl,
+        bruto: isManualInput ? manualGross : timbanganGross,
+        tara: isManualInput ? manualTare : timbanganTare,
+        netto: isManualInput ? manualNet : (timbanganGross - timbanganTare),
+        isManual: isManualInput,
+      };
+
+      if (isManualInput) {
+          payload.kebunId = Number(formData.get('kebunId'));
+      } else if (selectedTimbangan) {
+          payload.timbanganId = selectedTimbangan.id;
+          payload.kebunId = selectedTimbangan.kebunId;
+          payload.grossKg = timbanganGross;
+          payload.tareKg = timbanganTare;
+      }
+
       const res = await fetch('/api/nota-sawit', {
         method: 'POST',
-        body: data,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {

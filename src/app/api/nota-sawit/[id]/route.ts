@@ -1,6 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/audit';
@@ -8,11 +6,6 @@ import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 
 export const dynamic = 'force-dynamic'
-
-function sanitizeFileName(name: string) {
-  const cleaned = String(name || '').replace(/[^a-zA-Z0-9._-]/g, '')
-  return cleaned || 'file'
-}
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR'])
@@ -103,32 +96,31 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   try {
     const session = await auth();
     const currentUserId = session?.user?.id ? Number(session.user.id) : guard.id;
-    const data = await req.formData();
+    const body = await req.json();
     const dataToUpdate: { [key: string]: any } = {};
     const roundInt = (v: any) => Math.round(Number(v) || 0)
-    const useTimbanganKebun = data.get('useTimbanganKebun') === 'true'
+    const useTimbanganKebun = body.useTimbanganKebun === true || body.useTimbanganKebun === 'true'
 
-    const supirId = data.get('supirId');
-    const kendaraanPlatNomor = data.get('kendaraanPlatNomor');
-    const pabrikSawitId = data.get('pabrikSawitId');
-    const potongan = data.get('potongan');
-    const hargaPerKg = data.get('hargaPerKg');
-    const statusPembayaran = data.get('statusPembayaran');
-    const gambarNota = data.get('gambarNota') as File | null;
-    const tanggalBongkarValue = data.get('tanggalBongkar');
-    const grossKg = data.get('grossKg');
-    const tareKg = data.get('tareKg');
-    const bruto = data.get('bruto');
-    const tara = data.get('tara');
-    const netto = data.get('netto');
-    const pembayaranAktualValue = data.get('pembayaranAktual');
-    const pph25Value = data.get('pph25');
-    const hapusGambar = data.get('hapusGambar');
+    const supirId = body.supirId;
+    const kendaraanPlatNomor = body.kendaraanPlatNomor;
+    const pabrikSawitId = body.pabrikSawitId;
+    const potongan = body.potongan;
+    const hargaPerKg = body.hargaPerKg;
+    const statusPembayaran = body.statusPembayaran;
+    const tanggalBongkarValue = body.tanggalBongkar;
+    const grossKg = body.grossKg;
+    const tareKg = body.tareKg;
+    const bruto = body.bruto;
+    const tara = body.tara;
+    const netto = body.netto;
+    const pembayaranAktualValue = body.pembayaranAktual;
+    const pph25Value = body.pph25;
+    const hapusGambar = body.hapusGambar === true || body.hapusGambar === 'true';
 
-    const timbanganId = data.get('timbanganId');
-    const disconnectTimbangan = data.get('disconnectTimbangan');
-    const isManual = data.get('isManual');
-    const kebunId = data.get('kebunId');
+    const timbanganId = body.timbanganId;
+    const disconnectTimbangan = body.disconnectTimbangan === true || body.disconnectTimbangan === 'true';
+    const isManual = body.isManual === true || body.isManual === 'true';
+    const kebunId = body.kebunId;
 
     const existingNota = await prisma.notaSawit.findUnique({
       where: { id },
@@ -140,10 +132,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     if (useTimbanganKebun) {
-      const grossKgVal = data.get('grossKg')
-      const tareKgVal = data.get('tareKg')
-      const hasGross = grossKgVal !== null && String(grossKgVal).trim() !== ''
-      const hasTare = tareKgVal !== null && String(tareKgVal).trim() !== ''
+      const grossKgVal = body.grossKg
+      const tareKgVal = body.tareKg
+      const hasGross = grossKgVal !== null && grossKgVal !== undefined && String(grossKgVal).trim() !== ''
+      const hasTare = tareKgVal !== null && tareKgVal !== undefined && String(tareKgVal).trim() !== ''
       if (hasGross && hasTare) {
         const grossKgNum = roundInt(grossKgVal)
         const tareKgNum = roundInt(tareKgVal)
@@ -182,7 +174,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
-    if (disconnectTimbangan === 'true' && isManual === 'true') {
+    if (disconnectTimbangan && isManual) {
         const targetKebunId = kebunId ? Number(kebunId) : existingNota.timbangan?.kebunId;
         
         if (targetKebunId) {
@@ -195,7 +187,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
                      date: new Date(existingNota.tanggalBongkar || new Date()),
                      supirId: existingNota.supirId,
                      notes: "Input Manual (Disconnected from Kebun Timbangan)",
-                     // isManual: true // Removed as it doesn't exist in schema
                  }
              });
              dataToUpdate.timbangan = { connect: { id: newTimbangan.id } };
@@ -212,7 +203,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       dataToUpdate.tanggalBongkar = new Date(tanggalBongkarValue.toString());
     }
 
-    if (kendaraanPlatNomor !== null) {
+    if (kendaraanPlatNomor !== undefined && kendaraanPlatNomor !== null) {
       if (kendaraanPlatNomor) {
         dataToUpdate.kendaraan = { connect: { platNomor: kendaraanPlatNomor as string } };
       } else {
@@ -224,7 +215,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       dataToUpdate.pabrikSawit = { connect: { id: Number(pabrikSawitId) } };
     }
 
-    if (pembayaranAktualValue !== null) {
+    if (pembayaranAktualValue !== undefined && pembayaranAktualValue !== null) {
         if (pembayaranAktualValue.toString() !== '') {
              dataToUpdate.pembayaranAktual = roundInt(pembayaranAktualValue);
         } else {
@@ -233,9 +224,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     // Update NotaSawit specific weights
-    if (bruto !== null) dataToUpdate.bruto = roundInt(bruto);
-    if (tara !== null) dataToUpdate.tara = roundInt(tara);
-    if (netto !== null) dataToUpdate.netto = roundInt(netto);
+    if (bruto !== undefined && bruto !== null) dataToUpdate.bruto = roundInt(bruto);
+    if (tara !== undefined && tara !== null) dataToUpdate.tara = roundInt(tara);
+    if (netto !== undefined && netto !== null) dataToUpdate.netto = roundInt(netto);
 
     let timbanganData = { ...existingNota.timbangan };
 
@@ -245,7 +236,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     // Calculate effective netto for payment
     let calculationNetto = 0;
-    if (netto !== null) {
+    if (netto !== undefined && netto !== null) {
         calculationNetto = roundInt(netto);
     } else {
         // @ts-ignore
@@ -253,14 +244,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     let beratAkhir = Math.max(0, roundInt(calculationNetto - (existingNota.potongan || 0)));
-    if (potongan !== null) {
+    if (potongan !== undefined && potongan !== null) {
       const potonganNum = roundInt(potongan);
       dataToUpdate.potongan = potonganNum;
       beratAkhir = Math.max(0, calculationNetto - potonganNum);
     }
     dataToUpdate.beratAkhir = beratAkhir;
 
-    if (hargaPerKg !== null) {
+    if (hargaPerKg !== undefined && hargaPerKg !== null) {
         const hargaPerKgNum = roundInt(hargaPerKg);
         dataToUpdate.hargaPerKg = hargaPerKgNum;
         dataToUpdate.totalPembayaran = roundInt(beratAkhir * hargaPerKgNum);
@@ -274,11 +265,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const newPph = roundInt(newTotalPembayaran * 0.0025);
     dataToUpdate.pph = newPph;
 
-    if (pph25Value !== null) {
+    if (pph25Value !== undefined && pph25Value !== null) {
         dataToUpdate.pph25 = roundInt(pph25Value);
     }
     // @ts-ignore
-    const currentPph25 = (pph25Value !== null) ? roundInt(pph25Value) : roundInt(existingNota.pph25 || 0);
+    const currentPph25 = (pph25Value !== undefined && pph25Value !== null) ? roundInt(pph25Value) : roundInt(existingNota.pph25 || 0);
 
     dataToUpdate.pembayaranSetelahPph = roundInt(newTotalPembayaran - newPph - currentPph25);
 
@@ -286,7 +277,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         dataToUpdate.statusPembayaran = statusPembayaran as string;
     }
 
-    if (hapusGambar === 'true' && existingNota.gambarNotaUrl) {
+    if (hapusGambar && existingNota.gambarNotaUrl) {
         await scheduleFileDeletion({
           url: existingNota.gambarNotaUrl,
           entity: 'NotaSawit',
@@ -296,7 +287,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         dataToUpdate.gambarNotaUrl = null;
     }
 
-    if (gambarNota) {
+    const gambarNotaUrl = body.gambarNotaUrl;
+    if (gambarNotaUrl) {
         if (existingNota.gambarNotaUrl) {
             await scheduleFileDeletion({
               url: existingNota.gambarNotaUrl,
@@ -305,15 +297,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
               reason: 'REPLACE_IMAGE',
             })
         }
-        const bytes = await gambarNota.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        const safeName = sanitizeFileName(gambarNota.name)
-        const filename = `${Date.now()}-${safeName}`;
-        const dir = join(process.cwd(), 'public', 'uploads', 'nota-sawit')
-        await mkdir(dir, { recursive: true })
-        const filepath = join(dir, filename);
-        await writeFile(filepath, buffer);
-        dataToUpdate.gambarNotaUrl = `/uploads/nota-sawit/${filename}`;
+        dataToUpdate.gambarNotaUrl = gambarNotaUrl;
     }
 
     if (Object.keys(dataToUpdate).length === 0) {
