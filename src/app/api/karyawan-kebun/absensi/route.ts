@@ -154,7 +154,7 @@ export async function GET(request: Request) {
     if (karyawanIdParam) {
       const karyawanId = Number(karyawanIdParam)
       const records = await prisma.$queryRaw<Array<{ 
-        date: Date; 
+        date: string; 
         jumlah: number; 
         kerja: boolean; 
         libur: boolean; 
@@ -164,7 +164,7 @@ export async function GET(request: Request) {
         uangMakan: number | null;
         useHourly: boolean | null;
       }>>`
-        SELECT "date", "jumlah", "kerja", "libur", "note", "jamKerja", "ratePerJam", "uangMakan", "useHourly"
+        SELECT TO_CHAR("date", 'YYYY-MM-DD') as "date", "jumlah", "kerja", "libur", "note", "jamKerja", "ratePerJam", "uangMakan", "useHourly"
         FROM "AbsensiHarian"
         WHERE "kebunId" = ${kebunId}
           AND "karyawanId" = ${karyawanId}

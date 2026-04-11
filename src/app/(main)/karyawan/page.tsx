@@ -4214,7 +4214,7 @@ export default function KaryawanKebunPage() {
       </Dialog>
 
       <Dialog open={openHistory} onOpenChange={setOpenHistory}>
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-lg max-h-[92vh] rounded-2xl p-0 overflow-hidden flex flex-col">
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-lg max-h-[92vh] rounded-2xl p-0 overflow-hidden flex flex-col [&>button.absolute]:hidden">
           <ModalHeader
             title="Riwayat Penugasan"
             subtitle={historyUser?.name || ''}
@@ -4249,7 +4249,7 @@ export default function KaryawanKebunPage() {
       </Dialog>
 
       <Dialog open={openMove} onOpenChange={setOpenMove}>
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-md max-h-[92vh] rounded-2xl p-0 overflow-hidden flex flex-col">
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-md max-h-[92vh] rounded-2xl p-0 overflow-hidden flex flex-col [&>button.absolute]:hidden">
           <ModalHeader
             title="Pindahkan Karyawan"
             subtitle={moveUser?.name || ''}

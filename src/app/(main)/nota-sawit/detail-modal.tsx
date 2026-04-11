@@ -365,7 +365,11 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDe
       const rowH = 9 * financeRows.length;
       const dividerH = 8 + 4;
       const totalH = 8 + 12;
-      const financeBoxHeight = financeHeaderH + rowH + dividerH + totalH + (boxPadding * 2) + 8;
+      const ketRaw = (nota as any).keterangan ? String((nota as any).keterangan) : ''
+      const ketWidth = rightContentRight - rightContentMargin
+      const ketLines = ketRaw ? doc.splitTextToSize(ketRaw, ketWidth) : []
+      const ketBlockHeight = ketLines.length > 0 ? (8 + 6 + (ketLines.length * 5)) : 0
+      let financeBoxHeight = financeHeaderH + rowH + dividerH + totalH + (boxPadding * 2) + 8 + ketBlockHeight;
       doc.setFillColor('#F9FAFB');
       doc.setDrawColor('#E5E7EB');
       doc.roundedRect(rightColumnX, rightY, contentWidth, financeBoxHeight, 3, 3, 'DF');
@@ -404,6 +408,22 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDe
       doc.setFont('helvetica', 'bold');
       const finalAmount = (nota as any).pembayaranAktual ?? nota.pembayaranSetelahPph;
       doc.text(formatCurrency(finalAmount), rightContentRight, fy, { align: 'right' });
+
+      if (ketLines.length > 0) {
+        fy += 10;
+        doc.setDrawColor('#E5E7EB');
+        doc.line(rightContentMargin, fy, rightContentRight, fy);
+        fy += 8;
+        doc.setFontSize(9);
+        doc.setTextColor('#6B7280');
+        doc.setFont('helvetica', 'bold');
+        doc.text('KETERANGAN', rightContentMargin, fy);
+        fy += 6;
+        doc.setFontSize(10);
+        doc.setTextColor('#111827');
+        doc.setFont('helvetica', 'normal');
+        doc.text(ketLines, rightContentMargin, fy);
+      }
       rightY += financeBoxHeight + 10;
     }
 
