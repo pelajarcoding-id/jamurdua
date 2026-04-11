@@ -98,6 +98,7 @@ export default function UangJalanPage() {
     const router = useRouter();
     const [data, setData] = useState<SesiUangJalanWithDetails[]>([])
     const [supirList, setSupirList] = useState<User[]>([])
+    const [karyawanList, setKaryawanList] = useState<User[]>([])
     const [kendaraanList, setKendaraanList] = useState<Kendaraan[]>([])
     const [kebunList, setKebunList] = useState<any[]>([])
     const [perusahaanList, setPerusahaanList] = useState<any[]>([])
@@ -157,15 +158,21 @@ export default function UangJalanPage() {
                 url += `&supirId=${selectedSupirId}`;
             }
 
-            const [sesiRes, supirRes, kendaraanRes, kebunRes, perusahaanRes] = await Promise.all([
+            const karyawanResPromise = role === 'SUPIR'
+              ? Promise.resolve(null)
+              : fetch('/api/karyawan/tag-list?limit=1000', { cache: 'no-store' })
+
+            const [sesiRes, supirRes, karyawanRes, kendaraanRes, kebunRes, perusahaanRes] = await Promise.all([
                 fetch(url, { cache: 'no-store' }),
                 fetch('/api/users?role=SUPIR&limit=1000', { cache: 'no-store' }),
+                karyawanResPromise,
                 fetch('/api/kendaraan?limit=1000', { cache: 'no-store' }),
                 fetch('/api/kebun?limit=1000', { cache: 'no-store' }),
                 fetch('/api/perusahaan?limit=1000', { cache: 'no-store' }),
             ]);
             const sesiData = await sesiRes.json();
             const supirData = await supirRes.json();
+            const karyawanData = karyawanRes ? await karyawanRes.json() : { data: [] }
             const kendaraanData = await kendaraanRes.json();
             const kebunData = await kebunRes.json();
             const perusahaanData = await perusahaanRes.json();
@@ -173,6 +180,7 @@ export default function UangJalanPage() {
             setData(sesiData.data);
             setTotalItems(sesiData.total);
             setSupirList(supirData.data || []);
+            setKaryawanList(karyawanData.data || []);
             setKendaraanList(kendaraanData.data || []);
             setKebunList(kebunData.data || []);
             setPerusahaanList(perusahaanData.data || []);
@@ -457,12 +465,41 @@ export default function UangJalanPage() {
         }
     }, [selectedSesi, data, totalItems, summary, supirList, kendaraanList, fetchData]);
 
+    const normalizeRincianInput = (raw: any) => {
+        try {
+            if (typeof FormData !== 'undefined' && raw instanceof FormData) {
+                const getText = (key: string) => {
+                    const v = raw.get(key)
+                    return v == null ? '' : String(v)
+                }
+                const getFile = (key: string) => {
+                    const v = raw.get(key)
+                    return typeof File !== 'undefined' && v instanceof File ? v : null
+                }
+                return {
+                    sesiUangJalanId: getText('sesiUangJalanId'),
+                    tipe: getText('tipe'),
+                    amount: getText('amount'),
+                    description: getText('description'),
+                    date: getText('date') || null,
+                    gambar: getFile('gambar'),
+                    tagKendaraanPlatNomor: getText('tagKendaraanPlatNomor') || undefined,
+                    tagKebunId: getText('tagKebunId') || undefined,
+                    tagPerusahaanId: getText('tagPerusahaanId') || undefined,
+                    tagKaryawanId: getText('tagKaryawanId') || undefined,
+                }
+            }
+        } catch {}
+        return raw || {}
+    }
+
     const handleSaveRincian = useCallback(async (formDataObj: any) => {
-        const sesiId = Number(formDataObj.sesiUangJalanId);
-        const tipe = formDataObj.tipe as string;
-        const amount = Number(formDataObj.amount);
-        const description = formDataObj.description as string;
-        const dateString = formDataObj.date as string | null;
+        const normalized = normalizeRincianInput(formDataObj)
+        const sesiId = Number(normalized.sesiUangJalanId);
+        const tipe = normalized.tipe as string;
+        const amount = Number(normalized.amount);
+        const description = normalized.description as string;
+        const dateString = normalized.date as string | null;
         const dateValue = dateString ? new Date(dateString) : new Date();
 
         // Store previous state for rollback
@@ -519,9 +556,9 @@ export default function UangJalanPage() {
 
         try {
             let finalGambarUrl = '';
-            if (formDataObj.gambar) {
+            if (normalized.gambar) {
                 const uploadFormData = new FormData();
-                uploadFormData.append('file', formDataObj.gambar);
+                uploadFormData.append('file', normalized.gambar);
                 const uploadRes = await fetch('/api/upload', {
                     method: 'POST',
                     body: uploadFormData
@@ -535,7 +572,7 @@ export default function UangJalanPage() {
             }
 
             const payload = {
-                ...formDataObj,
+                ...normalized,
                 gambarUrl: finalGambarUrl,
                 gambar: undefined // Remove file object
             };
@@ -563,11 +600,12 @@ export default function UangJalanPage() {
     }, [data, summary, fetchData])
 
     const handleUpdateRincian = useCallback(async (rincianId: number, formDataObj: any) => {
-        const sesiId = Number(formDataObj.sesiUangJalanId)
-        const tipe = formDataObj.tipe as string
-        const amount = Number(formDataObj.amount)
-        const description = formDataObj.description as string
-        const dateString = formDataObj.date as string | null
+        const normalized = normalizeRincianInput(formDataObj)
+        const sesiId = Number(normalized.sesiUangJalanId)
+        const tipe = normalized.tipe as string
+        const amount = Number(normalized.amount)
+        const description = normalized.description as string
+        const dateString = normalized.date as string | null
         const dateValue = dateString ? new Date(dateString) : new Date()
 
         const previousData = data
@@ -603,10 +641,10 @@ export default function UangJalanPage() {
         }
 
         try {
-            let finalGambarUrl = formDataObj.gambarUrl || '';
-            if (formDataObj.gambar) {
+            let finalGambarUrl = normalized.gambarUrl || '';
+            if (normalized.gambar) {
                 const uploadFormData = new FormData();
-                uploadFormData.append('file', formDataObj.gambar);
+                uploadFormData.append('file', normalized.gambar);
                 const uploadRes = await fetch('/api/upload', {
                     method: 'POST',
                     body: uploadFormData
@@ -620,7 +658,7 @@ export default function UangJalanPage() {
             }
 
             const payload = {
-                ...formDataObj,
+                ...normalized,
                 gambarUrl: finalGambarUrl,
                 gambar: undefined // Remove file object
             };
@@ -1095,6 +1133,7 @@ export default function UangJalanPage() {
                 onUpdateRincian={handleUpdateRincian}
                 onDeleteRincian={handleDeleteRincian}
                 supirList={supirList}
+                karyawanList={karyawanList}
                 kendaraanList={kendaraanList}
                 kebunList={kebunList}
                 perusahaanList={perusahaanList}

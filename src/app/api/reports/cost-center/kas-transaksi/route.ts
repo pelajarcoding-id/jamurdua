@@ -61,7 +61,43 @@ export async function GET(request: Request) {
       if (karyawanId) whereClause.karyawanId = karyawanId
     }
 
-    const [totalItems, totalAgg, rows] = await Promise.all([
+    const startUtc = (range?.startUtc || monthRange!.startUtc)
+    const endExclusiveUtc = (range?.endExclusiveUtc || monthRange!.endExclusiveUtc)
+    const uangJalanBaseWhere: any = {
+      deletedAt: null,
+      tipe: 'PENGELUARAN',
+      date: { gte: startUtc, lt: endExclusiveUtc },
+      sesiUangJalan: { deletedAt: null },
+    }
+
+    if (effectiveScope === 'kendaraan') {
+      uangJalanBaseWhere.description = kendaraanPlatNomor ? { contains: `[KENDARAAN:${kendaraanPlatNomor}]` } : { contains: '[KENDARAAN:' }
+    } else if (effectiveScope === 'kebun') {
+      uangJalanBaseWhere.description = kebunId ? { contains: `[KEBUN:${kebunId}]` } : { contains: '[KEBUN:' }
+    } else if (effectiveScope === 'karyawan') {
+      uangJalanBaseWhere.description = karyawanId ? { contains: `[KARYAWAN:${karyawanId}]` } : { contains: '[KARYAWAN:' }
+    } else if (effectiveScope === 'perusahaan') {
+      const perusahaanIdParam = searchParams.get('perusahaanId')
+      uangJalanBaseWhere.description = perusahaanIdParam ? { contains: `[PERUSAHAAN:${perusahaanIdParam}]` } : { contains: '[PERUSAHAAN:' }
+    } else if (effectiveScope === 'untagged') {
+      uangJalanBaseWhere.AND = [
+        { OR: [{ description: null }, { description: { not: { contains: '[KENDARAAN:' } } }] },
+        { OR: [{ description: null }, { description: { not: { contains: '[KEBUN:' } } }] },
+        { OR: [{ description: null }, { description: { not: { contains: '[PERUSAHAAN:' } } }] },
+        { OR: [{ description: null }, { description: { not: { contains: '[KARYAWAN:' } } }] },
+      ]
+    } else {
+      const descFilters: string[] = []
+      if (kendaraanPlatNomor) descFilters.push(`[KENDARAAN:${kendaraanPlatNomor}]`)
+      if (kebunId) descFilters.push(`[KEBUN:${kebunId}]`)
+      if (karyawanId) descFilters.push(`[KARYAWAN:${karyawanId}]`)
+      if (descFilters.length > 0) {
+        uangJalanBaseWhere.AND = descFilters.map((x) => ({ description: { contains: x } }))
+      }
+    }
+
+    const takeN = page * pageSize
+    const [kasTotalItems, kasTotalAgg, kasRows, ujTotalItems, ujTotalAgg, ujRows] = await Promise.all([
       prisma.kasTransaksi.count({ where: whereClause }),
       prisma.kasTransaksi.aggregate({ where: whereClause, _sum: { jumlah: true }, _avg: { jumlah: true }, _max: { jumlah: true }, _min: { jumlah: true } }),
       prisma.kasTransaksi.findMany({
@@ -73,22 +109,128 @@ export async function GET(request: Request) {
           user: { select: { id: true, name: true } },
         },
         orderBy: [{ date: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        take: takeN,
+      }),
+      prisma.uangJalan.count({ where: uangJalanBaseWhere }),
+      prisma.uangJalan.aggregate({ where: uangJalanBaseWhere, _sum: { amount: true }, _avg: { amount: true }, _max: { amount: true }, _min: { amount: true } }),
+      prisma.uangJalan.findMany({
+        where: uangJalanBaseWhere,
+        select: {
+          id: true,
+          date: true,
+          tipe: true,
+          amount: true,
+          description: true,
+          gambarUrl: true,
+          sesiUangJalan: {
+            select: {
+              id: true,
+              kendaraanPlatNomor: true,
+              kendaraan: { select: { platNomor: true, merk: true } },
+              supir: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        take: takeN,
       }),
     ])
 
+    const stripAllMarkers = (text: string | null) => (text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
+    const extractTag = (text: string | null, tag: string) => {
+      const m = (text || '').match(new RegExp(`\\[${tag}:([^\\]]+)\\]`))
+      return m?.[1] ? String(m[1]).trim() : null
+    }
+
+    const ujKebunIds = new Set<number>()
+    const ujKaryawanIds = new Set<number>()
+    const ujKendaraanPlats = new Set<string>()
+    for (const r of (ujRows as any[])) {
+      const kebunIdRaw = extractTag(r.description, 'KEBUN')
+      const karyawanIdRaw = extractTag(r.description, 'KARYAWAN')
+      const kendaraanRaw = extractTag(r.description, 'KENDARAAN')
+      if (kebunIdRaw && Number.isFinite(Number(kebunIdRaw))) ujKebunIds.add(Number(kebunIdRaw))
+      if (karyawanIdRaw && Number.isFinite(Number(karyawanIdRaw))) ujKaryawanIds.add(Number(karyawanIdRaw))
+      const plat = kendaraanRaw || r?.sesiUangJalan?.kendaraanPlatNomor
+      if (plat) ujKendaraanPlats.add(String(plat))
+    }
+
+    const [kebuns, karyawans, kendaraans] = await Promise.all([
+      ujKebunIds.size > 0 ? prisma.kebun.findMany({ where: { id: { in: Array.from(ujKebunIds) } }, select: { id: true, name: true } }) : Promise.resolve([]),
+      ujKaryawanIds.size > 0 ? prisma.user.findMany({ where: { id: { in: Array.from(ujKaryawanIds) } }, select: { id: true, name: true } }) : Promise.resolve([]),
+      ujKendaraanPlats.size > 0 ? prisma.kendaraan.findMany({ where: { platNomor: { in: Array.from(ujKendaraanPlats) } }, select: { platNomor: true, merk: true } }) : Promise.resolve([]),
+    ])
+    const kebunMap = new Map(kebuns.map((k) => [k.id, k]))
+    const karyawanMap = new Map(karyawans.map((u) => [u.id, u]))
+    const kendaraanMap = new Map(kendaraans.map((k) => [k.platNomor, k]))
+
+    const mappedKas = (kasRows as any[]).map((r: any) => ({ ...r, source: 'KAS' }))
+    const mappedUj = (ujRows as any[]).map((r: any) => {
+      const kebunIdRaw = extractTag(r.description, 'KEBUN')
+      const kebunIdVal = kebunIdRaw && Number.isFinite(Number(kebunIdRaw)) ? Number(kebunIdRaw) : null
+      const karyawanIdRaw = extractTag(r.description, 'KARYAWAN')
+      const karyawanIdVal = karyawanIdRaw && Number.isFinite(Number(karyawanIdRaw)) ? Number(karyawanIdRaw) : null
+      const kendaraanPlat = extractTag(r.description, 'KENDARAAN') || r?.sesiUangJalan?.kendaraanPlatNomor || null
+      const kebun = kebunIdVal ? kebunMap.get(kebunIdVal) || null : null
+      const karyawan = karyawanIdVal ? karyawanMap.get(karyawanIdVal) || null : null
+      const kendaraan = kendaraanPlat ? kendaraanMap.get(String(kendaraanPlat)) || r?.sesiUangJalan?.kendaraan || null : null
+      const supir = r?.sesiUangJalan?.supir || null
+      return {
+        id: r.id,
+        date: r.date,
+        tipe: 'PENGELUARAN',
+        kategori: 'UANG_JALAN',
+        deskripsi: stripAllMarkers(r.description) || 'Uang Jalan',
+        keterangan: r.description || null,
+        jumlah: Number(r.amount || 0),
+        gambarUrl: r.gambarUrl || null,
+        kebunId: kebunIdVal,
+        kendaraanPlatNomor: kendaraanPlat ? String(kendaraanPlat) : null,
+        karyawanId: karyawanIdVal,
+        kebun,
+        kendaraan,
+        karyawan,
+        user: supir,
+        source: 'UANG_JALAN',
+      }
+    })
+
+    const combined = [...mappedKas, ...mappedUj]
+    combined.sort((a: any, b: any) => {
+      const da = new Date(a.date).getTime()
+      const db = new Date(b.date).getTime()
+      if (db !== da) return db - da
+      const sa = String(a.source || '')
+      const sb = String(b.source || '')
+      if (sa !== sb) return sa.localeCompare(sb)
+      return Number(b.id) - Number(a.id)
+    })
+    const totalItems = (kasTotalItems || 0) + (ujTotalItems || 0)
+    const totalJumlah = Number(kasTotalAgg?._sum?.jumlah || 0) + Number(ujTotalAgg?._sum?.amount || 0)
+    const avgJumlah = totalItems > 0 ? totalJumlah / totalItems : 0
+    const maxJumlah = Math.max(Number(kasTotalAgg?._max?.jumlah || 0), Number(ujTotalAgg?._max?.amount || 0))
+    const minJumlah = (() => {
+      const a = Number(kasTotalAgg?._min?.jumlah || 0)
+      const b = Number(ujTotalAgg?._min?.amount || 0)
+      if (kasTotalItems && ujTotalItems) return Math.min(a, b)
+      if (kasTotalItems) return a
+      if (ujTotalItems) return b
+      return 0
+    })()
+
+    const data = combined.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
+
     return NextResponse.json({
-      data: rows,
+      data,
       meta: {
         page,
         pageSize,
         totalItems,
         totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
-        totalJumlah: totalAgg._sum.jumlah || 0,
-        avgJumlah: totalAgg._avg.jumlah || 0,
-        maxJumlah: totalAgg._max.jumlah || 0,
-        minJumlah: totalAgg._min.jumlah || 0,
+        totalJumlah,
+        avgJumlah,
+        maxJumlah,
+        minJumlah,
       },
     })
   } catch (error) {

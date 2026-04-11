@@ -30,6 +30,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const notas = await prisma.notaSawit.findMany({
       where: {
         supirId,
+        deletedAt: null,
         createdAt: { gte: range.start, lte: range.end },
       },
       select: {

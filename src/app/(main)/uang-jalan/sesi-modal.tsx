@@ -15,17 +15,19 @@ import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/m
 import { convertImageFileToWebp } from "@/lib/image-webp";
 
 const stripTagMarkers = (text: string) => {
-    return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN):[^\]]+\]/g, '').trim()
+    return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
 }
 
 const parseTagMarkers = (text: string) => {
     const kendaraanPlatNomor = (String(text || '').match(/\[KENDARAAN:([^\]]+)\]/)?.[1] || '').trim()
     const kebunId = (String(text || '').match(/\[KEBUN:(\d+)\]/)?.[1] || '').trim()
     const perusahaanId = (String(text || '').match(/\[PERUSAHAAN:(\d+)\]/)?.[1] || '').trim()
+    const karyawanId = (String(text || '').match(/\[KARYAWAN:(\d+)\]/)?.[1] || '').trim()
     return {
         kendaraanPlatNomor: kendaraanPlatNomor || '',
         kebunId: kebunId || '',
         perusahaanId: perusahaanId || '',
+        karyawanId: karyawanId || '',
     }
 }
 
@@ -40,12 +42,13 @@ interface ModalProps {
     onUpdateRincian?: (rincianId: number, data: FormData) => Promise<boolean>;
     onDeleteRincian?: (rincianId: number, sesiId: number) => Promise<boolean>;
     supirList: User[];
+    karyawanList: User[];
     kendaraanList: Kendaraan[];
     kebunList: any[];
     perusahaanList: any[];
 }
 
-export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialData, createdSesi, onAddRincian, onUpdateRincian, onDeleteRincian, supirList, kendaraanList, kebunList, perusahaanList }: ModalProps) {
+export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialData, createdSesi, onAddRincian, onUpdateRincian, onDeleteRincian, supirList, karyawanList, kendaraanList, kebunList, perusahaanList }: ModalProps) {
     const [formData, setFormData] = useState({ supirId: '', keterangan: '', amount: '', kendaraanPlatNomor: '', tanggalMulai: '' });
     const [openSupirCombo, setOpenSupirCombo] = useState(false);
     const [supirQuery, setSupirQuery] = useState('');
@@ -53,11 +56,12 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
     const [kendaraanQuery, setKendaraanQuery] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [rincianForm, setRincianForm] = useState({ tipe: 'PENGELUARAN', amount: '', description: '', date: '' });
-    const [rincianTag, setRincianTag] = useState<{ kendaraanPlatNomor: string; kebunId: string; perusahaanId: string }>({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '' })
+    const [rincianTag, setRincianTag] = useState<{ kendaraanPlatNomor: string; kebunId: string; perusahaanId: string; karyawanId: string }>({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: '' })
     const [isTagPickerOpen, setIsTagPickerOpen] = useState(false)
     const [tagQueryKendaraan, setTagQueryKendaraan] = useState('')
     const [tagQueryKebun, setTagQueryKebun] = useState('')
     const [tagQueryPerusahaan, setTagQueryPerusahaan] = useState('')
+    const [tagQueryKaryawan, setTagQueryKaryawan] = useState('')
     const [rincianFile, setRincianFile] = useState<File | null>(null);
     const [submittingRincian, setSubmittingRincian] = useState(false);
     const [rincianExpanded, setRincianExpanded] = useState(false);
@@ -76,6 +80,10 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
         if (rincianTag.perusahaanId) {
             const p = perusahaanList.find((x: any) => String(x?.id) === String(rincianTag.perusahaanId))
             return `Perusahaan: ${String(p?.name || rincianTag.perusahaanId)}`
+        }
+        if (rincianTag.karyawanId) {
+            const u = karyawanList.find((x: any) => String(x?.id) === String(rincianTag.karyawanId))
+            return `Karyawan: ${String(u?.name || `#${rincianTag.karyawanId}`)}`
         }
         return 'Tanpa tag'
     }
@@ -136,11 +144,12 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
             }
             setSubmitting(false);
             setRincianForm({ tipe: 'PENGELUARAN', amount: '', description: '', date: today });
-            setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '' })
+            setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: '' })
             setIsTagPickerOpen(false)
             setTagQueryKendaraan('')
             setTagQueryKebun('')
             setTagQueryPerusahaan('')
+            setTagQueryKaryawan('')
             setRincianFile(null);
             setSubmittingRincian(false);
             setRincianExpanded(false);
@@ -234,6 +243,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
         if (rincianTag.kendaraanPlatNomor) data.append('tagKendaraanPlatNomor', rincianTag.kendaraanPlatNomor)
         if (rincianTag.kebunId) data.append('tagKebunId', rincianTag.kebunId)
         if (rincianTag.perusahaanId) data.append('tagPerusahaanId', rincianTag.perusahaanId)
+        if (rincianTag.karyawanId) data.append('tagKaryawanId', rincianTag.karyawanId)
 
         setSubmittingRincian(true);
         const ok = await onAddRincian(data);
@@ -246,7 +256,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
         }
 
         setRincianForm(prev => ({ ...prev, amount: '', description: '' }));
-        setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '' })
+        setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: '' })
         setRincianFile(null);
     };
 
@@ -269,7 +279,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
     const cancelEditRincian = () => {
         setEditingRincianId(null)
         setRincianForm(prev => ({ ...prev, amount: '', description: '' }))
-        setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '' })
+        setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: '' })
         setRincianFile(null)
     }
 
@@ -293,6 +303,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
         if (rincianTag.kendaraanPlatNomor) data.append('tagKendaraanPlatNomor', rincianTag.kendaraanPlatNomor)
         if (rincianTag.kebunId) data.append('tagKebunId', rincianTag.kebunId)
         if (rincianTag.perusahaanId) data.append('tagPerusahaanId', rincianTag.perusahaanId)
+        if (rincianTag.karyawanId) data.append('tagKaryawanId', rincianTag.karyawanId)
 
         setSubmittingRincian(true)
         const ok = await onUpdateRincian(editingRincianId, data)
@@ -301,7 +312,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
 
         setEditingRincianId(null)
         setRincianForm(prev => ({ ...prev, amount: '', description: '' }))
-        setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '' })
+        setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: '' })
         setRincianFile(null)
         if (mode === 'close') onClose()
     }
@@ -725,7 +736,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                             type="button"
                             variant="outline"
                             className="rounded-full"
-                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '' })}
+                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: '' })}
                         >
                             Reset Tag
                         </Button>
@@ -764,7 +775,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={plat}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: checked ? '' : plat, kebunId: '', perusahaanId: '' })}
+                                            onClick={() => setRincianTag({ kendaraanPlatNomor: checked ? '' : plat, kebunId: '', perusahaanId: '', karyawanId: '' })}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">
@@ -811,7 +822,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={idVal}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: checked ? '' : idVal, perusahaanId: '' })}
+                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: checked ? '' : idVal, perusahaanId: '', karyawanId: '' })}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">{label}</div>
@@ -856,7 +867,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={idVal}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: checked ? '' : idVal })}
+                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: checked ? '' : idVal, karyawanId: '' })}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">{label}</div>
@@ -865,6 +876,51 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                     )
                                 })}
                             {perusahaanList.length === 0 ? <div className="px-2 py-2 text-sm text-gray-500">Tidak ada data perusahaan</div> : null}
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-100 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <MagnifyingGlassIcon className="h-4 w-4 text-gray-700" />
+                                <div className="text-sm font-semibold text-gray-900">Karyawan</div>
+                            </div>
+                            <div className="text-xs text-gray-500">{rincianTag.karyawanId ? 'Dipilih' : 'Tidak'}</div>
+                        </div>
+                        <div className="mt-2 relative">
+                            <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                value={tagQueryKaryawan}
+                                onChange={(e) => setTagQueryKaryawan(e.target.value)}
+                                className="input-style w-full pl-9"
+                                placeholder="Cari nama karyawan..."
+                            />
+                        </div>
+                        <div className="mt-3 max-h-44 overflow-y-auto pr-1 space-y-2">
+                            {karyawanList
+                                .filter((u: any) => {
+                                    const q = tagQueryKaryawan.trim().toLowerCase()
+                                    if (!q) return true
+                                    const name = String(u?.name || '').toLowerCase()
+                                    return name.includes(q)
+                                })
+                                .map((u: any) => {
+                                    const idVal = String(u?.id)
+                                    const label = String(u?.name || `User #${idVal}`)
+                                    const checked = rincianTag.karyawanId === idVal
+                                    return (
+                                        <button
+                                            key={idVal}
+                                            type="button"
+                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: checked ? '' : idVal })}
+                                            className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
+                                        >
+                                            <div className="text-sm text-gray-900 text-left">{label}</div>
+                                            {checked ? <CheckIcon className="h-4 w-4 text-emerald-700" /> : <span className="h-4 w-4" />}
+                                        </button>
+                                    )
+                                })}
+                            {karyawanList.length === 0 ? <div className="px-2 py-2 text-sm text-gray-500">Tidak ada data karyawan</div> : null}
                         </div>
                     </div>
                 </ModalContentWrapper>

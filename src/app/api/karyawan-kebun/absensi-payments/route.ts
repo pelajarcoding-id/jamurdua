@@ -20,6 +20,22 @@ const ensureTable = async () => {
     )
   `)
   await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiGajiHarian" ADD COLUMN IF NOT EXISTS "gajianId" INTEGER`)
+
+  const fkAbsensiGajiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
+    SELECT 1 as "exists"
+    FROM pg_constraint
+    WHERE conname = 'AbsensiGajiHarian_karyawanId_fkey'
+    LIMIT 1
+  `
+  if (fkAbsensiGajiHarian.length === 0) {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "AbsensiGajiHarian"
+      ADD CONSTRAINT "AbsensiGajiHarian_karyawanId_fkey"
+      FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE
+      NOT VALID
+    `)
+  }
 }
 
 const formatIdLongDateFromYmdKey = (key: string) => {

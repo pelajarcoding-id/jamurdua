@@ -73,6 +73,38 @@ const ensureTable = async () => {
       UNIQUE ("kebunId","karyawanId","date")
     )
   `)
+
+  const fkAbsensiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
+    SELECT 1 as "exists"
+    FROM pg_constraint
+    WHERE conname = 'AbsensiHarian_karyawanId_fkey'
+    LIMIT 1
+  `
+  if (fkAbsensiHarian.length === 0) {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "AbsensiHarian"
+      ADD CONSTRAINT "AbsensiHarian_karyawanId_fkey"
+      FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE
+      NOT VALID
+    `)
+  }
+
+  const fkAbsensiGajiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
+    SELECT 1 as "exists"
+    FROM pg_constraint
+    WHERE conname = 'AbsensiGajiHarian_karyawanId_fkey'
+    LIMIT 1
+  `
+  if (fkAbsensiGajiHarian.length === 0) {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "AbsensiGajiHarian"
+      ADD CONSTRAINT "AbsensiGajiHarian_karyawanId_fkey"
+      FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE
+      NOT VALID
+    `)
+  }
 }
 
 const isAssignedToKebunOnDate = async (karyawanId: number, kebunId: number, dateKey: string) => {
@@ -124,6 +156,8 @@ export async function GET(request: Request) {
       const agg = await prisma.$queryRaw<Array<{ karyawanId: number; total: number; hariKerja: number }>>`
         SELECT a."karyawanId", SUM(a."jumlah") as "total", COUNT(*) as "hariKerja"
         FROM "AbsensiHarian" a
+        INNER JOIN "User" u
+          ON u."id" = a."karyawanId"
         LEFT JOIN "AbsensiGajiHarian" p
           ON p."kebunId" = a."kebunId"
          AND p."karyawanId" = a."karyawanId"

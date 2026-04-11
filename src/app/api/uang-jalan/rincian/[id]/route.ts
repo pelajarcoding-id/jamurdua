@@ -11,15 +11,16 @@ import { scheduleFileDeletion } from '@/lib/file-retention'
 export const dynamic = 'force-dynamic'
 
 const stripTagMarkers = (text: string) => {
-  return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN):[^\]]+\]/g, '').trim()
+  return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
 }
 
-const buildDescriptionWithTags = (text: string, tags: { kendaraanPlatNomor?: string | null; kebunId?: string | null; perusahaanId?: string | null }) => {
+const buildDescriptionWithTags = (text: string, tags: { kendaraanPlatNomor?: string | null; kebunId?: string | null; perusahaanId?: string | null; karyawanId?: string | null }) => {
   const base = stripTagMarkers(text)
   const parts: string[] = [base].filter(Boolean)
   if (tags.kendaraanPlatNomor) parts.push(`[KENDARAAN:${tags.kendaraanPlatNomor}]`)
   if (tags.kebunId) parts.push(`[KEBUN:${tags.kebunId}]`)
   if (tags.perusahaanId) parts.push(`[PERUSAHAAN:${tags.perusahaanId}]`)
+  if (tags.karyawanId) parts.push(`[KARYAWAN:${tags.karyawanId}]`)
   return parts.join(' ').trim()
 }
 
@@ -43,14 +44,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     const body = await request.json();
-    const { tipe, amount, description, date, tagKendaraanPlatNomor, tagKebunId, tagPerusahaanId, gambarUrl } = body;
+    const { tipe, amount, description, date, tagKendaraanPlatNomor, tagKebunId, tagPerusahaanId, tagKaryawanId, gambarUrl } = body;
 
     const tagGroupCount =
       (tagKendaraanPlatNomor ? 1 : 0) +
       (tagKebunId ? 1 : 0) +
-      (tagPerusahaanId ? 1 : 0)
+      (tagPerusahaanId ? 1 : 0) +
+      (tagKaryawanId ? 1 : 0)
     if (tagGroupCount > 1) {
-      return NextResponse.json({ error: 'Pilih salah satu tag: Kendaraan atau Kebun atau Perusahaan' }, { status: 400 })
+      return NextResponse.json({ error: 'Pilih salah satu tag: Kendaraan atau Kebun atau Perusahaan atau Karyawan' }, { status: 400 })
     }
 
     if (gambarUrl && existing.gambarUrl && existing.gambarUrl !== gambarUrl) {
@@ -66,6 +68,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       kendaraanPlatNomor: tagKendaraanPlatNomor || null,
       kebunId: tagKebunId ? String(tagKebunId) : null,
       perusahaanId: tagPerusahaanId ? String(tagPerusahaanId) : null,
+      karyawanId: tagKaryawanId ? String(tagKaryawanId) : null,
     })
 
     const updated = await prisma.uangJalan.update({

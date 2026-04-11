@@ -48,8 +48,18 @@ export async function POST(request: Request) {
 
     const potonganManual = Array.isArray(potongan) ? potongan : []
 
-    const totalGajiKaryawan = detailKaryawan.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0);
-    const totalPotonganHutang = detailKaryawan.reduce((acc: number, curr: any) => acc + (curr.potongan || 0), 0);
+    const rawDetailKaryawan = Array.isArray(detailKaryawan) ? detailKaryawan : []
+    const requestedUserIds = rawDetailKaryawan
+      .map((d: any) => Number(d?.userId))
+      .filter((id: any) => Number.isFinite(id) && id > 0)
+    const existingUsers = requestedUserIds.length > 0
+      ? await prisma.user.findMany({ where: { id: { in: requestedUserIds } }, select: { id: true } })
+      : []
+    const existingUserIdSet = new Set(existingUsers.map(u => u.id))
+    const validDetailKaryawan = rawDetailKaryawan.filter((d: any) => existingUserIdSet.has(Number(d?.userId)))
+
+    const totalGajiKaryawan = validDetailKaryawan.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0);
+    const totalPotonganHutang = validDetailKaryawan.reduce((acc: number, curr: any) => acc + (curr.potongan || 0), 0);
     const totalPotonganManual = potonganManual.reduce((acc: number, curr: any) => acc + (Number(curr.total) || 0), 0);
     const totalPotongan = totalPotonganHutang + totalPotonganManual;
 
@@ -71,19 +81,16 @@ export async function POST(request: Request) {
     // Total Gaji (Grand Total) = Total Expenses (including Salary) - Deductions
     const totalGaji = totalBiayaLain - totalPotongan;
 
-    const requestedUserIds = Array.isArray(detailKaryawan)
-      ? detailKaryawan.map((d: any) => Number(d?.userId)).filter((id: any) => Number.isFinite(id) && id > 0)
-      : []
-
     let hariKerjaMap = new Map<number, number>()
-    if (requestedUserIds.length > 0) {
+    const validUserIds = validDetailKaryawan.map((d: any) => Number(d?.userId)).filter((id: any) => Number.isFinite(id) && id > 0)
+    if (validUserIds.length > 0) {
       try {
         const rows = await prisma.absensiHarian.groupBy({
           by: ['karyawanId'],
           where: {
             kebunId: Number(kebunId),
             date: { gte: startDate, lte: endDate },
-            karyawanId: { in: requestedUserIds },
+            karyawanId: { in: validUserIds },
             OR: [{ kerja: true }, { jumlah: { gt: 0 } }],
           },
           _count: { _all: true },
@@ -107,13 +114,13 @@ export async function POST(request: Request) {
       keterangan: `Pengajuan Gaji Kebun Periode ${String(startYmd.y).padStart(4, '0')}-${String(startYmd.m).padStart(2, '0')}-${String(startYmd.d).padStart(2, '0')} - ${String(endYmd.y).padStart(4, '0')}-${String(endYmd.m).padStart(2, '0')}-${String(endYmd.d).padStart(2, '0')}`,
       tipe: 'BULANAN',
       detailKaryawan: {
-        create: detailKaryawan.map((d: any) => ({
-            userId: d.userId,
-            hariKerja: hariKerjaMap.get(Number(d.userId)) || 0,
-            gajiPokok: d.gajiPokok || 0,
-            potongan: d.potongan || 0,
-            total: d.total || 0,
-            keterangan: d.keterangan
+        create: validDetailKaryawan.map((d: any) => ({
+          userId: d.userId,
+          hariKerja: hariKerjaMap.get(Number(d.userId)) || 0,
+          gajiPokok: d.gajiPokok || 0,
+          potongan: d.potongan || 0,
+          total: d.total || 0,
+          keterangan: d.keterangan
         }))
       }
     };
@@ -158,6 +165,7 @@ export async function POST(request: Request) {
           kebunId: Number(kebunId),
           date: { gte: startDate, lte: endDate },
           jumlah: { gt: 0 },
+          ...(validUserIds.length > 0 ? { karyawanId: { in: validUserIds } } : {}),
         },
         select: { kebunId: true, karyawanId: true, date: true, jumlah: true },
       })

@@ -163,22 +163,32 @@ export default function SupirPage() {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
 
       const periode = startDate && endDate ? `${format(startDate, 'dd MMM yyyy', { locale: idLocale })} - ${format(endDate, 'dd MMM yyyy', { locale: idLocale })}` : '-'
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('DETAIL SUPIR', 20, 28)
+      const emerald: [number, number, number] = [16, 185, 129]
+      const addHeader = (title: string) => {
+        const w = (doc as any).internal?.pageSize?.getWidth?.() ? (doc as any).internal.pageSize.getWidth() : 842
+        doc.setFillColor(emerald[0], emerald[1], emerald[2])
+        doc.rect(0, 0, w, 40, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(14)
+        doc.text(title, 20, 26)
+        doc.setTextColor(0, 0, 0)
+      }
+
+      addHeader('DETAIL SUPIR')
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
-      doc.text(`Supir: ${detailSupir.supir}`, 20, 46)
-      doc.text(`Periode: ${periode}`, 20, 60)
+      doc.text(`Supir: ${detailSupir.supir}`, 20, 54)
+      doc.text(`Periode: ${periode}`, 20, 68)
 
       const notas = Array.isArray(detailData?.notas) ? detailData.notas : []
       const totalBerat = notas.reduce((acc: number, n: any) => acc + Number(n?.beratAkhir || 0), 0)
 
       autoTable(doc, {
-        startY: 78,
+        startY: 86,
         head: [['TANGGAL', 'KEBUN', 'PABRIK', 'KENDARAAN', 'BERAT (KG)']],
         body: notas.map((n: any) => ([
-          formatWIBDateTime(n.createdAt),
+          formatWIBDateTime(n.tanggalBongkar || n.createdAt),
           n.kebun?.name || '-',
           n.pabrikSawit?.name || '-',
           n.kendaraanPlatNomor || '-',
@@ -190,7 +200,7 @@ export default function SupirPage() {
         ]] as any,
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 3, valign: 'middle' },
-        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' } as any,
+        headStyles: { fillColor: emerald, textColor: [255, 255, 255], fontStyle: 'bold' } as any,
         footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42] } as any,
         columnStyles: {
           0: { cellWidth: 110 },
@@ -203,13 +213,11 @@ export default function SupirPage() {
       } as any)
 
       doc.addPage()
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(12)
-      doc.text('RINCIAN UANG JALAN', 20, 28)
+      addHeader('RINCIAN UANG JALAN')
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
-      doc.text(`Supir: ${detailSupir.supir}`, 20, 46)
-      doc.text(`Periode: ${periode}`, 20, 60)
+      doc.text(`Supir: ${detailSupir.supir}`, 20, 54)
+      doc.text(`Periode: ${periode}`, 20, 68)
 
       const sesi = Array.isArray(detailData?.sesiUangJalan) ? detailData.sesiUangJalan : []
       const totalDiberikan = sesi.reduce((acc: number, s: any) => acc + Number(s?.totalDiberikan || 0), 0)
@@ -217,7 +225,7 @@ export default function SupirPage() {
       const totalSaldo = sesi.reduce((acc: number, s: any) => acc + Number(s?.saldo || 0), 0)
 
       autoTable(doc, {
-        startY: 78,
+        startY: 86,
         head: [['TANGGAL MULAI', 'KENDARAAN', 'STATUS', 'DIBERIKAN', 'PENGELUARAN', 'SALDO']],
         body: sesi.map((s: any) => ([
           formatWIBDateTime(s.tanggalMulai),
@@ -235,7 +243,7 @@ export default function SupirPage() {
         ]] as any,
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 3, valign: 'middle' },
-        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' } as any,
+        headStyles: { fillColor: emerald, textColor: [255, 255, 255], fontStyle: 'bold' } as any,
         footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42] } as any,
         columnStyles: {
           0: { cellWidth: 120 },
@@ -559,7 +567,7 @@ export default function SupirPage() {
                               ) : (
                                 (detailData?.notas || []).map((n: any) => (
                                   <tr key={n.id}>
-                                    <td className="px-3 py-2">{formatWIBDateTime(n.createdAt)}</td>
+                                    <td className="px-3 py-2">{formatWIBDateTime(n.tanggalBongkar || n.createdAt)}</td>
                                     <td className="px-3 py-2">{n.kebun?.name || '-'}</td>
                                     <td className="px-3 py-2">{n.pabrikSawit?.name || '-'}</td>
                                     <td className="px-3 py-2">{n.kendaraanPlatNomor || '-'}</td>

@@ -237,11 +237,12 @@ export default function CostCenterPage() {
                 Tanggal: formatDateId(r.date),
                 Deskripsi: r.deskripsi || '',
                 Keterangan: cleanKeterangan(r.keterangan),
+                Sumber: labelSource(r.source),
                 Kendaraan: r.kendaraan?.platNomor || r.kendaraanPlatNomor || '',
                 Bukti: r.gambarUrl || '',
                 Jumlah: r.jumlah,
             }))
-            const blob = buildCsv(['Tanggal','Deskripsi','Keterangan','Kendaraan','Bukti','Jumlah'], rows)
+            const blob = buildCsv(['Tanggal','Deskripsi','Keterangan','Sumber','Kendaraan','Bukti','Jumlah'], rows)
             const suffix = selectedKendaraan !== 'all' ? `-${selectedKendaraan}` : ''
             saveBlob(blob, `transaksi-kas-kendaraan${suffix}-${periodKey}.csv`)
         } finally {
@@ -267,6 +268,7 @@ export default function CostCenterPage() {
                 formatDateId(r.date),
                 r.deskripsi || '',
                 cleanKeterangan(r.keterangan),
+                labelSource(r.source),
                 r.kendaraan?.platNomor || r.kendaraanPlatNomor || '',
                 '', // Bukti (image)
                 new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(r.jumlah || 0),
@@ -293,21 +295,21 @@ export default function CostCenterPage() {
             const autoTable = (await import('jspdf-autotable')).default
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
             doc.setFontSize(12)
-            doc.text(`Transaksi Kas (Tag Kendaraan) - ${periodKey}`, 12, 12)
+            doc.text(`Transaksi (Kas + Uang Jalan) Tag Kendaraan - ${periodKey}`, 12, 12)
             autoTable(doc, {
                 startY: 18,
-                head: [['Tanggal','Deskripsi','Keterangan','Kendaraan','Bukti','Jumlah']],
+                head: [['Tanggal','Deskripsi','Keterangan','Sumber','Kendaraan','Bukti','Jumlah']],
                 body: rows,
                 styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
                 headStyles: { fillColor: [220,38,38], textColor: 255, fontStyle: 'bold' },
-                columnStyles: { 4: { cellWidth: 24, halign: 'center' }, 5: { halign: 'right' } },
+                columnStyles: { 5: { cellWidth: 24, halign: 'center' }, 6: { halign: 'right' } },
                 didParseCell: (data: any) => {
-                    if (data.section === 'body' && data.column.index === 4) {
+                    if (data.section === 'body' && data.column.index === 5) {
                         data.cell.styles.minCellHeight = 16
                     }
                 },
                 didDrawCell: (data: any) => {
-                    if (data.section === 'body' && data.column.index === 4) {
+                    if (data.section === 'body' && data.column.index === 5) {
                         const idx = data.row.index
                         const img = images[idx]
                         if (img) {
@@ -348,11 +350,12 @@ export default function CostCenterPage() {
                 Tanggal: formatDateId(r.date),
                 Deskripsi: r.deskripsi || '',
                 Keterangan: cleanKeterangan(r.keterangan),
+                Sumber: labelSource(r.source),
                 Kebun: r.kebun?.name || '',
                 Bukti: r.gambarUrl || '',
                 Jumlah: r.jumlah,
             }))
-            const blob = buildCsv(['Tanggal','Deskripsi','Keterangan','Kebun','Bukti','Jumlah'], rows)
+            const blob = buildCsv(['Tanggal','Deskripsi','Keterangan','Sumber','Kebun','Bukti','Jumlah'], rows)
             const suffix = selectedKebunId !== 'all' ? `-kebun-${selectedKebunId}` : ''
             saveBlob(blob, `transaksi-kas-kebun${suffix}-${periodKey}.csv`)
         } finally {
@@ -378,6 +381,7 @@ export default function CostCenterPage() {
                 formatDateId(r.date),
                 r.deskripsi || '',
                 cleanKeterangan(r.keterangan),
+                labelSource(r.source),
                 r.kebun?.name || '',
                 '', // Bukti
                 new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(r.jumlah || 0),
@@ -404,21 +408,21 @@ export default function CostCenterPage() {
             const autoTable = (await import('jspdf-autotable')).default
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
             doc.setFontSize(12)
-            doc.text(`Transaksi Kas (Tag Kebun) - ${periodKey}`, 12, 12)
+            doc.text(`Transaksi (Kas + Uang Jalan) Tag Kebun - ${periodKey}`, 12, 12)
             autoTable(doc, {
                 startY: 18,
-                head: [['Tanggal','Deskripsi','Keterangan','Kebun','Bukti','Jumlah']],
+                head: [['Tanggal','Deskripsi','Keterangan','Sumber','Kebun','Bukti','Jumlah']],
                 body: rows,
                 styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
                 headStyles: { fillColor: [220,38,38], textColor: 255, fontStyle: 'bold' },
-                columnStyles: { 4: { cellWidth: 24, halign: 'center' }, 5: { halign: 'right' } },
+                columnStyles: { 5: { cellWidth: 24, halign: 'center' }, 6: { halign: 'right' } },
                 didParseCell: (data: any) => {
-                    if (data.section === 'body' && data.column.index === 4) {
+                    if (data.section === 'body' && data.column.index === 5) {
                         data.cell.styles.minCellHeight = 16
                     }
                 },
                 didDrawCell: (data: any) => {
-                    if (data.section === 'body' && data.column.index === 4) {
+                    if (data.section === 'body' && data.column.index === 5) {
                         const idx = data.row.index
                         const img = images[idx]
                         if (img) {
@@ -487,11 +491,12 @@ export default function CostCenterPage() {
                 Tanggal: formatDateId(r.date),
                 Deskripsi: r.deskripsi || '',
                 Keterangan: cleanKeterangan(r.keterangan),
+                Sumber: labelSource(r.source),
                 Perusahaan: extractPerusahaanName(r.keterangan),
                 Bukti: r.gambarUrl || '',
                 Jumlah: r.jumlah,
             }))
-            const blob = buildCsv(['Tanggal','Deskripsi','Keterangan','Perusahaan','Bukti','Jumlah'], rows)
+            const blob = buildCsv(['Tanggal','Deskripsi','Keterangan','Sumber','Perusahaan','Bukti','Jumlah'], rows)
             const suffix = selectedPerusahaanId !== 'all' ? `-perusahaan-${selectedPerusahaanId}` : ''
             saveBlob(blob, `transaksi-kas-perusahaan${suffix}-${periodKey}.csv`)
         } finally {
@@ -517,6 +522,7 @@ export default function CostCenterPage() {
                 formatDateId(r.date),
                 r.deskripsi || '',
                 cleanKeterangan(r.keterangan),
+                labelSource(r.source),
                 extractPerusahaanName(r.keterangan),
                 '', // Bukti
                 new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(r.jumlah || 0),
@@ -543,21 +549,21 @@ export default function CostCenterPage() {
             const autoTable = (await import('jspdf-autotable')).default
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
             doc.setFontSize(12)
-            doc.text(`Transaksi Kas (Tag Perusahaan) - ${periodKey}`, 12, 12)
+            doc.text(`Transaksi (Kas + Uang Jalan) Tag Perusahaan - ${periodKey}`, 12, 12)
             autoTable(doc, {
                 startY: 18,
-                head: [['Tanggal','Deskripsi','Keterangan','Perusahaan','Bukti','Jumlah']],
+                head: [['Tanggal','Deskripsi','Keterangan','Sumber','Perusahaan','Bukti','Jumlah']],
                 body: rows,
                 styles: { fontSize: 9, cellPadding: 2, valign: 'middle' },
                 headStyles: { fillColor: [220,38,38], textColor: 255, fontStyle: 'bold' },
-                columnStyles: { 4: { cellWidth: 24, halign: 'center' }, 5: { halign: 'right' } },
+                columnStyles: { 5: { cellWidth: 24, halign: 'center' }, 6: { halign: 'right' } },
                 didParseCell: (data: any) => {
-                    if (data.section === 'body' && data.column.index === 4) {
+                    if (data.section === 'body' && data.column.index === 5) {
                         data.cell.styles.minCellHeight = 16
                     }
                 },
                 didDrawCell: (data: any) => {
-                    if (data.section === 'body' && data.column.index === 4) {
+                    if (data.section === 'body' && data.column.index === 5) {
                         const idx = data.row.index
                         const img = images[idx]
                         if (img) {
@@ -890,7 +896,13 @@ export default function CostCenterPage() {
 
     const cleanKeterangan = (ket: string) => {
         if (!ket) return '-';
-        return ket.replace(/\[PERUSAHAAN:\d+\]/g, '').trim() || '-';
+        return ket.replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim() || '-';
+    }
+
+    const labelSource = (source: any) => {
+        const s = String(source || '').toUpperCase()
+        if (s === 'UANG_JALAN') return 'Uang Jalan'
+        return 'Kas'
     }
 
     const allowedKategori = ['UMUM','KEBUN','KENDARAAN','GAJI']
@@ -1067,6 +1079,7 @@ export default function CostCenterPage() {
                                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
                                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
                                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Keterangan</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
                                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kendaraan</th>
                                                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Bukti</th>
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
@@ -1074,15 +1087,20 @@ export default function CostCenterPage() {
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-200">
                                                 {loadingKendaraanKas ? (
-                                                    <tr><td colSpan={6} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
+                                                    <tr><td colSpan={7} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
                                                 ) : (kendaraanKasRows?.data || []).length === 0 ? (
-                                                    <tr><td colSpan={6} className="px-6 py-6 text-sm text-gray-500">Tidak ada transaksi kas bertag kendaraan.</td></tr>
+                                                    <tr><td colSpan={7} className="px-6 py-6 text-sm text-gray-500">Tidak ada transaksi pada periode ini.</td></tr>
                                                 ) : (
                                                     (kendaraanKasRows?.data || []).map((r: any) => (
                                                         <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
                                                             <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">{formatDateId(r.date)}</td>
                                                             <td className="px-6 py-3 text-sm font-medium text-gray-900">{r.deskripsi}</td>
                                                             <td className="px-6 py-3 text-sm text-gray-600">{cleanKeterangan(r.keterangan)}</td>
+                                                            <td className="px-6 py-3 whitespace-nowrap">
+                                                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${String(r.source || 'KAS') === 'UANG_JALAN' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-700 border border-slate-200'}`}>
+                                                                    {labelSource(r.source)}
+                                                                </span>
+                                                            </td>
                                                             <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">{r.kendaraan?.platNomor || r.kendaraanPlatNomor || '-'}</td>
                                                             <td className="px-6 py-3 whitespace-nowrap text-sm text-blue-600">
                                                                 {r.gambarUrl ? (
@@ -1098,7 +1116,7 @@ export default function CostCenterPage() {
                                             </tbody>
                                             <tfoot className="bg-gray-50">
                                                 <tr>
-                                                    <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600" colSpan={5}>Total</td>
+                                                    <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600" colSpan={6}>Total</td>
                                                     <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(kendaraanKasRows?.meta?.totalJumlah || 0)}</td>
                                                 </tr>
                                             </tfoot>
@@ -1265,8 +1283,8 @@ export default function CostCenterPage() {
                         <div className="card-style p-0 overflow-hidden mt-6">
                             <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
                                 <div>
-                                    <div className="text-sm font-semibold text-gray-900">Transaksi Kas (Tag Kebun)</div>
-                                    <div className="text-xs text-gray-500">Menampilkan pengeluaran kas yang memiliki tag kebun pada periode terpilih.</div>
+                                    <div className="text-sm font-semibold text-gray-900">Transaksi (Kas + Uang Jalan) Tag Kebun</div>
+                                    <div className="text-xs text-gray-500">Menampilkan pengeluaran (kas dan uang jalan) yang memiliki tag kebun pada periode terpilih.</div>
                                 </div>
                                 <div className="relative">
                                     <button
@@ -1338,6 +1356,7 @@ export default function CostCenterPage() {
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Keterangan</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kebun</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Bukti</th>
                                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
@@ -1345,15 +1364,20 @@ export default function CostCenterPage() {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {loadingKebunKas ? (
-                                            <tr><td colSpan={6} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
+                                            <tr><td colSpan={7} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
                                         ) : (kebunKasRows?.data || []).length === 0 ? (
-                                            <tr><td colSpan={6} className="px-6 py-6 text-sm text-gray-500">Tidak ada transaksi kas bertag kebun.</td></tr>
+                                            <tr><td colSpan={7} className="px-6 py-6 text-sm text-gray-500">Tidak ada transaksi pada periode ini.</td></tr>
                                         ) : (
                                             (kebunKasRows?.data || []).map((r: any) => (
                                                 <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
                                                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">{formatDateId(r.date)}</td>
                                                     <td className="px-6 py-3 text-sm font-medium text-gray-900">{r.deskripsi}</td>
                                                     <td className="px-6 py-3 text-sm text-gray-600">{cleanKeterangan(r.keterangan)}</td>
+                                                    <td className="px-6 py-3 whitespace-nowrap">
+                                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${String(r.source || 'KAS') === 'UANG_JALAN' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-700 border border-slate-200'}`}>
+                                                            {labelSource(r.source)}
+                                                        </span>
+                                                    </td>
                                                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">{r.kebun?.name || '-'}</td>
                                                     <td className="px-6 py-3 whitespace-nowrap text-sm text-blue-600">
                                                         {r.gambarUrl ? (
@@ -1369,7 +1393,7 @@ export default function CostCenterPage() {
                                     </tbody>
                                     <tfoot className="bg-gray-50">
                                         <tr>
-                                            <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600" colSpan={5}>Total</td>
+                                            <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600" colSpan={6}>Total</td>
                                             <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(kebunKasRows?.meta?.totalJumlah || 0)}</td>
                                         </tr>
                                     </tfoot>
@@ -1490,6 +1514,7 @@ export default function CostCenterPage() {
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Keterangan</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Perusahaan</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Bukti</th>
                                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
@@ -1497,9 +1522,9 @@ export default function CostCenterPage() {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {loadingPerusahaanKas ? (
-                                            <tr><td colSpan={7} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
+                                            <tr><td colSpan={8} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
                                         ) : (perusahaanKasRows?.data || []).length === 0 ? (
-                                            <tr><td colSpan={7} className="px-6 py-6 text-sm text-gray-500">Tidak ada transaksi kas bertag perusahaan.</td></tr>
+                                            <tr><td colSpan={8} className="px-6 py-6 text-sm text-gray-500">Tidak ada transaksi pada periode ini.</td></tr>
                                         ) : (
                                             (perusahaanKasRows?.data || []).map((r: any) => (
                                                 <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
@@ -1507,13 +1532,22 @@ export default function CostCenterPage() {
                                                     <td className="px-6 py-3 text-sm font-medium text-gray-900">{r.deskripsi}</td>
                                                     <td className="px-6 py-3 text-sm text-gray-600">{cleanKeterangan(r.keterangan)}</td>
                                                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">
-                                                        <select
-                                                            value={r.kategori || 'UMUM'}
-                                                            onChange={(e) => updateKasKategori(r, e.target.value)}
-                                                            className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs focus:outline-none"
-                                                        >
-                                                            {allowedKategori.map((k) => (<option key={k} value={k}>{k}</option>))}
-                                                        </select>
+                                                        {String(r.source || 'KAS') === 'UANG_JALAN' ? (
+                                                            <span className="text-xs font-semibold text-gray-800">{r.kategori || 'UANG_JALAN'}</span>
+                                                        ) : (
+                                                            <select
+                                                                value={r.kategori || 'UMUM'}
+                                                                onChange={(e) => updateKasKategori(r, e.target.value)}
+                                                                className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs focus:outline-none"
+                                                            >
+                                                                {allowedKategori.map((k) => (<option key={k} value={k}>{k}</option>))}
+                                                            </select>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-3 whitespace-nowrap">
+                                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${String(r.source || 'KAS') === 'UANG_JALAN' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-700 border border-slate-200'}`}>
+                                                            {labelSource(r.source)}
+                                                        </span>
                                                     </td>
                                                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">{extractPerusahaanName(r.keterangan)}</td>
                                                     <td className="px-6 py-3 whitespace-nowrap text-sm text-blue-600">
@@ -1530,7 +1564,7 @@ export default function CostCenterPage() {
                                     </tbody>
                                     <tfoot className="bg-gray-50">
                                         <tr>
-                                            <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600" colSpan={6}>Total</td>
+                                            <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600" colSpan={7}>Total</td>
                                             <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(perusahaanKasRows?.meta?.totalJumlah || 0)}</td>
                                         </tr>
                                     </tfoot>

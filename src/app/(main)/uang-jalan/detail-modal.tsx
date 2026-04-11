@@ -22,7 +22,7 @@ interface ModalProps {
 
 const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 const formatDate = (date: string | Date) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(date));
-const stripTagMarkers = (text: string) => String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN):[^\]]+\]/g, '').trim()
+const stripTagMarkers = (text: string) => String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
 
 export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalProps) {
     const componentRef = useRef<HTMLDivElement>(null);

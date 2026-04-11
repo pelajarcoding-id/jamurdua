@@ -158,15 +158,46 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
             return NextResponse.json({ error: 'User sistem (ID 1) tidak dapat dihapus.' }, { status: 400 })
         }
 
-        const notaSawitCount = await prisma.notaSawit.count({
-            where: { supirId: id },
-        });
-
-        const uangJalanCount = await prisma.sesiUangJalan.count({
-            where: { supirId: id },
-        });
+        const countAbsensiHarian = async () => {
+            try {
+                const rows = await prisma.$queryRaw<Array<{ count: number }>>(
+                    Prisma.sql`SELECT COUNT(*)::int as "count" FROM public."AbsensiHarian" WHERE "karyawanId" = ${id}`
+                )
+                return rows?.[0]?.count || 0
+            } catch {
+                return 0
+            }
+        }
+        const countAbsensiGajiHarian = async () => {
+            try {
+                const rows = await prisma.$queryRaw<Array<{ count: number }>>(
+                    Prisma.sql`SELECT COUNT(*)::int as "count" FROM public."AbsensiGajiHarian" WHERE "karyawanId" = ${id}`
+                )
+                return rows?.[0]?.count || 0
+            } catch {
+                return 0
+            }
+        }
+        const countAbsensiDefaultHarian = async () => {
+            try {
+                const rows = await prisma.$queryRaw<Array<{ count: number }>>(
+                    Prisma.sql`SELECT COUNT(*)::int as "count" FROM public."AbsensiDefaultHarian" WHERE "karyawanId" = ${id}`
+                )
+                return rows?.[0]?.count || 0
+            } catch {
+                return 0
+            }
+        }
 
         const [
+            absensiHarianCount,
+            absensiGajiHarianCount,
+            absensiDefaultHarianCount,
+            detailGajianKaryawanCount,
+            pekerjaanKebunCount,
+            timbanganCount,
+            notaSawitCount,
+            uangJalanCount,
             auditLogCount,
             inventoryTxnCount,
             kebunInventoryTxnCount,
@@ -176,30 +207,49 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
             kasAsKaryawanCount,
             kasAsDeleterCount,
         ] = await Promise.all([
+            countAbsensiHarian(),
+            countAbsensiGajiHarian(),
+            countAbsensiDefaultHarian(),
+            prisma.detailGajianKaryawan.count({ where: { userId: id } }),
+            prisma.pekerjaanKebun.count({ where: { userId: id } }),
+            prisma.timbangan.count({ where: { supirId: id } }),
+            prisma.notaSawit.count({ where: { supirId: id, deletedAt: null } }),
+            prisma.sesiUangJalan.count({ where: { supirId: id, deletedAt: null } }),
             prisma.auditLog.count({ where: { userId: id } }),
             prisma.inventoryTransaction.count({ where: { userId: id } }),
             prisma.kebunInventoryTransaction.count({ where: { userId: id } }),
             prisma.permintaanKebun.count({ where: { userId: id } }),
             prisma.karyawanAssignment.count({ where: { userId: id } }),
-            prisma.kasTransaksi.count({ where: { userId: id } }),
-            prisma.kasTransaksi.count({ where: { karyawanId: id } }),
-            prisma.kasTransaksi.count({ where: { deletedById: id } }),
+            prisma.kasTransaksi.count({ where: { userId: id, deletedAt: null } }),
+            prisma.kasTransaksi.count({ where: { karyawanId: id, deletedAt: null } }),
+            prisma.kasTransaksi.count({ where: { deletedById: id, deletedAt: null } }),
         ])
 
-        const blockers: string[] = []
-        if (notaSawitCount > 0) blockers.push('Nota Sawit')
-        if (uangJalanCount > 0) blockers.push('Uang Jalan')
-        if (auditLogCount > 0) blockers.push('Audit Log')
-        if (inventoryTxnCount > 0) blockers.push('Transaksi Inventory')
-        if (kebunInventoryTxnCount > 0) blockers.push('Transaksi Inventory Kebun')
-        if (permintaanCount > 0) blockers.push('Permintaan Kebun')
-        if (assignmentCount > 0) blockers.push('Penugasan Karyawan')
-        if (kasAsCreatorCount > 0 || kasAsKaryawanCount > 0 || kasAsDeleterCount > 0) blockers.push('Kas Transaksi')
+        const blockers: Array<{ menu: string; count: number }> = []
+        if (absensiHarianCount > 0) blockers.push({ menu: 'Absensi Karyawan', count: absensiHarianCount })
+        if (absensiGajiHarianCount > 0) blockers.push({ menu: 'Pembayaran Absensi', count: absensiGajiHarianCount })
+        if (absensiDefaultHarianCount > 0) blockers.push({ menu: 'Default Absensi', count: absensiDefaultHarianCount })
+        if (notaSawitCount > 0) blockers.push({ menu: 'Nota Sawit', count: notaSawitCount })
+        if (uangJalanCount > 0) blockers.push({ menu: 'Uang Jalan', count: uangJalanCount })
+        if (timbanganCount > 0) blockers.push({ menu: 'Timbangan', count: timbanganCount })
+        if (pekerjaanKebunCount > 0) blockers.push({ menu: 'Pekerjaan Kebun', count: pekerjaanKebunCount })
+        if (permintaanCount > 0) blockers.push({ menu: 'Permintaan Kebun', count: permintaanCount })
+        if (assignmentCount > 0) blockers.push({ menu: 'Penugasan Karyawan', count: assignmentCount })
+        if (detailGajianKaryawanCount > 0) blockers.push({ menu: 'Gajian Karyawan', count: detailGajianKaryawanCount })
+        if (inventoryTxnCount > 0) blockers.push({ menu: 'Transaksi Inventory', count: inventoryTxnCount })
+        if (kebunInventoryTxnCount > 0) blockers.push({ menu: 'Transaksi Inventory Kebun', count: kebunInventoryTxnCount })
+        if (auditLogCount > 0) blockers.push({ menu: 'Audit Log', count: auditLogCount })
+        const kasCount = (kasAsCreatorCount || 0) + (kasAsKaryawanCount || 0) + (kasAsDeleterCount || 0)
+        if (kasCount > 0) blockers.push({ menu: 'Kas (Transaksi)', count: kasCount })
 
         if (blockers.length > 0) {
+            const detail = blockers.map((b) => `${b.menu} (${b.count})`).join(', ')
             return NextResponse.json(
-                { error: `Pengguna tidak dapat dihapus karena masih digunakan di: ${blockers.join(', ')}. Gunakan nonaktifkan user jika perlu.` },
-                { status: 400 }
+                {
+                    error: `User tidak dapat dihapus karena masih memiliki data di: ${detail}. Sebaiknya nonaktifkan user.`,
+                    blockers,
+                },
+                { status: 409 }
             );
         }
 

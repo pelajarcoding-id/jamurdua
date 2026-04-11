@@ -84,6 +84,7 @@ export async function GET(request: Request) {
           },
           where: {
             supirId: supir.id,
+            deletedAt: null,
             createdAt: {
               gte: range.start,
               lte: range.end,

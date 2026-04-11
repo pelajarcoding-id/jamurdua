@@ -42,7 +42,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
       if (endKey) manualFilters.push(Prisma.sql`"date" <= ${endKey}::date`)
       const manualWhereSql = Prisma.join(manualFilters, ' AND ')
 
-      const [manual, kasirPerusahaan] = await Promise.all([
+      const stripAllMarkers = (text: string | null) => (text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
+
+      const [manual, kasirPerusahaan, uangJalanTagged] = await Promise.all([
         prisma.$queryRaw(
           Prisma.sql`SELECT "id","date","type","kategori","deskripsi","jumlah","gambarUrl","source"
                      FROM "PerusahaanBiaya"
@@ -75,6 +77,38 @@ export async function GET(request: Request, { params }: { params: { id: string }
             kebunId: true,
             kendaraanPlatNomor: true,
             karyawanId: true,
+          },
+          orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        }),
+        prisma.uangJalan.findMany({
+          where: {
+            deletedAt: null,
+            tipe: tipe as any,
+            description: { contains: `[PERUSAHAAN:${perusahaanId}]` },
+            sesiUangJalan: { deletedAt: null },
+            ...(startDate || endDate
+              ? {
+                  date: {
+                    ...(startDate ? { gte: startDate } : {}),
+                    ...(endDate ? { lte: endDate } : {}),
+                  },
+                }
+              : {}),
+          } as any,
+          select: {
+            id: true,
+            date: true,
+            tipe: true,
+            amount: true,
+            description: true,
+            gambarUrl: true,
+            sesiUangJalan: {
+              select: {
+                id: true,
+                supir: { select: { id: true, name: true } },
+                kendaraanPlatNomor: true,
+              },
+            },
           },
           orderBy: [{ date: 'desc' }, { id: 'desc' }],
         }),
@@ -121,7 +155,30 @@ export async function GET(request: Request, { params }: { params: { id: string }
         }
       })
 
-      const all = [...manualRows, ...kasirRows]
+      const uangJalanRows = (uangJalanTagged as any[]).map((r: any) => {
+        const baseDesc = stripAllMarkers(r.description)
+        const sesiInfo = r?.sesiUangJalan?.id ? `Sesi #${r.sesiUangJalan.id}` : ''
+        const supirInfo = r?.sesiUangJalan?.supir?.name ? `Supir: ${r.sesiUangJalan.supir.name}` : ''
+        const desc = [baseDesc, sesiInfo, supirInfo].filter(Boolean).join(' - ')
+        return {
+          id: r.id,
+          perusahaanId,
+          date: r.date,
+          type: r.tipe,
+          kategori: 'UANG_JALAN',
+          deskripsi: desc || baseDesc || 'Uang Jalan',
+          keterangan: r.description || null,
+          jumlah: Number(r.amount || 0),
+          gambarUrl: r.gambarUrl || null,
+          source: 'UANG_JALAN',
+          kasTransaksiId: null,
+          kebunId: null,
+          kendaraanPlatNomor: r?.sesiUangJalan?.kendaraanPlatNomor || null,
+          karyawanId: null,
+        }
+      })
+
+      const all = [...manualRows, ...kasirRows, ...uangJalanRows]
       all.sort((a, b) => {
         const da = new Date(a.date).getTime()
         const db = new Date(b.date).getTime()
