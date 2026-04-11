@@ -387,7 +387,7 @@ export default function KaryawanKebunPage() {
       })
       
       try {
-        const res = await fetch(`/api/karyawan/operasional/absensi?${params.toString()}`)
+        const res = await fetch(`/api/karyawan/operasional/absensi?${params.toString()}`, { cache: 'no-store' })
         if (res.ok) {
           const json = await res.json()
           const records = json.data || []
@@ -398,12 +398,19 @@ export default function KaryawanKebunPage() {
           const nextNote: Record<string, string> = {}
           
           records.forEach((r: any) => {
-            // Parse date from server (YYYY-MM-DD...) into local date object without shift
-            const dateObj = new Date(r.date)
-            const year = dateObj.getUTCFullYear()
-            const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
-            const day = String(dateObj.getUTCDate()).padStart(2, '0')
-            const key = `${year}-${month}-${day}`
+            const raw = r?.date ? String(r.date).trim() : ''
+            if (!raw) return
+            const key = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+              ? raw
+              : (() => {
+                  const dateObj = new Date(raw)
+                  if (Number.isNaN(dateObj.getTime())) return null
+                  const year = dateObj.getUTCFullYear()
+                  const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
+                  const day = String(dateObj.getUTCDate()).padStart(2, '0')
+                  return `${year}-${month}-${day}`
+                })()
+            if (!key) return
             
             if (r.jumlah > 0) nextAmount[key] = String(r.jumlah)
             if (r.kerja) nextWork[key] = true
@@ -555,7 +562,7 @@ export default function KaryawanKebunPage() {
       startDate: formatDateKey(start),
       endDate: formatDateKey(end),
     })
-    const res = await fetch(`/api/karyawan/operasional/absensi-payments?${params.toString()}`)
+    const res = await fetch(`/api/karyawan/operasional/absensi-payments?${params.toString()}`, { cache: 'no-store' })
     if (!res.ok) {
       setAbsenPaidMap({})
       return
@@ -564,12 +571,18 @@ export default function KaryawanKebunPage() {
     const next: Record<string, boolean> = {}
     ;(json.data || []).forEach((r: { date: string }) => { 
       if (r.date) {
-        const d = new Date(r.date)
+        const raw = String(r.date).trim()
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+          next[raw] = true
+          return
+        }
+        const d = new Date(raw)
+        if (Number.isNaN(d.getTime())) return
         const year = d.getUTCFullYear()
         const month = String(d.getUTCMonth() + 1).padStart(2, '0')
         const day = String(d.getUTCDate()).padStart(2, '0')
         const key = `${year}-${month}-${day}`
-        next[key] = true 
+        next[key] = true
       }
     })
     setAbsenPaidMap(next)
@@ -601,7 +614,7 @@ export default function KaryawanKebunPage() {
     })
     setAbsenPayHistoryLoading(true)
     try {
-      const res = await fetch(`/api/karyawan/operasional/absensi-payments?${params.toString()}`)
+      const res = await fetch(`/api/karyawan/operasional/absensi-payments?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) {
         setAbsenPayHistoryRows([])
         return

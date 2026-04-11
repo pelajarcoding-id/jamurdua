@@ -41,47 +41,97 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   try {
     const session = await auth();
     const currentUserId = session?.user?.id ? Number(session.user.id) : guard.id;
-    // Find the nota sawit to get the related timbanganId
-    const notaSawit = await prisma.notaSawit.findUnique({
-      where: { id },
-      select: { timbanganId: true, gambarNotaUrl: true, deletedAt: true },
-    });
+    const now = new Date()
+    const fallbackPrefix = `Penjualan Sawit #${id} -`
 
-    if (!notaSawit || notaSawit.deletedAt) {
-      return new Response('Nota Sawit not found', { status: 404 });
-    }
+    const { before, trxImages, notaImage } = await prisma.$transaction(async (tx) => {
+      const notaSawit = await tx.notaSawit.findUnique({
+        where: { id },
+        select: { id: true, gambarNotaUrl: true, deletedAt: true },
+      })
 
-    const linkedToGajian = await prisma.detailGajian.findFirst({
-      where: { notaSawitId: id },
-      select: { id: true },
+      if (!notaSawit || notaSawit.deletedAt) {
+        return { before: null, trxImages: [] as string[], notaImage: '' }
+      }
+
+      const linkedToGajian = await tx.detailGajian.findFirst({
+        where: { notaSawitId: id },
+        select: { id: true },
+      })
+      if (linkedToGajian) {
+        throw Object.assign(new Error('LINKED_TO_GAJIAN'), { code: 'LINKED_TO_GAJIAN' })
+      }
+
+      const trxRows = await tx.kasTransaksi.findMany({
+        where: {
+          deletedAt: null,
+          kategori: 'PENJUALAN_SAWIT',
+          OR: [
+            { notaSawitId: id } as any,
+            { deskripsi: { startsWith: fallbackPrefix } },
+          ],
+        } as any,
+        select: { id: true, gambarUrl: true },
+      })
+      const trxIds = trxRows.map((t) => t.id)
+      if (trxIds.length > 0) {
+        await tx.jurnal.deleteMany({
+          where: {
+            refType: 'KasTransaksi',
+            refId: { in: trxIds },
+          },
+        })
+        await tx.kasTransaksi.updateMany({
+          where: { id: { in: trxIds } },
+          data: { deletedAt: now, deletedById: currentUserId },
+        })
+      }
+
+      await tx.notaSawit.update({
+        where: { id },
+        data: {
+          deletedAt: now,
+          deletedById: currentUserId,
+        },
+      })
+
+      return {
+        before: notaSawit,
+        trxImages: trxRows.map((t) => t.gambarUrl).filter((u): u is string => !!u),
+        notaImage: notaSawit.gambarNotaUrl || '',
+      }
     })
-    if (linkedToGajian) {
-      return new Response('Gagal menghapus: Nota Sawit ini sudah terikat dengan data Gajian dan tidak dapat dihapus.', { status: 409 });
+
+    if (!before) {
+      return new Response('Nota Sawit not found', { status: 404 })
     }
 
-    await prisma.notaSawit.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        deletedById: currentUserId,
-      },
-    });
-
-    if (notaSawit.gambarNotaUrl) {
+    if (notaImage) {
       await scheduleFileDeletion({
-        url: notaSawit.gambarNotaUrl,
+        url: notaImage,
         entity: 'NotaSawit',
         entityId: String(id),
         reason: 'DELETE_NOTA',
       })
     }
+    for (const url of trxImages) {
+      await scheduleFileDeletion({
+        url,
+        entity: 'KasTransaksi',
+        entityId: String(id),
+        reason: 'DELETE_NOTA',
+      })
+    }
 
-    await createAuditLog(currentUserId, 'DELETE', 'NotaSawit', String(id), { before: notaSawit });
+    await createAuditLog(currentUserId, 'DELETE', 'NotaSawit', String(id), { before })
 
-    return Response.json({ ok: true });
+    return Response.json({ ok: true })
   } catch (error: any) {
     console.error('Error deleting nota sawit:', error);
     if (error.code === 'P2003') {
+      return new Response('Gagal menghapus: Nota Sawit ini sudah terikat dengan data Gajian dan tidak dapat dihapus.', { status: 409 });
+    }
+    if (error?.code === 'LINKED_TO_GAJIAN') {
       return new Response('Gagal menghapus: Nota Sawit ini sudah terikat dengan data Gajian dan tidak dapat dihapus.', { status: 409 });
     }
     return new Response('Internal Server Error', { status: 500 });

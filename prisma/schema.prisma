@@ -533,6 +533,7 @@ model NotaSawit {
   supir                User             @relation(fields: [supirId], references: [id])
   timbangan            Timbangan?       @relation(fields: [timbanganId], references: [id])
   perusahaan           Perusahaan?      @relation(fields: [perusahaanId], references: [id])
+  kasTransaksi         KasTransaksi[]
 
   @@index([tanggalBongkar])
   @@index([supirId])
@@ -698,6 +699,7 @@ model KasTransaksi {
   userId             Int?
   hutangBankId       Int?
   gajianId           Int?
+  notaSawitId        Int?
   deletedAt          DateTime?
   deletedById        Int?
   deletedBy          User?      @relation("DeleterRelation", fields: [deletedById], references: [id])
@@ -707,8 +709,10 @@ model KasTransaksi {
   user               User?      @relation("CreatorRelation", fields: [userId], references: [id])
   hutangBank         HutangBank? @relation(fields: [hutangBankId], references: [id])
   gajian             Gajian?    @relation(fields: [gajianId], references: [id], onDelete: SetNull)
+  notaSawit          NotaSawit? @relation(fields: [notaSawitId], references: [id], onDelete: SetNull)
 
   @@index([gajianId])
+  @@index([notaSawitId])
 }
 
 model HutangBank {
