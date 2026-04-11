@@ -30,7 +30,7 @@ export default function SupirPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [quickRange, setQuickRange] = useState('this_month');
+  const [quickRange, setQuickRange] = useState('this_year');
   const [supirList, setSupirList] = useState<{ id: number; name: string }[]>([]);
   const [selectedSupirId, setSelectedSupirId] = useState<string>('all');
   const searchParams = useSearchParams();
@@ -60,10 +60,11 @@ export default function SupirPage() {
   useEffect(() => {
     // Initialize dates on client side to avoid hydration mismatch
     const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const start = new Date(today.getFullYear(), 0, 1);
     const end = new Date(today);
     end.setHours(23, 59, 59, 999);
     
+    setQuickRange('this_year');
     setStartDate(start);
     setEndDate(end);
   }, []);
@@ -129,6 +130,14 @@ export default function SupirPage() {
     try {
       const d = value instanceof Date ? value : new Date(value);
       return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(d);
+    } catch {
+      return String(value);
+    }
+  }, []);
+  const formatWIBDateOnly = useCallback((value: string | Date) => {
+    try {
+      const d = value instanceof Date ? value : new Date(value);
+      return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(d);
     } catch {
       return String(value);
     }
@@ -265,7 +274,17 @@ export default function SupirPage() {
     }
   }, [detailData, detailSupir, detailExporting, endDate, formatWIBDateTime, startDate]);
 
-  const tableColumns = useMemo(() => columns(handleOpenDetail), [handleOpenDetail]);
+  const footerTotals = useMemo(() => {
+    const jumlahNota = data.reduce((acc, s) => acc + Number(s?.jumlahNota || 0), 0)
+    const totalDiberikan = data.reduce((acc, s) => acc + Number(s?.totalDiberikan || 0), 0)
+    const totalPengeluaran = data.reduce((acc, s) => acc + Number(s?.totalPengeluaran || 0), 0)
+    const saldoUangJalan = data.reduce((acc, s) => acc + Number(s?.saldoUangJalan || 0), 0)
+    const totalBerat = data.reduce((acc, s) => acc + Number(s?.totalBerat || 0), 0)
+    const rataRataBerat = jumlahNota > 0 ? totalBerat / jumlahNota : 0
+    return { jumlahNota, totalDiberikan, totalPengeluaran, saldoUangJalan, totalBerat, rataRataBerat }
+  }, [data])
+
+  const tableColumns = useMemo(() => columns(handleOpenDetail, footerTotals), [handleOpenDetail, footerTotals]);
 
   const refreshData = useCallback(() => {
     fetchData();
@@ -396,6 +415,7 @@ export default function SupirPage() {
                     onPageChange={setPage}
                     onLimitChange={setLimit}
                     showPageSizeSelector
+                    showFooter
                     searchQuery={searchQuery}
                     onSearchChange={handleSearchChange}
                     searchPlaceholder="Cari nama supir..."
@@ -499,8 +519,8 @@ export default function SupirPage() {
         </div>
 
         <Dialog open={detailOpen} onOpenChange={(v) => { setDetailOpen(v); if (!v) { setDetailSupir(null); setDetailData(null); } }}>
-          <DialogContent className="sm:max-w-[900px] p-0 overflow-hidden [&>button.absolute]:hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
+          <DialogContent className="w-[95vw] sm:max-w-[900px] max-h-[92vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
+            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <DialogTitle className="text-white">Detail Supir</DialogTitle>
@@ -518,7 +538,7 @@ export default function SupirPage() {
                 </button>
               </div>
             </div>
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {detailLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-6 w-64" />
@@ -542,13 +562,13 @@ export default function SupirPage() {
                     </div>
                   </div>
 
-                  <Tabs defaultValue="nota">
-                    <TabsList className="bg-gray-100">
+                  <Tabs defaultValue="nota" className="min-h-0">
+                    <TabsList className="bg-gray-100 w-full overflow-x-auto">
                       <TabsTrigger value="nota">Nota Sawit</TabsTrigger>
                       <TabsTrigger value="uang-jalan">Uang Jalan</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="nota">
+                    <TabsContent value="nota" className="min-h-0">
                       <div className="rounded-xl border border-gray-100 overflow-hidden">
                         <div className="max-h-[52vh] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           <table className="w-full text-sm">
@@ -567,7 +587,7 @@ export default function SupirPage() {
                               ) : (
                                 (detailData?.notas || []).map((n: any) => (
                                   <tr key={n.id}>
-                                    <td className="px-3 py-2">{formatWIBDateTime(n.tanggalBongkar || n.createdAt)}</td>
+                                    <td className="px-3 py-2">{formatWIBDateOnly(n.tanggalBongkar || n.createdAt)}</td>
                                     <td className="px-3 py-2">{n.kebun?.name || '-'}</td>
                                     <td className="px-3 py-2">{n.pabrikSawit?.name || '-'}</td>
                                     <td className="px-3 py-2">{n.kendaraanPlatNomor || '-'}</td>
@@ -591,7 +611,7 @@ export default function SupirPage() {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="uang-jalan">
+                    <TabsContent value="uang-jalan" className="min-h-0">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                         <div className="rounded-xl bg-gray-50 px-3 py-2">
                           <div className="text-xs text-gray-500">Total Diberikan</div>
@@ -661,7 +681,7 @@ export default function SupirPage() {
                 <div className="text-sm text-gray-500">Tidak ada data.</div>
               )}
             </div>
-            <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between gap-2">
+            <div className="px-4 sm:px-6 py-4 border-t bg-gray-50 flex items-center justify-between gap-2">
               <Button variant="outline" className="rounded-full" onClick={() => { setDetailOpen(false); setDetailSupir(null); setDetailData(null); }}>
                 Tutup
               </Button>

@@ -22,6 +22,7 @@ interface ModalDetailProps {
   onClose: () => void;
   onEdit?: (nota: NotaSawitData) => void;
   onDelete?: (nota: NotaSawitData) => void;
+  readonly?: boolean;
 }
 
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
@@ -37,7 +38,7 @@ function Row({ label, value, className, valueClassName }: { label: string; value
   );
 }
 
-export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDetailProps) {
+export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly = false }: ModalDetailProps) {
   const { role } = useAuth();
   const router = useRouter();
   const [buktiOpen, setBuktiOpen] = useState(false)
@@ -770,7 +771,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDe
              <ArrowDownTrayIcon className="h-4 w-4 text-gray-700" />
            </Button>
 
-           {role !== 'SUPIR' ? (
+           {!readonly && role !== 'SUPIR' ? (
              <Button
                variant="outline"
                size="icon"
@@ -783,7 +784,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDe
              </Button>
            ) : null}
 
-           {role !== 'SUPIR' ? (
+           {!readonly && role !== 'SUPIR' ? (
              <Button
                variant="outline"
                size="icon"
@@ -797,23 +798,25 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDe
              </Button>
            ) : null}
 
-           <DropdownMenu>
-             <DropdownMenuTrigger asChild>
-               <Button variant="outline" size="icon" className="h-9 w-9 rounded-md border border-gray-200 bg-white hover:bg-gray-50">
-                 <EllipsisHorizontalIcon className="h-4 w-4 text-gray-500" />
-               </Button>
-             </DropdownMenuTrigger>
-             <DropdownMenuContent align="end" className="w-56">
-               <DropdownMenuLabel>Aksi Lain</DropdownMenuLabel>
-               <DropdownMenuSeparator />
-               <DropdownMenuItem onClick={handleOpenTimbangan}>
-                 Buka Timbangan Pembanding
-               </DropdownMenuItem>
-               <DropdownMenuItem disabled={!nota?.gambarNotaUrl} onClick={handleDownloadImage}>
-                 Unduh Gambar Nota
-               </DropdownMenuItem>
-             </DropdownMenuContent>
-           </DropdownMenu>
+           {!readonly ? (
+             <DropdownMenu>
+               <DropdownMenuTrigger asChild>
+                 <Button variant="outline" size="icon" className="h-9 w-9 rounded-md border border-gray-200 bg-white hover:bg-gray-50">
+                   <EllipsisHorizontalIcon className="h-4 w-4 text-gray-500" />
+                 </Button>
+               </DropdownMenuTrigger>
+               <DropdownMenuContent align="end" className="w-56">
+                 <DropdownMenuLabel>Aksi Lain</DropdownMenuLabel>
+                 <DropdownMenuSeparator />
+                 <DropdownMenuItem onClick={handleOpenTimbangan}>
+                   Buka Timbangan Pembanding
+                 </DropdownMenuItem>
+                 <DropdownMenuItem disabled={!nota?.gambarNotaUrl} onClick={handleDownloadImage}>
+                   Unduh Gambar Nota
+                 </DropdownMenuItem>
+               </DropdownMenuContent>
+             </DropdownMenu>
+           ) : null}
         </ModalFooter>
       </DialogContent>
     </Dialog>

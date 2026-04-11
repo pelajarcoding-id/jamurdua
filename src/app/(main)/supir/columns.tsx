@@ -14,16 +14,28 @@ export type SupirData = {
   rataRataBerat: number;
 };
 
-export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData>[] => [
+export const columns = (
+  onDetail: (row: SupirData) => void,
+  totals?: {
+    jumlahNota?: number
+    totalDiberikan?: number
+    totalPengeluaran?: number
+    saldoUangJalan?: number
+    totalBerat?: number
+    rataRataBerat?: number
+  }
+): ColumnDef<SupirData>[] => [
   {
     accessorKey: 'supir',
     header: () => <div className="text-left">Supir</div>,
     cell: ({ row }) => <div className="text-left">{row.getValue('supir')}</div>,
+    footer: () => <div className="text-left font-bold">TOTAL</div>,
   },
   {
     accessorKey: 'jumlahNota',
     header: () => <div className="text-center">Jumlah Nota</div>,
     cell: ({ row }) => <div className="text-center">{row.getValue('jumlahNota')}</div>,
+    footer: () => <div className="text-center font-bold">{Number(totals?.jumlahNota || 0).toLocaleString('id-ID')}</div>,
   },
   {
     accessorKey: 'totalDiberikan',
@@ -36,6 +48,10 @@ export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData
       }).format(amount);
 
       return <div className="text-right font-medium">{formatted}</div>;
+    },
+    footer: () => {
+      const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(totals?.totalDiberikan || 0))
+      return <div className="text-right font-bold">{formatted}</div>
     },
   },
   {
@@ -50,6 +66,10 @@ export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData
 
       return <div className="text-right font-medium">{formatted}</div>;
     },
+    footer: () => {
+      const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(totals?.totalPengeluaran || 0))
+      return <div className="text-right font-bold">{formatted}</div>
+    },
   },
   {
     accessorKey: 'saldoUangJalan',
@@ -63,6 +83,10 @@ export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData
 
       return <div className="text-right font-semibold">{formatted}</div>;
     },
+    footer: () => {
+      const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(totals?.saldoUangJalan || 0))
+      return <div className="text-right font-bold">{formatted}</div>
+    },
   },
   {
     accessorKey: 'totalBerat',
@@ -73,6 +97,7 @@ export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData
 
       return <div className="text-right font-medium">{formatted} kg</div>;
     },
+    footer: () => <div className="text-right font-bold">{new Intl.NumberFormat('id-ID').format(Number(totals?.totalBerat || 0))} kg</div>,
   },
   {
     accessorKey: 'rataRataBerat',
@@ -86,6 +111,10 @@ export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData
 
       return <div className="text-right font-medium">{formatted} kg</div>;
     },
+    footer: () => {
+      const formatted = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(totals?.rataRataBerat || 0))
+      return <div className="text-right font-bold">{formatted} kg</div>
+    },
   },
   {
     id: 'aksi',
@@ -97,5 +126,6 @@ export const columns = (onDetail: (row: SupirData) => void): ColumnDef<SupirData
         </Button>
       </div>
     ),
+    footer: () => null,
   },
 ];

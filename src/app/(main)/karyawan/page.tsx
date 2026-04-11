@@ -56,7 +56,7 @@ export default function KaryawanKebunPage() {
   const [selectedKebunId, setSelectedKebunId] = useState<number | null>(null)
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
-  const [quickRange, setQuickRange] = useState('this_month')
+  const [quickRange, setQuickRange] = useState('this_year')
   const [summaryKebunId, setSummaryKebunId] = useState<number | null>(null)
   const [summaryKebunSet, setSummaryKebunSet] = useState(false)
   const [summaryJobType, setSummaryJobType] = useState<string>('all')
@@ -522,7 +522,7 @@ export default function KaryawanKebunPage() {
   useEffect(() => {
     if (startDate && endDate) return
     const today = new Date()
-    const start = new Date(today.getFullYear(), today.getMonth(), 1)
+    const start = new Date(today.getFullYear(), 0, 1)
     const end = new Date(today)
     const startVal = formatDateKey(start)
     const endVal = formatDateKey(end)
@@ -539,6 +539,7 @@ export default function KaryawanKebunPage() {
         case 'last_week': return '7 Hari Terakhir'
         case 'last_30_days': return '30 Hari Terakhir'
         case 'this_month': return 'Bulan Ini'
+        case 'this_year': return 'Tahun Ini'
         default: return 'Pilih Rentang Waktu'
       }
     }
@@ -570,6 +571,9 @@ export default function KaryawanKebunPage() {
       end = today
     } else if (val === 'this_month') {
       start = new Date(today.getFullYear(), today.getMonth(), 1)
+      end = today
+    } else if (val === 'this_year') {
+      start = new Date(today.getFullYear(), 0, 1)
       end = today
     }
     const startVal = formatDateKey(start)
@@ -2003,6 +2007,7 @@ export default function KaryawanKebunPage() {
                     <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_week')} className={quickRange === 'last_week' ? 'bg-accent' : ''}>7 Hari</Button>
                     <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_30_days')} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
                     <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_month')} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_year')} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                   </div>
                   <div className="border-t pt-4 space-y-2">
                     <h4 className="font-medium leading-none">Kustom</h4>

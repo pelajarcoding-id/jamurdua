@@ -24,6 +24,7 @@ export async function GET(request: Request) {
     }
 
     const notaSawitWhere: Prisma.NotaSawitWhereInput = {
+      deletedAt: null,
       tanggalBongkar: {
         gte: range.startUtc,
         lt: range.endExclusiveUtc,
@@ -220,7 +221,7 @@ export async function GET(request: Request) {
 
 
     // 3. Kebun Paling Produktif
-    const notaSawitFilter: Prisma.NotaSawitWhereInput = {};
+    const notaSawitFilter: Prisma.NotaSawitWhereInput = { deletedAt: null };
     if (pabrikId) notaSawitFilter.pabrikSawitId = parseInt(pabrikId, 10);
     if (supirId) notaSawitFilter.supirId = parseInt(supirId, 10);
 
@@ -247,32 +248,26 @@ export async function GET(request: Request) {
                 netKg: 'desc',
             },
         },
-        take: 5, // Ambil top 5
     });
 
-    // Ambil nama kebun
-    const kebunIds = productiveKebun.map((k: { kebunId: number | null }) => k.kebunId).filter((id): id is number => id !== null);
-    const kebunDetails = await prisma.kebun.findMany({
-        where: {
-            id: {
-                in: kebunIds,
-            },
-        },
-        select: {
-            id: true,
-            name: true,
-        },
-    });
+    const allKebun = await prisma.kebun.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    })
 
-    const kebunMap = kebunDetails.reduce((acc: Record<number, string>, kebun: { id: number; name: string }) => {
-        acc[kebun.id] = kebun.name;
-        return acc;
-    }, {});
+    const sumMap = new Map<number, number>()
+    for (const r of productiveKebun as any[]) {
+      if (typeof r?.kebunId === 'number') {
+        sumMap.set(r.kebunId, Number(r?._sum?.netKg || 0))
+      }
+    }
 
-    const topKebun = productiveKebun.map((k: { kebunId: number | null; _sum: { netKg: number | null } }) => ({
-        nama: k.kebunId ? kebunMap[k.kebunId] || 'Tidak Diketahui' : 'Tidak Diketahui',
-        totalBerat: k._sum.netKg || 0,
-    }));
+    const topKebun = allKebun
+      .map((k) => ({ nama: k.name, totalBerat: sumMap.get(k.id) || 0 }))
+      .sort((a, b) => {
+        if (b.totalBerat !== a.totalBerat) return b.totalBerat - a.totalBerat
+        return a.nama.localeCompare(b.nama)
+      })
 
     return NextResponse.json({
       kpi,

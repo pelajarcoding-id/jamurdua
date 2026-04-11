@@ -16,6 +16,8 @@ import { CalendarIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import toast from 'react-hot-toast';
+import ModalDetailNota from '@/app/(main)/nota-sawit/detail-modal';
+import type { NotaSawitData } from '@/app/(main)/nota-sawit/columns';
 
 import { Kebun, User, PabrikSawit } from '@prisma/client';
 
@@ -64,15 +66,16 @@ export default function LaporanNotaSawitPage() {
   // Date filter state - Default "this_month"
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [quickRange, setQuickRange] = useState('this_month');
+  const [quickRange, setQuickRange] = useState('this_year');
 
   useEffect(() => {
     // Initialize dates on client side to avoid hydration mismatch
     const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const start = new Date(today.getFullYear(), 0, 1);
     const end = new Date(today);
     end.setHours(0, 0, 0, 0);
     
+    setQuickRange('this_year');
     setStartDate(start);
     setEndDate(end);
   }, []);
@@ -91,6 +94,15 @@ export default function LaporanNotaSawitPage() {
   const [selectedPabrik, setSelectedPabrik] = useState('');
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(true);
+  const [detailNota, setDetailNota] = useState<NotaSawitData | null>(null);
+
+  const handleOpenDetailNota = useCallback((nota: any) => {
+    setDetailNota(nota as any);
+  }, []);
+
+  const handleCloseDetailNota = useCallback(() => {
+    setDetailNota(null);
+  }, []);
 
   const dateDisplay = useMemo(() => {
     if (quickRange && quickRange !== 'custom') {
@@ -876,6 +888,11 @@ export default function LaporanNotaSawitPage() {
                   const netto = item.timbangan?.netKg ?? item.netto;
                   return (
                     <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetailNota(item)}
+                        className="w-full text-left"
+                      >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
                           <div className="font-semibold text-gray-900">#{(page - 1) * limit + index + 1}</div>
@@ -904,6 +921,7 @@ export default function LaporanNotaSawitPage() {
                           </div>
                         </div>
                       </div>
+                      </button>
                     </div>
                   )
                 })
@@ -911,7 +929,12 @@ export default function LaporanNotaSawitPage() {
             </div>
 
             <div className="hidden md:block">
-              <DataTable columns={columns} data={items} isLoading={isTableLoading} meta={{ kpi, page, limit }} />
+              <DataTable
+                columns={columns}
+                data={items}
+                isLoading={isTableLoading}
+                meta={{ kpi, page, limit, onRowClick: handleOpenDetailNota }}
+              />
             </div>
             <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-4">
             <div className="text-sm text-gray-700 text-center md:text-left">
@@ -924,6 +947,7 @@ export default function LaporanNotaSawitPage() {
           </div>
         </div>
       </div>
+      <ModalDetailNota nota={detailNota} onClose={handleCloseDetailNota} readonly />
     </main>
   );
 }

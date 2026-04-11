@@ -32,6 +32,7 @@ interface DataTableProps<TData, TValue> {
   onLimitChange: Dispatch<SetStateAction<number>>;
   showPageSizeSelector?: boolean;
   pageSizeOptions?: number[];
+  showFooter?: boolean;
   searchQuery: string;
   onSearchChange: Dispatch<SetStateAction<string>>;
   startDate?: Date;
@@ -63,6 +64,7 @@ export function DataTable<TData, TValue>({
   onLimitChange,
   showPageSizeSelector = false,
   pageSizeOptions = [10, 20, 50, 100],
+  showFooter = false,
   searchQuery,
   onSearchChange,
   startDate,
@@ -125,6 +127,7 @@ export function DataTable<TData, TValue>({
   })()
 
   const safePageSizeOptions = Array.from(new Set((pageSizeOptions || []).filter((n) => Number.isFinite(n) && n > 0))).sort((a, b) => a - b)
+  const hasFooter = showFooter && table.getFooterGroups().some((g) => g.headers.some((h) => (h.column.columnDef as any).footer))
 
   return (
     <div>
@@ -278,6 +281,19 @@ export function DataTable<TData, TValue>({
                 </tr>
             )}
           </tbody>
+          {hasFooter ? (
+            <tfoot className="bg-gray-50 border-t border-gray-200">
+              {table.getFooterGroups().map((footerGroup) => (
+                <tr key={footerGroup.id}>
+                  {footerGroup.headers.map((header) => (
+                    <td key={header.id} className="px-2 py-2 text-xs md:px-6 md:py-3 md:text-sm font-semibold text-gray-900">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.footer, header.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tfoot>
+          ) : null}
         </table>
         </div>
       </div>
