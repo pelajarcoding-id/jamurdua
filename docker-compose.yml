@@ -10,6 +10,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - AUTH_URL=${AUTH_URL}
+      - AUTH_TRUST_HOST=${AUTH_TRUST_HOST}
+      - AUTH_SECRET=${AUTH_SECRET}
     ports:
       - "3000:3000"
     depends_on:
