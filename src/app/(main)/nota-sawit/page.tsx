@@ -82,20 +82,15 @@ export default function NotaSawitPage() {
   const [cursorStack, setCursorStack] = useState<number[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   
-  // Date filter state - Default "this_year"
+  // Date filter state - Default "all"
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [quickRange, setQuickRange] = useState('this_year');
+  const [quickRange, setQuickRange] = useState('all');
 
   useEffect(() => {
-    // Initialize dates on client side to avoid hydration mismatch
-    const today = new Date();
-    const start = new Date(today.getFullYear(), 0, 1);
-    const end = new Date(today);
-    end.setHours(0, 0, 0, 0);
-    
-    setStartDate(start);
-    setEndDate(end);
+    // Initialize with all time - no date filter
+    setStartDate(undefined);
+    setEndDate(undefined);
   }, []);
 
   const [kebunList, setKebunList] = useState<{ id: number; name: string }[]>([]);
@@ -227,6 +222,7 @@ export default function NotaSawitPage() {
   const dateDisplay = useMemo(() => {
     if (quickRange && quickRange !== 'custom') {
       switch (quickRange) {
+        case 'all': return 'Semua';
         case 'today': return 'Hari Ini';
         case 'yesterday': return 'Kemarin';
         case 'last_week': return '7 Hari Terakhir';
@@ -253,7 +249,10 @@ export default function NotaSawitPage() {
     today.setHours(0, 0, 0, 0);
     setQuickRange(val);
     
-    if (val === 'today') {
+    if (val === 'all') {
+      setStartDate(undefined);
+      setEndDate(undefined);
+    } else if (val === 'today') {
       setStartDate(today);
       setEndDate(today);
     } else if (val === 'yesterday') {
@@ -878,8 +877,8 @@ export default function NotaSawitPage() {
   useEffect(() => {
     let ignore = false;
     
-    // Skip fetching if dates are not yet initialized for a quick range
-    if (quickRange !== 'custom' && (!startDate || !endDate)) {
+    // Skip fetching if dates are not yet initialized for a quick range (unless all)
+    if (quickRange !== 'custom' && quickRange !== 'all' && (!startDate || !endDate)) {
       return;
     }
 
@@ -1081,6 +1080,7 @@ export default function NotaSawitPage() {
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
+                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('all')} className={quickRange === 'all' ? 'bg-accent' : ''}>Semua</Button>
                         <Button variant="outline" size="sm" onClick={() => applyQuickRange('today')} className={quickRange === 'today' ? 'bg-accent' : ''}>Hari Ini</Button>
                         <Button variant="outline" size="sm" onClick={() => applyQuickRange('yesterday')} className={quickRange === 'yesterday' ? 'bg-accent' : ''}>Kemarin</Button>
                         <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_week')} className={quickRange === 'last_week' ? 'bg-accent' : ''}>7 Hari</Button>
