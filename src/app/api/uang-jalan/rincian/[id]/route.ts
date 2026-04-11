@@ -23,24 +23,6 @@ const buildDescriptionWithTags = (text: string, tags: { kendaraanPlatNomor?: str
   return parts.join(' ').trim()
 }
 
-const detectTagsFromDescription = (text: string) => {
-  const kendaraan = (text.match(/\[KENDARAAN:([^\]]+)\]/)?.[1] || '').trim()
-  const kebun = (text.match(/\[KEBUN:(\d+)\]/)?.[1] || '').trim()
-  const perusahaan = (text.match(/\[PERUSAHAAN:(\d+)\]/)?.[1] || '').trim()
-  return {
-    kendaraanPlatNomor: kendaraan || null,
-    kebunId: kebun || null,
-    perusahaanId: perusahaan || null,
-  }
-}
-
-const ensureUangJalanKasKategori = (tipe: string, tags: { kendaraanPlatNomor?: string | null; kebunId?: string | null }) => {
-  if (tipe !== 'PENGELUARAN') return 'UMUM'
-  if (tags.kendaraanPlatNomor) return 'KENDARAAN'
-  if (tags.kebunId) return 'KEBUN'
-  return 'UMUM'
-}
-
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR'])
@@ -104,59 +86,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       where: { deletedAt: null, keterangan: { contains: marker } },
       select: { id: true },
     })
-
-    if (updated.tipe === 'PENGELUARAN') {
-      const tagsFromDesc = detectTagsFromDescription(finalDescription)
-      const kendaraanPlatNomor = tagsFromDesc.kendaraanPlatNomor || existing.sesiUangJalan.kendaraanPlatNomor || null
-      const kebunId = tagsFromDesc.kebunId ? Number(tagsFromDesc.kebunId) : null
-      const perusahaanId = tagsFromDesc.perusahaanId || null
-      const kategori = ensureUangJalanKasKategori('PENGELUARAN', { kendaraanPlatNomor, kebunId: kebunId ? String(kebunId) : null })
-      const keteranganKas = [
-        stripTagMarkers(finalDescription),
-        `Sesi Uang Jalan #${existing.sesiUangJalanId}`,
-        marker,
-        perusahaanId ? `[PERUSAHAAN:${perusahaanId}]` : null,
-      ].filter(Boolean).join(' • ')
-
-      if (existingKas) {
-        await prisma.kasTransaksi.update({
-          where: { id: existingKas.id },
-          data: {
-            date: updated.date,
-            tipe: 'PENGELUARAN',
-            deskripsi: `Uang Jalan: ${stripTagMarkers(finalDescription) || 'Pengeluaran'}`.slice(0, 200),
-            jumlah: updated.amount,
-            keterangan: keteranganKas.slice(0, 500),
-            gambarUrl: updated.gambarUrl || null,
-            kategori,
-            kebunId,
-            kendaraanPlatNomor,
-            userId: currentUserId,
-          },
-        })
-      } else {
-        await prisma.kasTransaksi.create({
-          data: {
-            date: updated.date,
-            tipe: 'PENGELUARAN',
-            deskripsi: `Uang Jalan: ${stripTagMarkers(finalDescription) || 'Pengeluaran'}`.slice(0, 200),
-            jumlah: updated.amount,
-            keterangan: keteranganKas.slice(0, 500),
-            gambarUrl: updated.gambarUrl || null,
-            kategori,
-            kebunId,
-            kendaraanPlatNomor,
-            userId: currentUserId,
-          },
-        })
-      }
-    } else {
-      if (existingKas) {
-        await prisma.kasTransaksi.update({
-          where: { id: existingKas.id },
-          data: { deletedAt: new Date(), deletedById: currentUserId } as any,
-        })
-      }
+    if (existingKas) {
+      await prisma.kasTransaksi.update({
+        where: { id: existingKas.id },
+        data: { deletedAt: new Date(), deletedById: currentUserId } as any,
+      })
     }
 
     await createAuditLog(currentUserId, 'UPDATE', 'UangJalan', String(id), {

@@ -542,42 +542,44 @@ export default function SupirPage() {
 
                     <TabsContent value="nota">
                       <div className="rounded-xl border border-gray-100 overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                            <tr>
-                              <th className="px-3 py-2 text-left">Tanggal</th>
-                              <th className="px-3 py-2 text-left">Kebun</th>
-                              <th className="px-3 py-2 text-left">Pabrik</th>
-                              <th className="px-3 py-2 text-left">Kendaraan</th>
-                              <th className="px-3 py-2 text-right">Berat</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {(detailData?.notas || []).length === 0 ? (
-                              <tr><td colSpan={5} className="px-3 py-3 text-center text-sm text-gray-500">Tidak ada nota pada periode ini.</td></tr>
-                            ) : (
-                              (detailData?.notas || []).map((n: any) => (
-                                <tr key={n.id}>
-                                  <td className="px-3 py-2">{formatWIBDateTime(n.createdAt)}</td>
-                                  <td className="px-3 py-2">{n.kebun?.name || '-'}</td>
-                                  <td className="px-3 py-2">{n.pabrikSawit?.name || '-'}</td>
-                                  <td className="px-3 py-2">{n.kendaraanPlatNomor || '-'}</td>
-                                  <td className="px-3 py-2 text-right">{Number(n.beratAkhir || 0).toLocaleString('id-ID')} kg</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                          {(detailData?.notas || []).length > 0 && (
-                            <tfoot className="bg-gray-50 border-t border-gray-200">
+                        <div className="max-h-[52vh] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0">
                               <tr>
-                                <td className="px-3 py-2 font-bold text-gray-900 text-right" colSpan={4}>TOTAL</td>
-                                <td className="px-3 py-2 font-bold text-gray-900 text-right">
-                                  {Math.round((detailData?.notas || []).reduce((acc: number, n: any) => acc + Number(n?.beratAkhir || 0), 0)).toLocaleString('id-ID')} kg
-                                </td>
+                                <th className="px-3 py-2 text-left">Tanggal</th>
+                                <th className="px-3 py-2 text-left">Kebun</th>
+                                <th className="px-3 py-2 text-left">Pabrik</th>
+                                <th className="px-3 py-2 text-left">Kendaraan</th>
+                                <th className="px-3 py-2 text-right">Berat</th>
                               </tr>
-                            </tfoot>
-                          )}
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {(detailData?.notas || []).length === 0 ? (
+                                <tr><td colSpan={5} className="px-3 py-3 text-center text-sm text-gray-500">Tidak ada nota pada periode ini.</td></tr>
+                              ) : (
+                                (detailData?.notas || []).map((n: any) => (
+                                  <tr key={n.id}>
+                                    <td className="px-3 py-2">{formatWIBDateTime(n.createdAt)}</td>
+                                    <td className="px-3 py-2">{n.kebun?.name || '-'}</td>
+                                    <td className="px-3 py-2">{n.pabrikSawit?.name || '-'}</td>
+                                    <td className="px-3 py-2">{n.kendaraanPlatNomor || '-'}</td>
+                                    <td className="px-3 py-2 text-right">{Number(n.beratAkhir || 0).toLocaleString('id-ID')} kg</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                            {(detailData?.notas || []).length > 0 && (
+                              <tfoot className="bg-gray-50 border-t border-gray-200">
+                                <tr>
+                                  <td className="px-3 py-2 font-bold text-gray-900 text-right" colSpan={4}>TOTAL</td>
+                                  <td className="px-3 py-2 font-bold text-gray-900 text-right">
+                                    {Math.round((detailData?.notas || []).reduce((acc: number, n: any) => acc + Number(n?.beratAkhir || 0), 0)).toLocaleString('id-ID')} kg
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+                        </div>
                       </div>
                     </TabsContent>
 
@@ -597,50 +599,52 @@ export default function SupirPage() {
                         </div>
                       </div>
                       <div className="rounded-xl border border-gray-100 overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                            <tr>
-                              <th className="px-3 py-2 text-left">Tanggal Mulai</th>
-                              <th className="px-3 py-2 text-left">Kendaraan</th>
-                              <th className="px-3 py-2 text-left">Status</th>
-                              <th className="px-3 py-2 text-right">Diberikan</th>
-                              <th className="px-3 py-2 text-right">Pengeluaran</th>
-                              <th className="px-3 py-2 text-right">Saldo</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {(detailData?.sesiUangJalan || []).length === 0 ? (
-                              <tr><td colSpan={6} className="px-3 py-3 text-center text-sm text-gray-500">Tidak ada uang jalan pada periode ini.</td></tr>
-                            ) : (
-                              (detailData?.sesiUangJalan || []).map((s: any) => (
-                                <tr key={s.id}>
-                                  <td className="px-3 py-2">{formatWIBDateTime(s.tanggalMulai)}</td>
-                                  <td className="px-3 py-2">{s.kendaraanPlatNomor || '-'}</td>
-                                  <td className="px-3 py-2">{s.status || '-'}</td>
-                                  <td className="px-3 py-2 text-right">{formatCurrency(Number(s.totalDiberikan || 0))}</td>
-                                  <td className="px-3 py-2 text-right">{formatCurrency(Number(s.totalPengeluaran || 0))}</td>
-                                  <td className="px-3 py-2 text-right">{formatCurrency(Number(s.saldo || 0))}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                          {(detailData?.sesiUangJalan || []).length > 0 && (
-                            <tfoot className="bg-gray-50 border-t border-gray-200">
+                        <div className="max-h-[52vh] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0">
                               <tr>
-                                <td className="px-3 py-2 font-bold text-gray-900 text-right" colSpan={3}>TOTAL</td>
-                                <td className="px-3 py-2 font-bold text-gray-900 text-right">
-                                  {formatCurrency((detailData?.sesiUangJalan || []).reduce((acc: number, s: any) => acc + Number(s?.totalDiberikan || 0), 0))}
-                                </td>
-                                <td className="px-3 py-2 font-bold text-gray-900 text-right">
-                                  {formatCurrency((detailData?.sesiUangJalan || []).reduce((acc: number, s: any) => acc + Number(s?.totalPengeluaran || 0), 0))}
-                                </td>
-                                <td className="px-3 py-2 font-bold text-gray-900 text-right">
-                                  {formatCurrency((detailData?.sesiUangJalan || []).reduce((acc: number, s: any) => acc + Number(s?.saldo || 0), 0))}
-                                </td>
+                                <th className="px-3 py-2 text-left">Tanggal Mulai</th>
+                                <th className="px-3 py-2 text-left">Kendaraan</th>
+                                <th className="px-3 py-2 text-left">Status</th>
+                                <th className="px-3 py-2 text-right">Diberikan</th>
+                                <th className="px-3 py-2 text-right">Pengeluaran</th>
+                                <th className="px-3 py-2 text-right">Saldo</th>
                               </tr>
-                            </tfoot>
-                          )}
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {(detailData?.sesiUangJalan || []).length === 0 ? (
+                                <tr><td colSpan={6} className="px-3 py-3 text-center text-sm text-gray-500">Tidak ada uang jalan pada periode ini.</td></tr>
+                              ) : (
+                                (detailData?.sesiUangJalan || []).map((s: any) => (
+                                  <tr key={s.id}>
+                                    <td className="px-3 py-2">{formatWIBDateTime(s.tanggalMulai)}</td>
+                                    <td className="px-3 py-2">{s.kendaraanPlatNomor || '-'}</td>
+                                    <td className="px-3 py-2">{s.status || '-'}</td>
+                                    <td className="px-3 py-2 text-right">{formatCurrency(Number(s.totalDiberikan || 0))}</td>
+                                    <td className="px-3 py-2 text-right">{formatCurrency(Number(s.totalPengeluaran || 0))}</td>
+                                    <td className="px-3 py-2 text-right">{formatCurrency(Number(s.saldo || 0))}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                            {(detailData?.sesiUangJalan || []).length > 0 && (
+                              <tfoot className="bg-gray-50 border-t border-gray-200">
+                                <tr>
+                                  <td className="px-3 py-2 font-bold text-gray-900 text-right" colSpan={3}>TOTAL</td>
+                                  <td className="px-3 py-2 font-bold text-gray-900 text-right">
+                                    {formatCurrency((detailData?.sesiUangJalan || []).reduce((acc: number, s: any) => acc + Number(s?.totalDiberikan || 0), 0))}
+                                  </td>
+                                  <td className="px-3 py-2 font-bold text-gray-900 text-right">
+                                    {formatCurrency((detailData?.sesiUangJalan || []).reduce((acc: number, s: any) => acc + Number(s?.totalPengeluaran || 0), 0))}
+                                  </td>
+                                  <td className="px-3 py-2 font-bold text-gray-900 text-right">
+                                    {formatCurrency((detailData?.sesiUangJalan || []).reduce((acc: number, s: any) => acc + Number(s?.saldo || 0), 0))}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+                        </div>
                       </div>
                     </TabsContent>
                   </Tabs>

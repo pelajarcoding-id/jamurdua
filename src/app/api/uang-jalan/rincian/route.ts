@@ -22,25 +22,6 @@ const buildDescriptionWithTags = (text: string, tags: { kendaraanPlatNomor?: str
   return parts.join(' ').trim()
 }
 
-const detectTagsFromDescription = (text: string) => {
-  const kendaraan = (text.match(/\[KENDARAAN:([^\]]+)\]/)?.[1] || '').trim()
-  const kebun = (text.match(/\[KEBUN:(\d+)\]/)?.[1] || '').trim()
-  const perusahaan = (text.match(/\[PERUSAHAAN:(\d+)\]/)?.[1] || '').trim()
-  return {
-    kendaraanPlatNomor: kendaraan || null,
-    kebunId: kebun || null,
-    perusahaanId: perusahaan || null,
-  }
-}
-
-const ensureUangJalanKasKategori = (tipe: string, tags: { kendaraanPlatNomor?: string | null; kebunId?: string | null }) => {
-  if (tipe !== 'PENGELUARAN') return 'UMUM'
-  if (tags.kendaraanPlatNomor) return 'KENDARAAN'
-  if (tags.kebunId) return 'KEBUN'
-  return 'UMUM'
-}
-
-
 export async function POST(request: Request) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR'])
@@ -86,35 +67,6 @@ export async function POST(request: Request) {
     });
 
     const currentUserId = session?.user?.id ? Number(session.user.id) : 1;
-
-    if (tipe === 'PENGELUARAN') {
-      const tagsFromDesc = detectTagsFromDescription(finalDescription)
-      const kendaraanPlatNomor = tagsFromDesc.kendaraanPlatNomor || sesi.kendaraanPlatNomor || null
-      const kebunId = tagsFromDesc.kebunId ? Number(tagsFromDesc.kebunId) : null
-      const perusahaanId = tagsFromDesc.perusahaanId || null
-      const kategori = ensureUangJalanKasKategori(tipe, { kendaraanPlatNomor, kebunId: kebunId ? String(kebunId) : null })
-      const keteranganKas = [
-        stripTagMarkers(finalDescription),
-        `Sesi Uang Jalan #${sesi.id}`,
-        `[UJ_RINCIAN:${newRincian.id}]`,
-        perusahaanId ? `[PERUSAHAAN:${perusahaanId}]` : null,
-      ].filter(Boolean).join(' • ')
-
-      await prisma.kasTransaksi.create({
-        data: {
-          date: newRincian.date,
-          tipe: 'PENGELUARAN',
-          deskripsi: `Uang Jalan: ${stripTagMarkers(finalDescription) || 'Pengeluaran'}`.slice(0, 200),
-          jumlah: newRincian.amount,
-          keterangan: keteranganKas.slice(0, 500),
-          gambarUrl: newRincian.gambarUrl || null,
-          kategori,
-          kebunId,
-          kendaraanPlatNomor,
-          userId: currentUserId,
-        },
-      })
-    }
 
     await createAuditLog(currentUserId, 'CREATE', 'UangJalan', newRincian.id.toString(), {
       sesiUangJalanId,

@@ -95,7 +95,8 @@ export async function GET(request: Request) {
           by: ['tipe'],
           _sum: { amount: true },
           where: {
-            sesiUangJalan: { supirId: supir.id },
+            deletedAt: null,
+            sesiUangJalan: { supirId: supir.id, deletedAt: null },
             date: { gte: range.start, lte: range.end },
           },
         });

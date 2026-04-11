@@ -48,7 +48,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     const uangJalanRows = await prisma.uangJalan.findMany({
       where: {
-        sesiUangJalan: { supirId },
+        deletedAt: null,
+        sesiUangJalan: { supirId, deletedAt: null },
         date: { gte: range.start, lte: range.end },
       },
       select: {
@@ -138,4 +139,3 @@ export async function GET(request: Request, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
-
