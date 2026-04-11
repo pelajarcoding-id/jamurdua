@@ -20,6 +20,7 @@ export async function GET(request: Request) {
   const kebunId = url.searchParams.get('kebunId');
   const supirId = url.searchParams.get('supirId');
   const pabrikId = url.searchParams.get('pabrikId');
+  const kendaraanPlatNomor = url.searchParams.get('kendaraanPlatNomor');
   const statusPembayaran = url.searchParams.get('statusPembayaran');
   const perusahaanId = url.searchParams.get('perusahaanId');
 
@@ -56,6 +57,10 @@ export async function GET(request: Request) {
 
     if (pabrikId) {
       where.pabrikSawitId = parseInt(pabrikId, 10);
+    }
+
+    if (kendaraanPlatNomor) {
+      where.kendaraanPlatNomor = kendaraanPlatNomor;
     }
 
     if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
@@ -105,6 +110,9 @@ export async function GET(request: Request) {
         }
         if (pabrikId) {
           baseConds.push(Prisma.sql`n."pabrikSawitId" = ${parseInt(pabrikId, 10)}`);
+        }
+        if (kendaraanPlatNomor) {
+          baseConds.push(Prisma.sql`n."kendaraanPlatNomor" = ${kendaraanPlatNomor}`);
         }
         if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
           baseConds.push(Prisma.sql`n."statusPembayaran" = ${statusPembayaran}`);

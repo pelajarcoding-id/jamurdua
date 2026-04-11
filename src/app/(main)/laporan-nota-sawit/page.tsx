@@ -19,7 +19,7 @@ import toast from 'react-hot-toast';
 import ModalDetailNota from '@/app/(main)/nota-sawit/detail-modal';
 import type { NotaSawitData } from '@/app/(main)/nota-sawit/columns';
 
-import { Kebun, User, PabrikSawit } from '@prisma/client';
+import { Kebun, User, PabrikSawit, Kendaraan } from '@prisma/client';
 
 interface MonthlyData {
   month: string;
@@ -89,9 +89,11 @@ export default function LaporanNotaSawitPage() {
   const [kebunList, setKebunList] = useState<Kebun[]>([]);
   const [supirList, setSupirList] = useState<User[]>([]);
   const [pabrikList, setPabrikList] = useState<PabrikSawit[]>([]);
+  const [kendaraanList, setKendaraanList] = useState<Kendaraan[]>([]);
   const [selectedKebun, setSelectedKebun] = useState('');
   const [selectedSupir, setSelectedSupir] = useState('');
   const [selectedPabrik, setSelectedPabrik] = useState('');
+  const [selectedKendaraan, setSelectedKendaraan] = useState('');
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(true);
   const [detailNota, setDetailNota] = useState<NotaSawitData | null>(null);
@@ -166,6 +168,7 @@ export default function LaporanNotaSawitPage() {
         setKebunList(data.kebun || []);
         setSupirList(data.supir || []);
         setPabrikList(data.pabrik || []);
+        setKendaraanList(data.kendaraan || []);
       } catch (e: any) {
         console.error(e.message);
       }
@@ -194,6 +197,7 @@ export default function LaporanNotaSawitPage() {
         if (selectedKebun) params.append('kebunId', selectedKebun);
         if (selectedSupir) params.append('supirId', selectedSupir);
         if (selectedPabrik) params.append('pabrikId', selectedPabrik);
+        if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
 
         const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data tabel');
@@ -208,7 +212,7 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchData();
-  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik, toYmd]);
+  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, toYmd]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -230,6 +234,7 @@ export default function LaporanNotaSawitPage() {
         if (selectedKebun) params.append('kebunId', selectedKebun);
         if (selectedSupir) params.append('supirId', selectedSupir);
         if (selectedPabrik) params.append('pabrikId', selectedPabrik);
+        if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
 
         const res = await fetch(`/api/laporan-nota-sawit/statistik?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data statistik');
@@ -246,7 +251,17 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchStats();
-  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik, toYmd]);
+  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, toYmd]);
+
+  const growthKebunOptions = useMemo(() => {
+    return Array.from(new Set((monthlyDataPerKebun || []).map((k) => k.kebunName))).sort((a, b) => a.localeCompare(b))
+  }, [monthlyDataPerKebun])
+
+  useEffect(() => {
+    if (selectedGrowthKebun !== 'total' && !growthKebunOptions.includes(selectedGrowthKebun)) {
+      setSelectedGrowthKebun('total')
+    }
+  }, [growthKebunOptions, selectedGrowthKebun])
 
   const handleExport = async () => {
     try {
@@ -265,6 +280,7 @@ export default function LaporanNotaSawitPage() {
       if (selectedKebun) params.append('kebunId', selectedKebun);
       if (selectedSupir) params.append('supirId', selectedSupir);
       if (selectedPabrik) params.append('pabrikId', selectedPabrik);
+      if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
 
       const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data untuk ekspor');
@@ -644,7 +660,7 @@ export default function LaporanNotaSawitPage() {
                 <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
                   <SelectValue placeholder="Semua Pabrik" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
+                    <SelectContent className="rounded-xl">
                   <SelectItem value="all">Semua Pabrik</SelectItem>
                   {pabrikList.map((pabrik) => (
                     <SelectItem key={pabrik.id} value={pabrik.id.toString()}>
@@ -654,6 +670,22 @@ export default function LaporanNotaSawitPage() {
                 </SelectContent>
               </Select>
             </div>
+                <div className="flex flex-col space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Filter per Kendaraan</Label>
+                  <Select value={selectedKendaraan || 'all'} onValueChange={(val) => setSelectedKendaraan(val === 'all' ? '' : val)}>
+                    <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                      <SelectValue placeholder="Semua Kendaraan" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="all">Semua Kendaraan</SelectItem>
+                      {kendaraanList.map((k) => (
+                        <SelectItem key={k.platNomor} value={k.platNomor}>
+                          {k.platNomor}{k.merk ? ` • ${k.merk}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
           </div>
         </div>
 
@@ -733,7 +765,7 @@ export default function LaporanNotaSawitPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Statistik Bulanan</h2>
+            <h2 className="text-xl font-semibold mb-4">Statistik Produksi Kebun</h2>
             {isStatsLoading ? (
               <Skeleton className="h-[300px] w-full" />
             ) : (
@@ -765,10 +797,8 @@ export default function LaporanNotaSawitPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="total">Total Semua Kebun</SelectItem>
-                      {kebunList.map((kebun) => (
-                        <SelectItem key={kebun.id} value={kebun.name}>
-                          {kebun.name}
-                        </SelectItem>
+                      {growthKebunOptions.map((name) => (
+                        <SelectItem key={name} value={name}>{name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -940,7 +970,24 @@ export default function LaporanNotaSawitPage() {
             <div className="text-sm text-gray-700 text-center md:text-left">
               Menampilkan {items.length > 0 ? (page - 1) * limit + 1 : 0} - {Math.min(page * limit, totalItems)} dari {totalItems} data
             </div>
-            <div className="flex space-x-2 w-full md:w-auto justify-center md:justify-end">
+            <div className="flex items-center gap-2 w-full md:w-auto justify-center md:justify-end">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Per halaman</span>
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    const next = Number(e.target.value) || 10
+                    setLimit(next)
+                    setPage(1)
+                  }}
+                  className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isTableLoading} className="flex-1 md:flex-none px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Sebelumnya</button>
               <button onClick={() => setPage(p => Math.min(p + 1, Math.ceil(totalItems / limit)))} disabled={page * limit >= totalItems || isTableLoading} className="flex-1 md:flex-none px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Berikutnya</button>
             </div>

@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const kebunId = searchParams.get('kebunId');
   const supirId = searchParams.get('supirId');
   const pabrikId = searchParams.get('pabrikId');
+  const kendaraanPlatNomor = searchParams.get('kendaraanPlatNomor');
 
   if (!startDate || !endDate) {
     return NextResponse.json({ error: 'Parameter tanggal mulai dan tanggal akhir diperlukan' }, { status: 400 });
@@ -36,13 +37,19 @@ export async function GET(request: Request) {
     }
 
     if (kebunId) {
-      notaSawitWhere.timbangan = {
-        kebunId: parseInt(kebunId, 10),
-      };
+      const kid = parseInt(kebunId, 10)
+      notaSawitWhere.AND = [
+        ...(Array.isArray(notaSawitWhere.AND) ? notaSawitWhere.AND : notaSawitWhere.AND ? [notaSawitWhere.AND] : []),
+        { OR: [{ kebunId: kid }, { timbangan: { kebunId: kid } }] },
+      ]
     }
 
     if (pabrikId) {
       notaSawitWhere.pabrikSawitId = parseInt(pabrikId, 10);
+    }
+
+    if (kendaraanPlatNomor) {
+      notaSawitWhere.kendaraanPlatNomor = kendaraanPlatNomor;
     }
 
     // 1. KPI
@@ -121,6 +128,11 @@ export async function GET(request: Request) {
         tanggalBongkar: true,
         totalPembayaran: true,
         beratAkhir: true,
+        kebun: {
+          select: {
+            name: true,
+          },
+        },
         timbangan: {
           select: {
             kebun: {
@@ -175,9 +187,9 @@ export async function GET(request: Request) {
 
     // Proses data bulanan per Kebun
     const monthlyDataKebunMap = rawData.reduce((acc: Record<string, Record<string, { month: string; totalBerat: number }>>, item) => {
-      if (item.tanggalBongkar && item.timbangan?.kebun?.name) {
+      const kebunName = item.kebun?.name || item.timbangan?.kebun?.name
+      if (item.tanggalBongkar && kebunName) {
         const month = monthKeyWib(item.tanggalBongkar);
-        const kebunName = item.timbangan.kebun.name;
 
         if (!acc[kebunName]) {
           acc[kebunName] = {};
@@ -224,6 +236,7 @@ export async function GET(request: Request) {
     const notaSawitFilter: Prisma.NotaSawitWhereInput = { deletedAt: null };
     if (pabrikId) notaSawitFilter.pabrikSawitId = parseInt(pabrikId, 10);
     if (supirId) notaSawitFilter.supirId = parseInt(supirId, 10);
+    if (kendaraanPlatNomor) notaSawitFilter.kendaraanPlatNomor = kendaraanPlatNomor;
 
     const timbanganWhere: Prisma.TimbanganWhereInput = {
         date: {

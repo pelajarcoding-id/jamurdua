@@ -21,6 +21,43 @@ import Link from 'next/link';
 
 interface PabrikSawitSummary {
   totalPabrik: number;
+  bestAvgPrice?: {
+    pabrikSawitId: number
+    name: string
+    rataRataHarga: number
+    totalBerat: number
+    totalNilai: number
+    totalNota: number
+  } | null
+  highestPotonganPercent?: {
+    pabrikSawitId: number
+    name: string
+    potonganPercent: number
+    totalPotongan: number
+    totalBeratNetto: number
+    totalNota: number
+  } | null
+  highestTonase?: {
+    pabrikSawitId: number
+    name: string
+    totalBerat: number
+    totalNota: number
+  } | null
+  highestPembayaran?: {
+    pabrikSawitId: number
+    name: string
+    totalNilai: number
+    totalNota: number
+  } | null
+  selisihPerKebun?: Array<{
+    kebunId: number
+    kebunName: string
+    jumlahNota: number
+    totalBrutoKebun: number
+    totalBrutoPabrik: number
+    totalSelisihKg: number
+    selisihPercent: number
+  }>
 }
 
 export default function PabrikSawitClient() {
@@ -287,20 +324,102 @@ export default function PabrikSawitClient() {
         
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <Skeleton className="h-4 w-32 mb-2" />
-              <Skeleton className="h-8 w-16" />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white p-4 rounded-lg shadow-md">
+                <Skeleton className="h-4 w-40 mb-2" />
+                <Skeleton className="h-8 w-28" />
+                <Skeleton className="h-3 w-48 mt-2" />
+              </div>
+            ))}
           </div>
         ) : summary && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div className="bg-white p-4 rounded-lg shadow-md">
               <p className="text-sm font-medium text-gray-500 truncate" title="Total Pabrik Sawit">Total Pabrik Sawit</p>
               <p className="text-2xl font-bold truncate" title={summary.totalPabrik.toString()}>{summary.totalPabrik}</p>
             </div>
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <p className="text-sm font-medium text-gray-500 truncate" title="Pabrik Harga Rata-rata Terbaik">Harga Rata-rata Terbaik</p>
+              <p className="text-2xl font-bold truncate" title={formatCurrency(Number(summary.bestAvgPrice?.rataRataHarga || 0))}>
+                {formatCurrency(Number(summary.bestAvgPrice?.rataRataHarga || 0))}
+                <span className="text-sm font-semibold text-gray-500"> /kg</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1 truncate" title={summary.bestAvgPrice?.name || '-'}>
+                {summary.bestAvgPrice?.name || '-'}
+              </p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <p className="text-sm font-medium text-gray-500 truncate" title="Pabrik Potongan Persen Terbesar">Potongan % Terbesar</p>
+              <p className="text-2xl font-bold truncate" title={`${Number(summary.highestPotonganPercent?.potonganPercent || 0).toFixed(2)}%`}>
+                {Number(summary.highestPotonganPercent?.potonganPercent || 0).toFixed(2)}%
+              </p>
+              <p className="text-xs text-gray-500 mt-1 truncate" title={summary.highestPotonganPercent?.name || '-'}>
+                {summary.highestPotonganPercent?.name || '-'}
+              </p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <p className="text-sm font-medium text-gray-500 truncate" title="Pabrik Tonase Terbesar">Tonase Terbesar</p>
+              <p className="text-2xl font-bold truncate" title={`${formatNumber(Number(summary.highestTonase?.totalBerat || 0))} kg`}>
+                {formatNumber(Number(summary.highestTonase?.totalBerat || 0))} kg
+              </p>
+              <p className="text-xs text-gray-500 mt-1 truncate" title={summary.highestTonase?.name || '-'}>
+                {summary.highestTonase?.name || '-'}
+              </p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <p className="text-sm font-medium text-gray-500 truncate" title="Pabrik Nilai Pembayaran Terbesar">Pembayaran Terbesar</p>
+              <p className="text-2xl font-bold truncate" title={formatCurrency(Number(summary.highestPembayaran?.totalNilai || 0))}>
+                {formatCurrency(Number(summary.highestPembayaran?.totalNilai || 0))}
+              </p>
+              <p className="text-xs text-gray-500 mt-1 truncate" title={summary.highestPembayaran?.name || '-'}>
+                {summary.highestPembayaran?.name || '-'}
+              </p>
+            </div>
           </div>
         )}
+
+        {!loading && summary?.selisihPerKebun && summary.selisihPerKebun.length > 0 ? (
+          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-semibold text-gray-900">Selisih Timbangan Kebun vs Pabrik</div>
+                <div className="text-xs text-gray-500">Akumulasi selisih bruto per kebun pada periode terpilih</div>
+              </div>
+              <div className="text-xs text-gray-500 whitespace-nowrap">Periode: <span className="font-semibold text-gray-900">{dateDisplay}</span></div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Kebun</th>
+                    <th className="px-3 py-2 text-right">Nota</th>
+                    <th className="px-3 py-2 text-right">Bruto Kebun</th>
+                    <th className="px-3 py-2 text-right">Bruto Pabrik</th>
+                    <th className="px-3 py-2 text-right">Selisih</th>
+                    <th className="px-3 py-2 text-right">Selisih %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {summary.selisihPerKebun.map((r) => (
+                    <tr key={r.kebunId} className="hover:bg-gray-50/50">
+                      <td className="px-3 py-2 text-left font-medium text-gray-900 whitespace-nowrap">{r.kebunName}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{formatNumber(Number(r.jumlahNota || 0))}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{formatNumber(Math.round(Number(r.totalBrutoKebun || 0)))} kg</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{formatNumber(Math.round(Number(r.totalBrutoPabrik || 0)))} kg</td>
+                      <td className={`px-3 py-2 text-right font-semibold ${Number(r.totalSelisihKg || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {Number(r.totalSelisihKg || 0) >= 0 ? '+' : ''}{formatNumber(Math.round(Number(r.totalSelisihKg || 0)))} kg
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${Number(r.selisihPercent || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {Number(r.selisihPercent || 0) >= 0 ? '+' : ''}{Number(r.selisihPercent || 0).toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
 
         <div className="bg-white p-6 rounded-lg shadow-md">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">

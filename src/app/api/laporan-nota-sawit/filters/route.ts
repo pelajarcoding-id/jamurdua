@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const [kebun, supir, pabrik] = await Promise.all([
+    const [kebun, supir, pabrik, kendaraan] = await Promise.all([
       prisma.kebun.findMany({
         orderBy: {
           name: 'asc',
@@ -25,9 +25,14 @@ export async function GET() {
           name: 'asc',
         },
       }),
+      prisma.kendaraan.findMany({
+        orderBy: {
+          platNomor: 'asc',
+        },
+      }),
     ]);
 
-    return NextResponse.json({ kebun, supir, pabrik });
+    return NextResponse.json({ kebun, supir, pabrik, kendaraan });
   } catch (error) {
     console.error('Error fetching filter data:', error);
     return NextResponse.json({ error: 'Gagal mengambil data untuk filter' }, { status: 500 });
