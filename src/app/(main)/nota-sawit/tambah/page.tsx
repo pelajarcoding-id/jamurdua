@@ -577,11 +577,6 @@ export default function TambahNotaSawitPage() {
                 </select>
                 {errors.pabrikSawitId && <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.pabrikSawitId}</p>}
               </div>
-              <div>
-                <label htmlFor="tanggalBongkar" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Bongkar</label>
-                <input type="date" name="tanggalBongkar" id="tanggalBongkar" required value={tanggalBongkar} onChange={(e) => setTanggalBongkar(e.target.value)} className={`input-style w-full ${errors.tanggalBongkar ? 'border-red-500 focus-visible:ring-red-500' : ''}`} />
-                {errors.tanggalBongkar && <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.tanggalBongkar}</p>}
-              </div>
               <div className="md:col-span-2">
                 <label htmlFor="keterangan" className="block text-sm font-medium text-gray-700 mb-2">Keterangan</label>
                 <Textarea
@@ -592,6 +587,11 @@ export default function TambahNotaSawitPage() {
                   placeholder="Tambah keterangan nota (opsional)"
                   className="w-full rounded-xl"
                 />
+              </div>
+              <div>
+                <label htmlFor="tanggalBongkar" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Bongkar</label>
+                <input type="date" name="tanggalBongkar" id="tanggalBongkar" required value={tanggalBongkar} onChange={(e) => setTanggalBongkar(e.target.value)} className={`input-style w-full ${errors.tanggalBongkar ? 'border-red-500 focus-visible:ring-red-500' : ''}`} />
+                {errors.tanggalBongkar && <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.tanggalBongkar}</p>}
               </div>
             </div>
 

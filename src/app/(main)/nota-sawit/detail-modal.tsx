@@ -651,6 +651,12 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete }: ModalDe
                     </span>
                   </div>
                 </div>
+                {(nota as any).keterangan ? (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Keterangan</div>
+                    <div className="text-sm text-gray-900 whitespace-pre-wrap break-words">{String((nota as any).keterangan)}</div>
+                  </div>
+                ) : null}
              </div>
            )}
 

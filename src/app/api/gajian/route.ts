@@ -79,6 +79,7 @@ export async function GET(request: Request) {
 
     const where: Prisma.NotaSawitWhereInput = {
       AND: [
+        { deletedAt: null },
         {
           OR: [
             { timbangan: { kebunId: parsedKebunId } },

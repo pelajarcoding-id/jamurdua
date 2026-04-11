@@ -982,17 +982,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                               <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.tanggalBongkar}</p>
                             )}
                         </div>
-                        
-                        <div>
-                            <Label>Keterangan</Label>
-                            <Textarea
-                              name="keterangan"
-                              value={String((formData as any).keterangan || '')}
-                              onChange={handleChange}
-                              placeholder="Tambah keterangan nota (opsional)"
-                              className="rounded-xl border-gray-200"
-                            />
-                        </div>
 
                         <div>
                             <Label>Kebun <span className="text-red-500">*</span></Label>
@@ -1168,6 +1157,17 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                             {errors.pabrikSawitId && (
                               <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.pabrikSawitId}</p>
                             )}
+                        </div>
+
+                        <div>
+                            <Label>Keterangan</Label>
+                            <Textarea
+                              name="keterangan"
+                              value={String((formData as any).keterangan || '')}
+                              onChange={handleChange}
+                              placeholder="Tambah keterangan nota (opsional)"
+                              className="rounded-xl border-gray-200"
+                            />
                         </div>
                     </div>
                 </div>
