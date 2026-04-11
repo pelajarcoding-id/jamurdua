@@ -283,6 +283,7 @@ export default function SupirPage() {
         case 'last_week': return '7 Hari Terakhir';
         case 'last_30_days': return '30 Hari Terakhir';
         case 'this_month': return 'Bulan Ini';
+        case 'this_year': return 'Tahun Ini';
         default: return 'Pilih Rentang Waktu';
       }
     }
@@ -325,6 +326,10 @@ export default function SupirPage() {
       setEndDate(endOfDay);
     } else if (val === 'this_month') {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      setStartDate(start);
+      setEndDate(endOfDay);
+    } else if (val === 'this_year') {
+      const start = new Date(today.getFullYear(), 0, 1);
       setStartDate(start);
       setEndDate(endOfDay);
     }
@@ -382,11 +387,11 @@ export default function SupirPage() {
                     totalItems={totalItems}
                     onPageChange={setPage}
                     onLimitChange={setLimit}
+                    showPageSizeSelector
                     searchQuery={searchQuery}
                     onSearchChange={handleSearchChange}
                     searchPlaceholder="Cari nama supir..."
                     isLoading={loading}
-                    virtualize={{ enabled: true, rowHeight: 44, maxHeight: 60 }}
                     extraFilters={
                         <div className="flex gap-2 w-full md:w-auto">
                             <Select value={selectedSupirId} onValueChange={setSelectedSupirId}>
@@ -430,6 +435,7 @@ export default function SupirPage() {
                                     <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_week')} className={quickRange === 'last_week' ? 'bg-accent' : ''}>7 Hari</Button>
                                     <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_30_days')} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
                                     <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_month')} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_year')} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                                   </div>
                                   <div className="border-t pt-4 space-y-2">
                                     <h4 className="font-medium leading-none">Kustom</h4>

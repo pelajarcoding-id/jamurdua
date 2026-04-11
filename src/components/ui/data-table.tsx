@@ -30,6 +30,8 @@ interface DataTableProps<TData, TValue> {
   totalItems: number;
   onPageChange: Dispatch<SetStateAction<number>>;
   onLimitChange: Dispatch<SetStateAction<number>>;
+  showPageSizeSelector?: boolean;
+  pageSizeOptions?: number[];
   searchQuery: string;
   onSearchChange: Dispatch<SetStateAction<string>>;
   startDate?: Date;
@@ -59,6 +61,8 @@ export function DataTable<TData, TValue>({
   totalItems,
   onPageChange,
   onLimitChange,
+  showPageSizeSelector = false,
+  pageSizeOptions = [10, 20, 50, 100],
   searchQuery,
   onSearchChange,
   startDate,
@@ -119,6 +123,8 @@ export function DataTable<TData, TValue>({
       return [] as any[]
     }
   })()
+
+  const safePageSizeOptions = Array.from(new Set((pageSizeOptions || []).filter((n) => Number.isFinite(n) && n > 0))).sort((a, b) => a - b)
 
   return (
     <div>
@@ -279,7 +285,26 @@ export function DataTable<TData, TValue>({
         <span className="text-xs md:text-sm text-gray-700">
           Halaman {page} dari {totalPages > 0 ? totalPages : 1}
         </span>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          {showPageSizeSelector ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs md:text-sm text-gray-700">Per halaman</span>
+              <select
+                className="h-9 rounded-md border border-gray-300 bg-white px-2 text-xs md:text-sm"
+                value={String(limit)}
+                onChange={(e) => {
+                  const next = Number(e.target.value)
+                  onLimitChange(next)
+                  onPageChange(1)
+                }}
+              >
+                {(safePageSizeOptions.length > 0 ? safePageSizeOptions : [10, 20, 50, 100]).map((n) => (
+                  <option key={n} value={String(n)}>{n}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <div className="flex items-center space-x-2">
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
@@ -294,6 +319,7 @@ export function DataTable<TData, TValue>({
           >
             Berikutnya
           </button>
+          </div>
         </div>
       </div>
     </div>

@@ -670,7 +670,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     }
 
     try {
-      const batchKey = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const batchCreatedAt = new Date().toISOString()
       const res = await fetch('/api/karyawan-kebun/absensi-payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -678,7 +678,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
           kebunId,
           karyawanId: absenUserId,
           entries,
-          batchKey,
+          createdAt: batchCreatedAt,
         }),
       })
 
@@ -693,7 +693,8 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               karyawanId: absenUserId,
               jumlah: potongPayEffective,
               date: lastDate || undefined,
-              deskripsi: `${absenPayPotongDesc || 'Potong Hutang dari Pembayaran Gaji'} | Batch ${batchKey}`,
+              deskripsi: `${absenPayPotongDesc || 'Potong Hutang dari Pembayaran Gaji'}`,
+              createdAt: batchCreatedAt,
             }),
           })
           if (potongRes.ok) {

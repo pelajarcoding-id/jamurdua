@@ -22,6 +22,65 @@ const ensureTable = async () => {
   await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiGajiHarian" ADD COLUMN IF NOT EXISTS "gajianId" INTEGER`)
 }
 
+const formatIdLongDateFromYmdKey = (key: string) => {
+  const m = key.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return key
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return key
+  const dt = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0))
+  try {
+    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' })
+      .format(dt)
+      .toLowerCase()
+  } catch {
+    return key
+  }
+}
+
+const parseIdLongDateToYmdKey = (text: string) => {
+  const raw = (text || '').trim().toLowerCase()
+  const m = raw.match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/i)
+  if (!m) return null
+  const day = Number(m[1])
+  const monthName = String(m[2]).toLowerCase()
+  const year = Number(m[3])
+  const monthMap: Record<string, number> = {
+    januari: 1,
+    februari: 2,
+    maret: 3,
+    april: 4,
+    mei: 5,
+    juni: 6,
+    juli: 7,
+    agustus: 8,
+    september: 9,
+    oktober: 10,
+    november: 11,
+    desember: 12,
+  }
+  const month = monthMap[monthName]
+  if (!month || !Number.isFinite(year) || !Number.isFinite(day)) return null
+  if (day < 1 || day > 31) return null
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+const parsePeriod = (text?: string | null) => {
+  const raw = (text || '').trim()
+  if (!raw) return null
+  const iso = raw.match(/Periode\s+(\d{4}-\d{2}-\d{2})(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/)
+  if (iso) return { start: iso[1], end: iso[2] || iso[1] }
+  const id = raw.match(/Periode\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})(?:\s*-\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}))?/i)
+  if (id) {
+    const start = parseIdLongDateToYmdKey(id[1])
+    const end = parseIdLongDateToYmdKey(id[2] || id[1])
+    if (!start || !end) return null
+    return { start, end }
+  }
+  return null
+}
+
 export async function GET(request: Request) {
   try {
     await ensureTable()
@@ -36,6 +95,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'kebunId, startDate, endDate wajib diisi' }, { status: 400 })
     }
     const kebunId = Number(kebunIdParam)
+    const kasKebunId = kebunId > 0 ? kebunId : null
     const karyawanId = karyawanIdParam ? Number(karyawanIdParam) : null
     if (Number.isNaN(kebunId) || (karyawanIdParam && Number.isNaN(karyawanId))) {
       return NextResponse.json({ error: 'Parameter tidak valid' }, { status: 400 })
@@ -81,16 +141,6 @@ export async function GET(request: Request) {
     }
 
     if (karyawanId && historyParam) {
-      const parsePeriod = (text?: string | null) => {
-        if (!text) return null
-        const match = text.match(/Periode\s+(\d{4}-\d{2}-\d{2})(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/)
-        if (!match) return null
-        return { start: match[1], end: match[2] || match[1] }
-      }
-      const extractBatchKey = (text?: string | null) => {
-        const m = text?.match(/Batch\s+([A-Za-z0-9\-_:.]+)/)
-        return m ? m[1] : null
-      }
       const paidAtParam = searchParams.get('paidAt')
       const gajianIdParam = searchParams.get('gajianId')
       const detailParam = searchParams.get('detail') === '1'
@@ -123,7 +173,7 @@ export async function GET(request: Request) {
 
         const batchPotongan = await prisma.kasTransaksi.findMany({
           where: {
-            kebunId,
+            kebunId: kasKebunId,
             karyawanId,
             kategori: 'PEMBAYARAN_HUTANG',
             deletedAt: null,
@@ -186,7 +236,7 @@ export async function GET(request: Request) {
 
         const trxRows = await prisma.kasTransaksi.findMany({
           where: {
-            kebunId,
+            kebunId: kasKebunId,
             karyawanId,
             kategori: 'GAJI',
             deletedAt: null,
@@ -209,7 +259,6 @@ export async function GET(request: Request) {
         let endKeyMax: string | null = null
         const dateSet = new Set<string>()
         let totalJumlah = 0
-        let batchKey: string | null = null
 
         trxRows.forEach((r) => {
           totalJumlah += Number(r.jumlah) || 0
@@ -220,10 +269,6 @@ export async function GET(request: Request) {
           if (!startKeyMin || rangeStart < startKeyMin) startKeyMin = rangeStart
           if (!endKeyMax || rangeEnd > endKeyMax) endKeyMax = rangeEnd
           rangeDateKeys(rangeStart, rangeEnd).forEach((k) => dateSet.add(k))
-          if (!batchKey) {
-            const m = r.keterangan?.match(/Batch\s+([A-Za-z0-9\-_:.]+)/)
-            if (m) batchKey = m[1]
-          }
         })
 
         const startKeyFinal = startKeyMin || startKey
@@ -240,36 +285,32 @@ export async function GET(request: Request) {
         `
         const paidMap = new Map(paidRows.map((r) => [r.date, { jumlah: Number(r.jumlah) || 0, gajianId: r.gajianId }]))
 
-        let potonganRows: Array<{ date: Date; jumlah: any }> = []
-        if (batchKey) {
-          potonganRows = await prisma.kasTransaksi.findMany({
-            where: {
-              kebunId,
-              karyawanId,
-              kategori: 'PEMBAYARAN_HUTANG',
-              deletedAt: null,
-              deskripsi: { contains: `Batch ${batchKey}` },
-            },
-            select: { date: true, jumlah: true },
-          })
-        } else {
-          const startYmd2 = parseWibYmd(startKeyFinal)
-          const endYmd2 = parseWibYmd(endKeyFinal)
-          const dateStart2 = startYmd2 ? wibStartUtc(startYmd2) : startUtc
-          const dateEnd2 = endYmd2 ? wibEndUtcInclusive(endYmd2) : endUtc
-          potonganRows = await prisma.kasTransaksi.findMany({
-            where: {
-              kebunId,
-              karyawanId,
-              kategori: 'PEMBAYARAN_HUTANG',
-              deletedAt: null,
-              date: { gte: dateStart2, lte: dateEnd2 },
-            },
-            select: { date: true, jumlah: true },
-          })
-        }
+        const startYmd2 = parseWibYmd(startKeyFinal)
+        const endYmd2 = parseWibYmd(endKeyFinal)
+        const dateStart2 = startYmd2 ? wibStartUtc(startYmd2) : startUtc
+        const dateEnd2 = endYmd2 ? wibEndUtcInclusive(endYmd2) : endUtc
+        const potonganRows = await prisma.kasTransaksi.findMany({
+          where: {
+            kebunId: kasKebunId,
+            karyawanId,
+            kategori: 'PEMBAYARAN_HUTANG',
+            deletedAt: null,
+            createdAt: paidAt,
+          },
+          select: { date: true, jumlah: true },
+        })
+        const fallbackPotonganRows = await prisma.kasTransaksi.findMany({
+          where: {
+            kebunId: kasKebunId,
+            karyawanId,
+            kategori: 'PEMBAYARAN_HUTANG',
+            deletedAt: null,
+            date: { gte: dateStart2, lte: dateEnd2 },
+          },
+          select: { date: true, jumlah: true },
+        })
         const potongMap = new Map<string, number>()
-        potonganRows.forEach((p) => {
+        ;(potonganRows.length > 0 ? potonganRows : fallbackPotonganRows).forEach((p) => {
           const key = dateToWibKey(p.date)
           potongMap.set(key, (potongMap.get(key) || 0) + (Number(p.jumlah) || 0))
         })
@@ -287,7 +328,7 @@ export async function GET(request: Request) {
             gajianId: paid?.gajianId ?? null,
           }
         })
-        const totalPotonganFromTrx = potonganRows.reduce((sum, r) => sum + (Number(r.jumlah) || 0), 0)
+        const totalPotonganFromTrx = (potonganRows.length > 0 ? potonganRows : fallbackPotonganRows).reduce((sum, r) => sum + (Number(r.jumlah) || 0), 0)
         let totalPotonganHutang = items.reduce((sum, r) => sum + (Number(r.potonganHutang) || 0), 0)
         if (totalPotonganHutang === 0 && totalPotonganFromTrx > 0 && items.length > 0) {
           const lastIndex = items.length - 1
@@ -309,9 +350,9 @@ export async function GET(request: Request) {
           potonganHutang: Math.round(totalPotonganHutang),
           sisa: Math.max(0, Math.round(totalJumlah - totalPotonganHutang)),
           deskripsi: trxRows[0].deskripsi || '',
-          keterangan: (trxRows[0].keterangan || '').replace(/\s*\|\s*Batch\s+[A-Za-z0-9\-_:.]+/, '').trim(),
+          keterangan: (trxRows[0].keterangan || '').trim(),
           userName: trxRows[0].user?.name || null,
-          batchKey,
+          batchKey: null,
         },
         items,
       })
@@ -321,7 +362,7 @@ export async function GET(request: Request) {
       const dateEnd = range?.endUtcInclusive || endUtc
       const rows = await prisma.kasTransaksi.findMany({
         where: {
-          kebunId,
+          kebunId: kasKebunId,
           karyawanId,
           kategori: 'GAJI',
           deletedAt: null,
@@ -356,7 +397,7 @@ export async function GET(request: Request) {
       }, null)
       const potongan = minDate && maxDate ? await prisma.kasTransaksi.findMany({
         where: {
-          kebunId,
+          kebunId: kasKebunId,
           karyawanId,
           kategori: 'PEMBAYARAN_HUTANG',
           deletedAt: null,
@@ -365,19 +406,19 @@ export async function GET(request: Request) {
             lte: maxDate,
           },
         },
-        select: { date: true, jumlah: true, deskripsi: true },
+        select: { date: true, jumlah: true, createdAt: true },
       }) : []
       const potongByDate = new Map<string, number>()
-      const potongByBatchKey = new Map<string, Map<string, number>>()
+      const potongByPaidAt = new Map<string, Map<string, number>>()
       potongan.forEach(p => {
         const dateKey = dateToWibKey(p.date)
         const amount = Number(p.jumlah) || 0
         potongByDate.set(dateKey, (potongByDate.get(dateKey) || 0) + amount)
-        const batchKey = extractBatchKey(p.deskripsi)
-        if (batchKey) {
-          const batchMap = potongByBatchKey.get(batchKey) || new Map<string, number>()
-          batchMap.set(dateKey, (batchMap.get(dateKey) || 0) + amount)
-          potongByBatchKey.set(batchKey, batchMap)
+        const paidAt = p.createdAt?.toISOString?.() ? p.createdAt.toISOString() : null
+        if (paidAt) {
+          const paidMap = potongByPaidAt.get(paidAt) || new Map<string, number>()
+          paidMap.set(dateKey, (paidMap.get(dateKey) || 0) + amount)
+          potongByPaidAt.set(paidAt, paidMap)
         }
       })
       const grouped = new Map<string, { id: number; startDate: string; endDate: string; jumlah: number; deskripsi: string; userName: string | null; potonganHutang: number; paidAt: string; kebunId: number; karyawanId: number; dateSet: Set<string> }>()
@@ -389,24 +430,19 @@ export async function GET(request: Request) {
         const rangeStart = period?.start || dateKey
         const rangeEnd = period?.end || dateKey
         const dateKeys = rangeDateKeys(rangeStart, rangeEnd)
-        const batchKey = extractBatchKey(r.keterangan)
         const potongSum = (() => {
-          if (batchKey) {
-            const m = potongByBatchKey.get(batchKey)
-            if (!m) return 0
-            return dateKeys.reduce((acc, d) => acc + (m.get(d) || 0), 0)
-          }
+          const m = potongByPaidAt.get(paidAt)
+          if (m) return dateKeys.reduce((acc, d) => acc + (m.get(d) || 0), 0)
           return dateKeys.reduce((acc, d) => acc + (potongByDate.get(d) || 0), 0)
         })()
         const existing = grouped.get(key)
         if (!existing) {
-          const displayKeterangan = (r.keterangan || '').replace(/\s*\|\s*Batch\s+[A-Za-z0-9\-_:.]+/, '').trim()
           grouped.set(key, {
             id: r.id,
             startDate: rangeStart,
             endDate: rangeEnd,
             jumlah: Number(r.jumlah) || 0,
-            deskripsi: displayKeterangan || r.deskripsi || '',
+            deskripsi: (r.keterangan || '').trim() || r.deskripsi || '',
             userName: r.user?.name || null,
             potonganHutang: potongSum,
             paidAt,
@@ -421,12 +457,8 @@ export async function GET(request: Request) {
           dateKeys.forEach(d => {
             if (!existing.dateSet.has(d)) {
               existing.dateSet.add(d)
-              if (batchKey) {
-                const m = potongByBatchKey.get(batchKey)
-                existing.potonganHutang += (m?.get(d) || 0)
-              } else {
-                existing.potonganHutang += potongByDate.get(d) || 0
-              }
+              const m = potongByPaidAt.get(paidAt)
+              existing.potonganHutang += (m?.get(d) || 0) || (potongByDate.get(d) || 0)
             }
           })
         }
@@ -587,7 +619,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User tidak valid. Silakan login ulang.' }, { status: 401 })
     }
     const body = await request.json()
-    const { kebunId, karyawanId, entries, batchKey } = body || {}
+    const { kebunId, karyawanId, entries, createdAt } = body || {}
     if (kebunId === undefined || kebunId === null || !karyawanId || !Array.isArray(entries)) {
       return NextResponse.json({ error: 'kebunId, karyawanId, dan entries wajib diisi' }, { status: 400 })
     }
@@ -644,7 +676,12 @@ export async function POST(request: Request) {
       select: { name: true },
     })
 
-    const batchCreatedAt = new Date()
+    const batchCreatedAt = (() => {
+      if (!createdAt) return new Date()
+      const d = new Date(String(createdAt))
+      if (Number.isNaN(d.getTime())) return new Date()
+      return d
+    })()
     const sortedEntries = [...newEntries].sort((a, b) => a.dateKey.localeCompare(b.dateKey))
     const startDate = sortedEntries[0]?.dateKey
     const endDate = sortedEntries[sortedEntries.length - 1]?.dateKey
@@ -659,7 +696,9 @@ export async function POST(request: Request) {
       `
     }
     if (startDate && endDate && totalJumlah > 0) {
-      const periodeText = startDate === endDate ? startDate : `${startDate} - ${endDate}`
+      const periodeText = startDate === endDate
+        ? formatIdLongDateFromYmdKey(startDate)
+        : `${formatIdLongDateFromYmdKey(startDate)} - ${formatIdLongDateFromYmdKey(endDate)}`
       const trxDate = (() => {
         const ymd = parseWibYmd(startDate)
         return ymd ? wibStartUtc(ymd) : new Date()
@@ -670,7 +709,7 @@ export async function POST(request: Request) {
           date: trxDate,
           tipe: 'PENGELUARAN',
           deskripsi: `Pembayaran Gaji Harian - ${karyawan?.name || karyawanId}`,
-          keterangan: `Periode ${periodeText}${batchKey ? ` | Batch ${batchKey}` : ''}`,
+          keterangan: `Periode ${periodeText}`,
           jumlah: totalJumlah,
           kategori: 'GAJI',
           kebunId: kasKebunId,
@@ -711,7 +750,7 @@ export async function DELETE(request: Request) {
       }
       const trx = await prisma.kasTransaksi.findUnique({
         where: { id },
-        select: { id: true, kategori: true, kebunId: true, karyawanId: true, date: true, keterangan: true },
+        select: { id: true, kategori: true, kebunId: true, karyawanId: true, date: true, keterangan: true, createdAt: true },
       })
       if (!trx || trx.kategori !== 'GAJI') {
         return NextResponse.json({ error: 'Data tidak ditemukan' }, { status: 404 })
@@ -739,14 +778,13 @@ export async function DELETE(request: Request) {
       await prisma.kasTransaksi.delete({
         where: { id },
       })
-      const batchMatch = trx.keterangan?.match(/Batch\s+([A-Za-z0-9\-_:.]+)/)
-      if (batchMatch && trx.karyawanId) {
+      if (trx.karyawanId) {
         await prisma.kasTransaksi.deleteMany({
           where: {
             kebunId: trx.kebunId ?? null,
             karyawanId: trx.karyawanId,
             kategori: 'PEMBAYARAN_HUTANG',
-            deskripsi: { contains: `Batch ${batchMatch[1]}` },
+            createdAt: trx.createdAt,
           },
         })
       }
@@ -834,23 +872,14 @@ export async function DELETE(request: Request) {
       await prisma.kasTransaksi.deleteMany({
         where: { id: { in: ids } },
       })
-      const batchMatch = trxRows[0]?.keterangan?.match(/Batch\s+([A-Za-z0-9\-_:.]+)/)
-      if (batchMatch) {
-        await prisma.kasTransaksi.deleteMany({
-          where: {
-            kebunId: kasKebunId,
-            karyawanId,
-            kategori: 'PEMBAYARAN_HUTANG',
-            deskripsi: { contains: `Batch ${batchMatch[1]}` },
-          },
-        })
-      }
-      const parsePeriod = (text?: string | null) => {
-        if (!text) return null
-        const match = text.match(/Periode\s+(\d{4}-\d{2}-\d{2})(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/)
-        if (!match) return null
-        return { start: match[1], end: match[2] || match[1] }
-      }
+      await prisma.kasTransaksi.deleteMany({
+        where: {
+          kebunId: kasKebunId,
+          karyawanId,
+          kategori: 'PEMBAYARAN_HUTANG',
+          createdAt: paidAt,
+        },
+      })
       const period = parsePeriod(trxRows[0]?.keterangan)
       if (period) {
         const startDate = period.start
