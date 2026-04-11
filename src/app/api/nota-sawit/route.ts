@@ -291,7 +291,15 @@ export async function POST(request: Request) {
     const kendaraanPlatNomor = body.kendaraanPlatNomor as string;
     const pabrikSawitId = Number(body.pabrikSawitId);
     const tanggalBongkarValue = body.tanggalBongkar;
-    let tanggalBongkar = (tanggalBongkarValue && tanggalBongkarValue.toString()) ? new Date(tanggalBongkarValue.toString()) : null;
+    const tanggalBongkarRaw = tanggalBongkarValue !== undefined && tanggalBongkarValue !== null ? String(tanggalBongkarValue).trim() : ''
+    let tanggalBongkar: Date | null = null
+    if (tanggalBongkarRaw) {
+      const ymd = parseWibYmd(tanggalBongkarRaw)
+      if (!ymd) {
+        return NextResponse.json({ error: 'Tanggal bongkar tidak valid' }, { status: 400 })
+      }
+      tanggalBongkar = wibStartUtc(ymd)
+    }
     const potongan = roundInt(body.potongan);
     const hargaPerKg = roundInt(body.hargaPerKg);
     const statusPembayaran = body.statusPembayaran as string;
@@ -364,9 +372,7 @@ export async function POST(request: Request) {
 
     let gambarNotaUrl = body.gambarNotaUrl || null;
 
-    if (!tanggalBongkar) {
-        tanggalBongkar = new Date();
-    }
+    if (!tanggalBongkar) tanggalBongkar = new Date();
 
     // Get Perusahaan from Pabrik
     const pabrik = await prisma.pabrikSawit.findUnique({ where: { id: pabrikSawitId } });

@@ -55,6 +55,13 @@ const parseNumber = (value: string) => {
   return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
 };
 
+const toLocalYmd = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 // Internal component for formatted input
 const FormattedNumberInput = ({ 
   value, 
@@ -186,6 +193,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             // Edit Mode
             setFormData({
                 ...nota,
+                tanggalBongkar: nota.tanggalBongkar ? (toLocalYmd(new Date(nota.tanggalBongkar as any)) as any) : undefined,
                 timbanganId: nota.timbanganId || undefined,
                 kebunId: nota.timbangan?.kebunId || undefined, // Initialize kebunId from timbangan relation
                 pembayaranAktual: typeof nota.pembayaranAktual === 'number' ? Math.round(nota.pembayaranAktual) : nota.pembayaranAktual,
@@ -225,7 +233,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
         } else {
             // Add Mode
             setFormData({
-                tanggalBongkar: new Date(),
+                tanggalBongkar: toLocalYmd(new Date()) as any,
                 potongan: 0,
                 hargaPerKg: 0,
                 statusPembayaran: 'BELUM_LUNAS',
@@ -404,7 +412,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     const { name, value } = e.target;
     
     if (name === 'tanggalBongkar') {
-      setFormData(prev => ({ ...prev, [name]: new Date(value) }));
+      setFormData(prev => ({ ...prev, [name]: value as any }));
     } else if (name === 'kebunId') {
       setFormData(prev => ({ ...prev, kebunId: value ? Number(value) : undefined }));
     } else {
@@ -961,7 +969,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                                 ref={tanggalBongkarRef}
                                 type="date"
                                 name="tanggalBongkar"
-                                value={formData.tanggalBongkar ? new Date(formData.tanggalBongkar).toISOString().split('T')[0] : ''}
+                                value={String((formData as any).tanggalBongkar || '')}
                                 onChange={handleChange}
                                 required
                                 className={`rounded-xl border-gray-200 ${errors.tanggalBongkar ? 'border-red-500 focus-visible:ring-red-500' : ''}`}

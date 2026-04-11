@@ -355,7 +355,7 @@ export default function NotaSawitPage() {
         hargaPerKg: Number(formDataRaw.hargaPerKg || 0),
         statusPembayaran: formDataRaw.statusPembayaran || 'BELUM_LUNAS',
         pembayaranAktual: (formDataRaw.pembayaranAktual !== undefined && formDataRaw.pembayaranAktual !== null) ? Number(formDataRaw.pembayaranAktual) : null,
-        tanggalBongkar: formDataRaw.tanggalBongkar ? new Date(formDataRaw.tanggalBongkar).toISOString() : undefined,
+        tanggalBongkar: formDataRaw.tanggalBongkar || undefined,
         bruto: formDataRaw.bruto !== undefined ? Number(formDataRaw.bruto) : undefined,
         tara: formDataRaw.tara !== undefined ? Number(formDataRaw.tara) : undefined,
         netto: formDataRaw.netto !== undefined ? Number(formDataRaw.netto) : undefined,

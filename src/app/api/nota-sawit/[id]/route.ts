@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
+import { parseWibYmd, wibStartUtc } from '@/lib/wib';
 
 export const dynamic = 'force-dynamic'
 
@@ -200,7 +201,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     
     if (tanggalBongkarValue) {
-      dataToUpdate.tanggalBongkar = new Date(tanggalBongkarValue.toString());
+      const raw = String(tanggalBongkarValue).trim()
+      const ymd = parseWibYmd(raw)
+      if (!ymd) {
+        return new Response('Tanggal bongkar tidak valid', { status: 400 })
+      }
+      dataToUpdate.tanggalBongkar = wibStartUtc(ymd)
     }
 
     if (kendaraanPlatNomor !== undefined && kendaraanPlatNomor !== null) {
