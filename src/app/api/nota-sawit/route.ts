@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Prisma } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit';
@@ -10,6 +10,11 @@ import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib';
 
 export const dynamic = 'force-dynamic'
+
+function sanitizeFileName(name: string) {
+  const cleaned = String(name || '').replace(/[^a-zA-Z0-9._-]/g, '')
+  return cleaned || 'file'
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -369,9 +374,12 @@ export async function POST(request: Request) {
     if (gambarNota) {
         const bytes = await gambarNota.arrayBuffer();
         const buffer = Buffer.from(bytes);
-        const filename = `${Date.now()}-${gambarNota.name}`;
-        const path = join(process.cwd(), 'public/uploads/nota-sawit', filename);
-        await writeFile(path, buffer);
+        const safeName = sanitizeFileName(gambarNota.name)
+        const filename = `${Date.now()}-${safeName}`;
+        const dir = join(process.cwd(), 'public', 'uploads', 'nota-sawit')
+        await mkdir(dir, { recursive: true })
+        const filepath = join(dir, filename);
+        await writeFile(filepath, buffer);
         gambarNotaUrl = `/uploads/nota-sawit/${filename}`;
     }
 

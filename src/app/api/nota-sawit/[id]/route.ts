@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { writeFile } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
@@ -8,6 +8,11 @@ import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 
 export const dynamic = 'force-dynamic'
+
+function sanitizeFileName(name: string) {
+  const cleaned = String(name || '').replace(/[^a-zA-Z0-9._-]/g, '')
+  return cleaned || 'file'
+}
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'SUPIR'])
@@ -302,9 +307,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
         const bytes = await gambarNota.arrayBuffer();
         const buffer = Buffer.from(bytes);
-        const filename = `${Date.now()}-${gambarNota.name}`;
-        const path = join(process.cwd(), 'public/uploads/nota-sawit', filename);
-        await writeFile(path, buffer);
+        const safeName = sanitizeFileName(gambarNota.name)
+        const filename = `${Date.now()}-${safeName}`;
+        const dir = join(process.cwd(), 'public', 'uploads', 'nota-sawit')
+        await mkdir(dir, { recursive: true })
+        const filepath = join(dir, filename);
+        await writeFile(filepath, buffer);
         dataToUpdate.gambarNotaUrl = `/uploads/nota-sawit/${filename}`;
     }
 
