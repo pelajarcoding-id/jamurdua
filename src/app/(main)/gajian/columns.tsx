@@ -96,7 +96,7 @@ import { Input } from '@/components/ui/input';
 
 export type ProcessingNotaSawit = NotaSawitWithRelations & {
   harianKerja?: number;
-  keterangan?: string;
+  keterangan?: string | null;
 };
 
 export const createProcessingColumns = (
