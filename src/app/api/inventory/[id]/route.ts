@@ -16,17 +16,9 @@ export async function PATCH(
         const guard = await requireRole(['ADMIN', 'GUDANG', 'PEMILIK', 'KASIR'])
         if (guard.response) return guard.response
         const id = Number(params.id);
-        const formData = await request.formData();
+        const body = await request.json();
         
-        const sku = formData.get('sku') as string;
-        const name = formData.get('name') as string;
-        const unit = formData.get('unit') as string;
-        const category = formData.get('category') as string;
-        const stock = formData.has('stock') ? Number(formData.get('stock')) : undefined;
-        const minStock = formData.has('minStock') ? Number(formData.get('minStock')) : undefined;
-        const price = formData.has('price') ? Number(formData.get('price')) : undefined;
-        const image = formData.get('image') as File | null;
-        const removeImage = formData.get('removeImage') === 'true';
+        const { sku, name, unit, category, stock, minStock, price, imageUrl: newImageUrl, removeImage } = body;
 
         // Get existing item
         const existingItem = await prisma.inventoryItem.findUnique({
@@ -49,9 +41,9 @@ export async function PATCH(
             imageUrl = null;
         }
 
-        if (image) {
+        if (newImageUrl !== undefined) {
              // Delete old image if exists and not already removed
-             if (imageUrl && !removeImage) {
+             if (imageUrl && imageUrl !== newImageUrl && !removeImage) {
                 await scheduleFileDeletion({
                     url: imageUrl,
                     entity: 'InventoryItem',
@@ -59,15 +51,7 @@ export async function PATCH(
                     reason: 'REPLACE_IMAGE',
                 })
             }
-
-            const bytes = await image.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            const filename = `${Date.now()}-${image.name}`;
-            const uploadDir = join(process.cwd(), 'public/uploads/inventory');
-            
-            await mkdir(uploadDir, { recursive: true });
-            await writeFile(join(uploadDir, filename), buffer);
-            imageUrl = `/uploads/inventory/${filename}`;
+            imageUrl = newImageUrl || null;
         }
 
         const updatedItem = await prisma.inventoryItem.update({
@@ -77,9 +61,9 @@ export async function PATCH(
                 name,
                 unit,
                 category,
-                stock, // Optional update
-                minStock, // Optional update
-                price, // Optional update
+                stock: stock !== undefined ? Number(stock) : undefined,
+                minStock: minStock !== undefined ? Number(minStock) : undefined,
+                price: price !== undefined ? Number(price) : undefined,
                 imageUrl
             } as any
         });

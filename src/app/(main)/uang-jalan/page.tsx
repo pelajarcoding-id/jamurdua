@@ -457,12 +457,12 @@ export default function UangJalanPage() {
         }
     }, [selectedSesi, data, totalItems, summary, supirList, kendaraanList, fetchData]);
 
-    const handleSaveRincian = useCallback(async (formData: FormData) => {
-        const sesiId = Number(formData.get('sesiUangJalanId'));
-        const tipe = formData.get('tipe') as string;
-        const amount = Number(formData.get('amount'));
-        const description = formData.get('description') as string;
-        const dateString = formData.get('date') as string | null;
+    const handleSaveRincian = useCallback(async (formDataObj: any) => {
+        const sesiId = Number(formDataObj.sesiUangJalanId);
+        const tipe = formDataObj.tipe as string;
+        const amount = Number(formDataObj.amount);
+        const description = formDataObj.description as string;
+        const dateString = formDataObj.date as string | null;
         const dateValue = dateString ? new Date(dateString) : new Date();
 
         // Store previous state for rollback
@@ -518,9 +518,32 @@ export default function UangJalanPage() {
         }
 
         try {
+            let finalGambarUrl = '';
+            if (formDataObj.gambar) {
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', formDataObj.gambar);
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        finalGambarUrl = uploadData.url;
+                    }
+                }
+            }
+
+            const payload = {
+                ...formDataObj,
+                gambarUrl: finalGambarUrl,
+                gambar: undefined // Remove file object
+            };
+
             const response = await fetch('/api/uang-jalan/rincian', {
                 method: 'POST',
-                body: formData,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             })
 
             if (response.ok) {
@@ -539,12 +562,12 @@ export default function UangJalanPage() {
         }
     }, [data, summary, fetchData])
 
-    const handleUpdateRincian = useCallback(async (rincianId: number, formData: FormData) => {
-        const sesiId = Number(formData.get('sesiUangJalanId'))
-        const tipe = formData.get('tipe') as string
-        const amount = Number(formData.get('amount'))
-        const description = formData.get('description') as string
-        const dateString = formData.get('date') as string | null
+    const handleUpdateRincian = useCallback(async (rincianId: number, formDataObj: any) => {
+        const sesiId = Number(formDataObj.sesiUangJalanId)
+        const tipe = formDataObj.tipe as string
+        const amount = Number(formDataObj.amount)
+        const description = formDataObj.description as string
+        const dateString = formDataObj.date as string | null
         const dateValue = dateString ? new Date(dateString) : new Date()
 
         const previousData = data
@@ -580,9 +603,32 @@ export default function UangJalanPage() {
         }
 
         try {
+            let finalGambarUrl = formDataObj.gambarUrl || '';
+            if (formDataObj.gambar) {
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', formDataObj.gambar);
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        finalGambarUrl = uploadData.url;
+                    }
+                }
+            }
+
+            const payload = {
+                ...formDataObj,
+                gambarUrl: finalGambarUrl,
+                gambar: undefined // Remove file object
+            };
+
             const response = await fetch(`/api/uang-jalan/rincian/${rincianId}`, {
                 method: 'PUT',
-                body: formData,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             })
             if (response.ok) {
                 toast.success('Rincian berhasil diperbarui.')

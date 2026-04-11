@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const folder = formData.get("folder") as string | null;
 
     if (!file) {
       return NextResponse.json({ success: false, error: "No file uploaded" }, { status: 400 });
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
       bytes: buffer,
       originalName: file.name,
       contentType: file.type || "application/octet-stream",
+      folder: folder || undefined,
     });
 
     return NextResponse.json({ success: true, url: result.url });

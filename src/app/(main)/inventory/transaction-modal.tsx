@@ -150,17 +150,35 @@ export function TransactionModal({ isOpen, onClose, item, onSuccess }: Transacti
 
         setLoading(true);
         try {
-            const formData = new FormData();
-            formData.append('type', type);
-            formData.append('date', date);
-            formData.append('quantity', quantity);
-            formData.append('notes', notes);
-            formData.append('userId', String(userId));
-            if (image) formData.append('image', image);
+            let finalImageUrl = '';
+            if (image) {
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', image);
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        finalImageUrl = uploadData.url;
+                    }
+                }
+            }
+
+            const payload = {
+                type,
+                date,
+                quantity: Number(quantity),
+                notes,
+                userId: Number(userId),
+                imageUrl: finalImageUrl
+            };
 
             const res = await fetch(`/api/inventory/${item.id}/transaction`, {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) throw new Error('Gagal memproses transaksi');

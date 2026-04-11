@@ -60,32 +60,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const formData = await request.formData()
-    const raw = {
-      tipe: formData.get('tipe'),
-      amount: formData.get('amount'),
-      description: formData.get('description'),
-      date: formData.get('date'),
-      tagKendaraanPlatNomor: formData.get('tagKendaraanPlatNomor'),
-      tagKebunId: formData.get('tagKebunId'),
-      tagPerusahaanId: formData.get('tagPerusahaanId'),
-    }
-    const schema = z.object({
-      tipe: z.enum(['PENGELUARAN', 'PEMASUKAN']),
-      amount: z.coerce.number().nonnegative(),
-      description: z.string().trim().max(500).optional(),
-      date: z.string().optional(),
-      tagKendaraanPlatNomor: z.preprocess((v) => (v === '' ? null : v), z.string().trim().max(32).nullable().optional()),
-      tagKebunId: z.preprocess((v) => (v === '' ? null : v), z.coerce.number().int().positive().nullable().optional()),
-      tagPerusahaanId: z.preprocess((v) => (v === '' ? null : v), z.coerce.number().int().positive().nullable().optional()),
-    })
-    const parsed = schema.safeParse(raw)
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 })
-    }
-
-    const { tipe, amount, description, date, tagKendaraanPlatNomor, tagKebunId, tagPerusahaanId } = parsed.data
-    const gambar = formData.get('gambar') as File | null
+    const body = await request.json();
+    const { tipe, amount, description, date, tagKendaraanPlatNomor, tagKebunId, tagPerusahaanId, gambarUrl } = body;
 
     const tagGroupCount =
       (tagKendaraanPlatNomor ? 1 : 0) +
@@ -93,26 +69,6 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       (tagPerusahaanId ? 1 : 0)
     if (tagGroupCount > 1) {
       return NextResponse.json({ error: 'Pilih salah satu tag: Kendaraan atau Kebun atau Perusahaan' }, { status: 400 })
-    }
-
-    let gambarUrl: string | undefined = undefined
-    if (gambar) {
-      const MAX_BYTES = 5 * 1024 * 1024
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-      if (typeof (gambar as any).size === 'number' && (gambar as any).size > MAX_BYTES) {
-        return NextResponse.json({ error: 'File too large' }, { status: 413 })
-      }
-      if (gambar.type && !allowedTypes.includes(gambar.type)) {
-        return NextResponse.json({ error: 'Unsupported file type' }, { status: 415 })
-      }
-      const bytes = await gambar.arrayBuffer()
-      const buffer = Buffer.from(bytes)
-      const safeName = gambar.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const fileExtension = safeName.split('.').pop()
-      const fileName = `${Date.now()}.${fileExtension}`
-      const path = join(process.cwd(), 'public/uploads', fileName)
-      await writeFile(path, buffer)
-      gambarUrl = `/uploads/${fileName}`
     }
 
     if (gambarUrl && existing.gambarUrl && existing.gambarUrl !== gambarUrl) {

@@ -121,35 +121,50 @@ export default function UsersPage() {
     const url = isEditing ? `/api/users/${selectedUser.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
 
-    const formData = new FormData();
-    formData.append('name', formDataObj.name);
-    formData.append('email', formDataObj.email);
-    formData.append('role', formDataObj.role);
-    if (formDataObj.jenisPekerjaan && formDataObj.jenisPekerjaan !== 'none') {
-        formData.append('jenisPekerjaan', formDataObj.jenisPekerjaan);
-    } else {
-        formData.append('jenisPekerjaan', '');
-    }
-    if (formDataObj.kebunId) {
-        formData.append('kebunId', formDataObj.kebunId.toString());
-    }
-    if (formDataObj.kebunIds && formDataObj.kebunIds.length > 0) {
-        formData.append('kebunIds', JSON.stringify(formDataObj.kebunIds));
-    }
-    if (formDataObj.password) {
-        formData.append('password', formDataObj.password);
-    }
-    if (formDataObj.oldPassword) {
-        formData.append('oldPassword', formDataObj.oldPassword);
-    }
-    if (formDataObj.photo) {
-        formData.append('photo', formDataObj.photo);
-    }
-
     let toastId: string | undefined
     try {
-      toastId = toast.loading('Menyimpan pengguna...')
-      const res = await fetch(url, { method, body: formData });
+      toastId = toast.loading(isEditing ? 'Memperbarui pengguna...' : 'Menambahkan pengguna...')
+
+      let finalPhotoUrl = formDataObj.photoUrl || '';
+
+      if (formDataObj.photo) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', formDataObj.photo);
+        
+        const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: uploadFormData
+        });
+
+        if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            if (uploadData.success) {
+                finalPhotoUrl = uploadData.url;
+            } else {
+                throw new Error(`Gagal upload foto: ${uploadData.error}`);
+            }
+        } else {
+           throw new Error('Gagal upload foto: Server Error');
+        }
+      }
+
+      const payload = {
+        name: formDataObj.name,
+        email: formDataObj.email,
+        role: formDataObj.role,
+        jenisPekerjaan: (formDataObj.jenisPekerjaan && formDataObj.jenisPekerjaan !== 'none') ? formDataObj.jenisPekerjaan : '',
+        kebunId: formDataObj.kebunId,
+        kebunIds: formDataObj.kebunIds,
+        password: formDataObj.password,
+        oldPassword: formDataObj.oldPassword,
+        photoUrl: finalPhotoUrl,
+      };
+
+      const res = await fetch(url, { 
+        method, 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload) 
+      });
 
       if (!res.ok) {
         const errorData = await res.json();

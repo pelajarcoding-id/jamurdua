@@ -128,16 +128,8 @@ export async function POST(request: Request) {
     try {
         const guard = await requireRole(['ADMIN', 'PEMILIK'])
         if (guard.response) return guard.response
-        const data = await request.formData();
-        const name = data.get('name') as string;
-        const email = data.get('email') as string;
-        const role = data.get('role') as string;
-        const jenisPekerjaan = data.get('jenisPekerjaan') as string | null;
-        const password = data.get('password') as string;
-        const kebunId = data.get('kebunId') ? Number(data.get('kebunId')) : null;
-        const kebunIdsRaw = data.get('kebunIds') as string | null;
-        const kebunIds = kebunIdsRaw ? JSON.parse(kebunIdsRaw) as number[] : [];
-        const photo = data.get('photo') as File | null;
+        const body = await request.json();
+        const { name, email, role, jenisPekerjaan, password, kebunId, kebunIds, photoUrl } = body;
 
         if (!name || !email || !role || !password) {
             return NextResponse.json({ error: 'Semua field harus diisi' }, { status: 400 });
@@ -156,16 +148,6 @@ export async function POST(request: Request) {
 
         const passwordHash = await bcrypt.hash(password, 10);
 
-        let photoUrl = null;
-        if (photo) {
-            const bytes = await photo.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            const filename = `${Date.now()}-${photo.name}`;
-            const path = join(process.cwd(), 'public/uploads', filename);
-            await writeFile(path, buffer);
-            photoUrl = `/uploads/${filename}`;
-        }
-
         const newUser = await prisma.user.create({
             data: {
                 name,
@@ -173,8 +155,8 @@ export async function POST(request: Request) {
                 role,
                 jobType: jenisPekerjaan || null,
                 passwordHash,
-                photoUrl,
-                kebunId: (role === 'MANDOR') ? kebunId : null,
+                photoUrl: photoUrl || null,
+                kebunId: (role === 'MANDOR') ? Number(kebunId) : null,
             },
         });
 
@@ -207,7 +189,7 @@ END $$;`);
                     prisma.$executeRaw(
                         Prisma.sql`DELETE FROM "_UserKebuns" WHERE "B" = ${newUser.id}`
                     ),
-                    ...kebunIds.map((kid) =>
+                    ...kebunIds.map((kid: number) =>
                         prisma.$executeRaw(
                             Prisma.sql`INSERT INTO "_UserKebuns" ("A", "B") VALUES (${kid}, ${newUser.id}) ON CONFLICT DO NOTHING`
                         )

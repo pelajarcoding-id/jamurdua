@@ -6,23 +6,15 @@ import { join } from 'path'
 import { createAuditLog } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/auth'
+import { scheduleFileDeletion } from '@/lib/file-retention'
 
 export const dynamic = 'force-dynamic'
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     try {
         const id = Number(params.id);
-        const data = await request.formData();
-        const name = data.get('name') as string;
-        const email = data.get('email') as string;
-        const role = data.get('role') as string;
-        const jenisPekerjaan = data.get('jenisPekerjaan') as string | null;
-        const password = data.get('password') as string | null;
-        const oldPassword = data.get('oldPassword') as string | null;
-        const kebunId = data.get('kebunId') ? Number(data.get('kebunId')) : null;
-        const kebunIdsRaw = data.get('kebunIds') as string | null;
-        const kebunIds = kebunIdsRaw ? JSON.parse(kebunIdsRaw) as number[] : [];
-        const photo = data.get('photo') as File | null;
+        const body = await request.json();
+        const { name, email, role, jenisPekerjaan, password, oldPassword, kebunId, kebunIds, photoUrl } = body;
 
         if (!name || !email || !role) {
             return NextResponse.json({ error: 'Nama, Email, dan Role harus diisi' }, { status: 400 });
@@ -39,8 +31,25 @@ export async function PUT(request: Request, { params }: { params: { id: string }
             email, 
             role,
             jobType: jenisPekerjaan || null,
-            kebunId: (role === 'MANDOR') ? kebunId : null,
+            kebunId: (role === 'MANDOR') ? Number(kebunId) : null,
         };
+        
+        const existingUserBeforeUpdate = await prisma.user.findUnique({ where: { id } });
+        if (!existingUserBeforeUpdate) {
+            return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 });
+        }
+
+        if (photoUrl !== undefined) {
+            if (photoUrl && existingUserBeforeUpdate.photoUrl && existingUserBeforeUpdate.photoUrl !== photoUrl) {
+                await scheduleFileDeletion({
+                    url: existingUserBeforeUpdate.photoUrl,
+                    entity: 'User',
+                    entityId: String(id),
+                    reason: 'REPLACE_PHOTO',
+                })
+            }
+            updateData.photoUrl = photoUrl || null;
+        }
 
         // Check if requester is Admin or Owner to allow password reset without old password
         const session = await auth();
@@ -74,15 +83,6 @@ export async function PUT(request: Request, { params }: { params: { id: string }
             }
 
             updateData.passwordHash = await bcrypt.hash(password, 10);
-        }
-
-        if (photo) {
-            const bytes = await photo.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            const filename = `${Date.now()}-${photo.name}`;
-            const path = join(process.cwd(), 'public/uploads', filename);
-            await writeFile(path, buffer);
-            updateData.photoUrl = `/uploads/${filename}`;
         }
 
         const updatedUser = await prisma.user.update({
@@ -206,6 +206,15 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
         const deletedUser = await prisma.user.delete({
             where: { id },
         });
+
+        if (deletedUser.photoUrl) {
+            await scheduleFileDeletion({
+                url: deletedUser.photoUrl,
+                entity: 'User',
+                entityId: String(id),
+                reason: 'DELETE_USER',
+            })
+        }
 
         // Audit Log
         const sessionDelete = await auth();

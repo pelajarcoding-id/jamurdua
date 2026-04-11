@@ -16,7 +16,7 @@ import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/m
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (data: FormData) => Promise<boolean>;
+    onConfirm: (data: any) => Promise<boolean>;
     sesiId: number;
 }
 
@@ -263,20 +263,17 @@ export function RincianUangJalanModal({ isOpen, onClose, onConfirm, sesiId }: Mo
         }
         if (submitting) return;
 
-        const data = new FormData();
-        data.append('sesiUangJalanId', String(sesiId));
-        data.append('tipe', formData.tipe);
-        data.append('amount', parseRupiah(formData.amount));
-        data.append('description', formData.description || '');
-        if (formData.date) {
-            data.append('date', formData.date);
-        }
-        if (gambar) {
-            data.append('gambar', gambar);
-        }
+        const payload = {
+            sesiUangJalanId: sesiId,
+            tipe: formData.tipe,
+            amount: parseRupiah(formData.amount),
+            description: formData.description || '',
+            date: formData.date || undefined,
+            gambar: gambar, // Pass the file object
+        };
 
         setSubmitting(true);
-        const ok = await onConfirm(data);
+        const ok = await onConfirm(payload);
         setSubmitting(false);
         if (!ok) return;
         if (mode === 'close') {

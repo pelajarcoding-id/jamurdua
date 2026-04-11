@@ -352,16 +352,40 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
       return;
     }
 
-    const payload = new FormData();
-    payload.append('date', formData.date);
-    payload.append('description', formData.description);
-    if (formData.cost) payload.append('cost', parseNumber(formData.cost).toString());
-    if (formData.odometer) payload.append('odometer', parseNumber(formData.odometer).toString());
-    if (formData.nextServiceDate) payload.append('nextServiceDate', formData.nextServiceDate);
-    if (selectedFile) payload.append('photo', selectedFile);
-    if (validItems.length > 0) payload.append('items', JSON.stringify(validItems));
+    let fotoUrl = previewUrl;
 
     try {
+      if (selectedFile) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', selectedFile);
+        
+        const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: uploadFormData
+        });
+
+        if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            if (uploadData.success) {
+                fotoUrl = uploadData.url;
+            } else {
+                throw new Error(`Gagal upload foto: ${uploadData.error}`);
+            }
+        } else {
+           throw new Error('Gagal upload foto: Server Error');
+        }
+      }
+
+      const payload = {
+        date: formData.date,
+        description: formData.description,
+        cost: formData.cost ? parseNumber(formData.cost) : 0,
+        odometer: formData.odometer ? parseNumber(formData.odometer) : null,
+        nextServiceDate: formData.nextServiceDate || null,
+        fotoUrl: fotoUrl,
+        items: validItems,
+      };
+
       const url = editingId 
         ? `/api/kendaraan/${platNomor}/service/${editingId}`
         : `/api/kendaraan/${platNomor}/service`;
@@ -370,7 +394,8 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
 
       const res = await fetch(url, {
         method: method,
-        body: payload,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error(`Gagal ${editingId ? 'mengupdate' : 'menyimpan'} log service`);
@@ -378,8 +403,8 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
       toast.success(`Log service berhasil ${editingId ? 'diupdate' : 'ditambahkan'}`);
       handleCancel();
       refreshLogs();
-    } catch (error) {
-      toast.error(`Gagal ${editingId ? 'mengupdate' : 'menyimpan'} log service`);
+    } catch (error: any) {
+      toast.error(error.message || `Gagal ${editingId ? 'mengupdate' : 'menyimpan'} log service`);
     }
   };
 

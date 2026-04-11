@@ -16,13 +16,8 @@ export async function PUT(
   try {
     const session = await auth();
     const currentUserId = session?.user?.id ? Number(session.user.id) : 1;
-    const formData = await request.formData();  
-    const date = formData.get('date') as string;
-    const description = formData.get('description') as string;
-    const cost = formData.get('cost') as string;
-    const odometer = formData.get('odometer') as string;
-    const nextServiceDate = formData.get('nextServiceDate') as string;
-    const photo = formData.get('photo') as File | null;
+    const body = await request.json();  
+    const { date, description, cost, odometer, nextServiceDate, fotoUrl } = body;
     const id = parseInt(params.id);
 
     const before = await prisma.serviceLog.findUnique({
@@ -42,8 +37,8 @@ export async function PUT(
       select: { fotoUrl: true }
     });
 
-    if (photo) {
-      if (existing?.fotoUrl) {
+    if (fotoUrl !== undefined) {
+      if (fotoUrl && existing?.fotoUrl && existing.fotoUrl !== fotoUrl) {
         await scheduleFileDeletion({
           url: existing.fotoUrl,
           entity: 'ServiceLog',
@@ -51,14 +46,7 @@ export async function PUT(
           reason: 'REPLACE_IMAGE',
         })
       }
-      const bytes = await photo.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const filename = `service-${Date.now()}-${photo.name.replace(/\s+/g, '-')}`;
-      const uploadDir = join(process.cwd(), 'public/uploads/service-logs');
-      
-      await mkdir(uploadDir, { recursive: true });
-      await writeFile(join(uploadDir, filename), buffer);
-      updateData.fotoUrl = `/uploads/service-logs/${filename}`;
+      updateData.fotoUrl = fotoUrl || null;
     }
 
     const log = await prisma.serviceLog.update({

@@ -18,48 +18,8 @@ export async function POST(
     if (guard.response) return guard.response
     const currentUserId = guard.id
 
-    const formData = await request.formData();
-    const raw = {
-      type: formData.get('type'),
-      quantity: formData.get('quantity'),
-      notes: formData.get('notes'),
-      date: formData.get('date'),
-    };
-    const schema = z.object({
-      type: z.enum(['IN', 'OUT', 'ADJUSTMENT']),
-      quantity: z.coerce.number().int().nonnegative(),
-      notes: z.string().trim().max(500).optional(),
-      date: z.string().optional(),
-    });
-    const parsed = schema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid payload', details: parsed.error.flatten() },
-        { status: 400 }
-      );
-    }
-    const { type, quantity, notes, date } = parsed.data;
-    const image = formData.get('image') as File | null;
-
-    let imageUrl = null;
-    if (image) {
-        const MAX_BYTES = 5 * 1024 * 1024; // 5MB
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        if (typeof (image as any).size === 'number' && (image as any).size > MAX_BYTES) {
-          return NextResponse.json({ error: 'File too large' }, { status: 413 });
-        }
-        if (image.type && !allowedTypes.includes(image.type)) {
-          return NextResponse.json({ error: 'Unsupported file type' }, { status: 415 });
-        }
-        const bytes = await image.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        const filename = `${Date.now()}-${image.name}`;
-        const uploadDir = join(process.cwd(), 'public/uploads/inventory-transactions');
-        
-        await mkdir(uploadDir, { recursive: true });
-        await writeFile(join(uploadDir, filename), buffer);
-        imageUrl = `/uploads/inventory-transactions/${filename}`;
-    }
+    const body = await request.json();
+    const { type, quantity, notes, date, imageUrl } = body;
 
     const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
     if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 });
@@ -81,7 +41,7 @@ export async function POST(
                 quantity: Number(quantity),
                 notes,
                 userId: currentUserId,
-                imageUrl,
+                imageUrl: imageUrl || null,
                 createdAt: date ? new Date(date) : undefined
             } as any
         })

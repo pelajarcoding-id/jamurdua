@@ -490,31 +490,55 @@ export default function InventoryPage() {
         
         // Clean price format
         const priceRaw = formData.get('price') as string;
-        if (priceRaw) {
-            const priceClean = priceRaw.replace(/\./g, '').replace(',', '.');
-            formData.set('price', priceClean);
-        }
+        const priceClean = priceRaw ? priceRaw.replace(/\./g, '').replace(',', '.') : '0';
 
-        if (imageFile) {
-            formData.append('image', imageFile);
-        }
+        const loadingToast = toast.loading('Menambahkan barang...');
         
         try {
+            let finalImageUrl = '';
+            if (imageFile) {
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', imageFile);
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        finalImageUrl = uploadData.url;
+                    }
+                }
+            }
+
+            const payload = {
+                sku: formData.get('sku'),
+                name: formData.get('name'),
+                unit: formData.get('unit'),
+                category: formData.get('category'),
+                stock: Number(formData.get('stock')),
+                minStock: Number(formData.get('minStock')),
+                price: Number(priceClean),
+                date: formData.get('date'),
+                imageUrl: finalImageUrl
+            };
+            
             const res = await fetch('/api/inventory', {
                 method: 'POST',
-                body: formData 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload) 
             });
             if(res.ok) {
-                toast.success('Barang ditambahkan');
+                toast.success('Barang ditambahkan', { id: loadingToast });
                 setIsAddModalOpen(false);
                 setImageFile(null);
                 setPreviewUrl(null);
                 fetchData();
             } else {
-                toast.error('Gagal menambah barang');
+                toast.error('Gagal menambah barang', { id: loadingToast });
             }
         } catch(err) {
-            toast.error('Gagal menambah barang');
+            toast.error('Gagal menambah barang', { id: loadingToast });
         }
     };
 

@@ -5,6 +5,7 @@ type UploadInput = {
   bytes: Buffer
   originalName: string
   contentType: string
+  folder?: string
 }
 
 type UploadResult = {
@@ -17,17 +18,19 @@ function sanitizeFileName(name: string) {
   return cleaned || 'file'
 }
 
-function makeKey(originalName: string) {
+function makeKey(originalName: string, folder?: string) {
   const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
   const safeName = sanitizeFileName(originalName)
-  return `uploads/${uniqueSuffix}-${safeName}`
+  const pathPrefix = folder ? `uploads/${folder}` : 'uploads'
+  return `${pathPrefix}/${uniqueSuffix}-${safeName}`
 }
 
 export async function uploadFile(input: UploadInput): Promise<UploadResult> {
   const driver = (process.env.STORAGE_DRIVER || 'local').toLowerCase()
-  const key = makeKey(input.originalName)
+  const key = makeKey(input.originalName, input.folder)
 
   if (driver === 's3') {
+    // ... (S3 implementation stays the same, it uses the key which now includes the folder)
     const bucket = process.env.S3_BUCKET || ''
     const region = process.env.S3_REGION || 'auto'
     const endpoint = process.env.S3_ENDPOINT || ''
@@ -60,11 +63,11 @@ export async function uploadFile(input: UploadInput): Promise<UploadResult> {
     return { key, url: `${publicBase.replace(/\/$/, '')}/${key}` }
   }
 
-  const uploadDir = join(process.cwd(), 'public', 'uploads')
+  const uploadDir = join(process.cwd(), 'public', input.folder ? `uploads/${input.folder}` : 'uploads')
   await mkdir(uploadDir, { recursive: true })
   const filename = key.split('/').pop() as string
   const filepath = join(uploadDir, filename)
   await writeFile(filepath, input.bytes)
-  return { key, url: `/uploads/${filename}` }
+  return { key, url: input.folder ? `/uploads/${input.folder}/${filename}` : `/uploads/${filename}` }
 }
 

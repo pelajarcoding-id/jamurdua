@@ -86,39 +86,12 @@ export async function POST(
   { params }: { params: { platNomor: string } }
 ) {
   try {
-    const formData = await request.formData();
-    const date = formData.get('date') as string;
-    const description = formData.get('description') as string;
-    const cost = formData.get('cost') as string;
-    const odometer = formData.get('odometer') as string;
-    const nextServiceDate = formData.get('nextServiceDate') as string;
-    const itemsJson = formData.get('items') as string;
-    const photo = formData.get('photo') as File | null;
+    const body = await request.json();
+    const { date, description, cost, odometer, nextServiceDate, items, fotoUrl } = body;
     
     const session = await auth();
     // @ts-ignore
     const userId = session?.user?.id ? Number(session.user.id) : 1;
-
-    let items: { inventoryItemId: number; quantity: number }[] = [];
-    if (itemsJson) {
-      try {
-        items = JSON.parse(itemsJson);
-      } catch (e) {
-        console.error("Failed to parse items json", e);
-      }
-    }
-
-    let fotoUrl = null;
-    if (photo) {
-      const bytes = await photo.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const filename = `service-${Date.now()}-${photo.name.replace(/\s+/g, '-')}`;
-      const uploadDir = join(process.cwd(), 'public/uploads/service-logs');
-      
-      await mkdir(uploadDir, { recursive: true });
-      await writeFile(join(uploadDir, filename), buffer);
-      fotoUrl = `/uploads/service-logs/${filename}`;
-    }
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create Service Log
@@ -130,7 +103,7 @@ export async function POST(
           cost: Number(cost),
           odometer: odometer ? Number(odometer) : null,
           nextServiceDate: nextServiceDate ? new Date(nextServiceDate) : null,
-          fotoUrl,
+          fotoUrl: fotoUrl || null,
         },
       });
 

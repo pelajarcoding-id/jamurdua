@@ -220,23 +220,41 @@ export function EditModal({ isOpen, onClose, item, onSuccess }: EditModalProps) 
         
         // Clean price format
         const priceRaw = formData.get('price') as string;
-        if (priceRaw) {
-            const priceClean = priceRaw.replace(/\./g, '').replace(',', '.');
-            formData.set('price', priceClean);
-        }
-
-        if (imageFile) {
-            formData.append('image', imageFile);
-        }
-        
-        if (removeImage) {
-            formData.append('removeImage', 'true');
-        }
+        const priceClean = priceRaw ? priceRaw.replace(/\./g, '').replace(',', '.') : '0';
 
         try {
+            let finalImageUrl = item.imageUrl;
+            if (imageFile) {
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', imageFile);
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        finalImageUrl = uploadData.url;
+                    }
+                }
+            }
+
+            const payload = {
+                sku: formData.get('sku'),
+                name: formData.get('name'),
+                unit: formData.get('unit'),
+                category: formData.get('category'),
+                stock: Number(formData.get('stock')),
+                minStock: Number(formData.get('minStock')),
+                price: Number(priceClean),
+                imageUrl: finalImageUrl,
+                removeImage: removeImage
+            };
+
             const res = await fetch(`/api/inventory/${item.id}`, {
                 method: 'PATCH',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
             if (res.ok) {

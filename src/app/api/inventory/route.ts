@@ -94,53 +94,8 @@ export async function POST(request: Request) {
     try {
         const guard = await requireRole(['ADMIN', 'GUDANG', 'PEMILIK', 'KASIR'])
         if (guard.response) return guard.response
-        const formData = await request.formData();
-        const raw = {
-            sku: formData.get('sku'),
-            name: formData.get('name'),
-            unit: formData.get('unit'),
-            category: formData.get('category'),
-            stock: formData.get('stock'),
-            minStock: formData.get('minStock'),
-            price: formData.get('price'),
-            date: formData.get('date'),
-        };
-        const schema = z.object({
-            sku: z.string().trim().min(1).max(64),
-            name: z.string().trim().min(1).max(128),
-            unit: z.string().trim().min(1).max(32),
-            category: z
-                .string()
-                .trim()
-                .max(64)
-                .optional()
-                .transform((v) => (v && v.length > 0 ? v : undefined)),
-            stock: z.coerce.number().int().nonnegative(),
-            minStock: z.coerce.number().int().nonnegative(),
-            price: z.coerce.number().nonnegative().optional(),
-            date: z.string().optional(),
-        });
-        const parsed = schema.safeParse(raw);
-        if (!parsed.success) {
-            return NextResponse.json(
-                { error: 'Invalid payload', details: parsed.error.flatten() },
-                { status: 400 }
-            );
-        }
-        const { sku, name, unit, category, stock, minStock, price = 0, date } = parsed.data;
-        const image = formData.get('image') as File | null;
-
-        let imageUrl = null;
-        if (image) {
-            const bytes = await image.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            const filename = `${Date.now()}-${image.name}`;
-            const uploadDir = join(process.cwd(), 'public/uploads/inventory');
-            
-            await mkdir(uploadDir, { recursive: true });
-            await writeFile(join(uploadDir, filename), buffer);
-            imageUrl = `/uploads/inventory/${filename}`;
-        }
+        const body = await request.json();
+        const { sku, name, unit, category, stock, minStock, price = 0, date, imageUrl } = body;
 
         const item = await prisma.inventoryItem.create({
             data: {
@@ -148,11 +103,11 @@ export async function POST(request: Request) {
                 name,
                 unit,
                 category,
-                stock,
-                initialStock: stock,
-                minStock,
-                price,
-                imageUrl,
+                stock: Number(stock),
+                initialStock: Number(stock),
+                minStock: Number(minStock),
+                price: Number(price),
+                imageUrl: imageUrl || null,
                 createdAt: date ? new Date(date) : undefined
             } as any
         });
