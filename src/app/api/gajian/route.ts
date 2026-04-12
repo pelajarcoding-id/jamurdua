@@ -113,9 +113,10 @@ export async function GET(request: Request) {
           },
           kebun: true,
         },
-        orderBy: {
-          createdAt: 'asc',
-        },
+        orderBy: [
+          { tanggalBongkar: 'asc' },
+          { createdAt: 'asc' },
+        ],
       }),
       prisma.notaSawit.count({ where }),
     ]);

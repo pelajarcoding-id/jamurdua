@@ -16,6 +16,14 @@ type NotaSawitWithRelations = NotaSawit & {
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
 const formatDate = (date: string | Date) => new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 
+const getNotaNetto = (row: any) => {
+  const n = row?.netto
+  if (typeof n === 'number' && n > 0) return n
+  const tNet = row?.timbangan?.netKg
+  if (typeof tNet === 'number' && tNet > 0) return tNet
+  return null
+}
+
 export const createColumns = (): ColumnDef<NotaSawitWithRelations>[] => [
   {
     id: 'select',
@@ -37,9 +45,9 @@ export const createColumns = (): ColumnDef<NotaSawitWithRelations>[] => [
     enableHiding: false,
   },
   {
-    accessorKey: 'createdAt',
-    header: 'Tanggal Nota',
-    cell: ({ row }) => formatDate(row.original.createdAt),
+    accessorKey: 'tanggalBongkar',
+    header: 'Tanggal Bongkar',
+    cell: ({ row }) => (row.original.tanggalBongkar ? formatDate(row.original.tanggalBongkar) : '-'),
   },
   {
     id: 'kebun',
@@ -58,16 +66,16 @@ export const createColumns = (): ColumnDef<NotaSawitWithRelations>[] => [
   },
   {
     id: 'netto',
-    accessorFn: (row) => row.timbangan?.netKg ?? row.netto ?? null,
+    accessorFn: (row) => getNotaNetto(row),
     header: () => <div className="text-right">Netto (Kg)</div>,
     cell: ({ row }) => {
-      const net = row.original.timbangan?.netKg ?? row.original.netto;
+      const net = getNotaNetto(row.original);
       return <div className="text-right">{typeof net === 'number' ? formatNumber(net) : '-'}</div>;
     },
     footer: ({ table }) => {
       const sum = table.getFilteredRowModel().rows.reduce((acc, r) => {
-        const net = r.original.timbangan?.netKg ?? r.original.netto ?? 0;
-        return acc + (typeof net === 'number' ? net : 0);
+        const net = getNotaNetto(r.original)
+        return acc + (typeof net === 'number' ? net : 0)
       }, 0);
       return <div className="text-right font-bold">{formatNumber(sum)}</div>;
     },
@@ -104,9 +112,9 @@ export const createProcessingColumns = (
   onKeteranganChange: (id: number, val: string) => void
 ): ColumnDef<ProcessingNotaSawit>[] => [
   {
-    accessorKey: 'createdAt',
-    header: 'Tanggal Nota',
-    cell: ({ row }) => formatDate(row.original.createdAt),
+    accessorKey: 'tanggalBongkar',
+    header: 'Tanggal Bongkar',
+    cell: ({ row }) => (row.original.tanggalBongkar ? formatDate(row.original.tanggalBongkar) : '-'),
   },
   {
     accessorKey: 'supir.name',

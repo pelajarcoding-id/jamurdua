@@ -125,7 +125,11 @@ export default function PrintGajianPage() {
           {combinedData.map((item, index) => (
             <tr key={index} className="border border-black">
               <td className="border border-black p-1">{index + 1}</td>
-              <td className="border border-black p-1">{item.detail ? formatDate(item.detail.notaSawit.createdAt) : ''}</td>
+              <td className="border border-black p-1">
+                {item.detail
+                  ? formatDate((item.detail.notaSawit as any).tanggalBongkar || item.detail.notaSawit.createdAt)
+                  : ''}
+              </td>
               <td className="border border-black p-1">{item.detail?.notaSawit?.kendaraanPlatNomor || ''}</td>
               <td className="border border-black p-1">{item.detail?.notaSawit?.supir?.name || ''}</td>
               <td className="border border-black p-1 text-right">{item.detail?.notaSawit?.timbangan ? formatNumber(item.detail.notaSawit.timbangan.netKg) : ''}</td>

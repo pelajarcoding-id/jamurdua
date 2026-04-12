@@ -247,6 +247,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const [biayaFieldErrors, setBiayaFieldErrors] = useState<Record<string, { deskripsi?: boolean; jumlah?: boolean; hargaSatuan?: boolean }>>({})
   const [loading, setLoading] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  const getNotaNetto = useCallback((nota: any) => {
+    const n = nota?.netto
+    if (typeof n === 'number' && n > 0) return n
+    const tNet = nota?.timbangan?.netKg
+    if (typeof tNet === 'number' && tNet > 0) return tNet
+    return null
+  }, [])
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [boronganPekerjaanIds, setBoronganPekerjaanIds] = useState<number[]>([])
   const [boronganLoading, setBoronganLoading] = useState(false)
@@ -1721,7 +1729,11 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const notaToAddBack = notas.find(n => n.id === notaId) || removedNota as NotaSawitWithRelations;
 
       setNotasToProcess(prev => prev.filter(nota => nota.id !== notaId));
-      setNotas(prev => [...prev, notaToAddBack].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setNotas(prev => [...prev, notaToAddBack].sort((a, b) => {
+        const aKey = new Date((a as any).tanggalBongkar || a.createdAt).getTime()
+        const bKey = new Date((b as any).tanggalBongkar || b.createdAt).getTime()
+        return bKey - aKey
+      }));
     }
   }, [notas, notasToProcess]);
 
@@ -1910,15 +1922,13 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <div className="text-gray-400">Tanggal Nota</div>
-                        <div className="font-medium text-gray-800">{formatDate(new Date(nota.createdAt))}</div>
+                        <div className="text-gray-400">Tanggal Bongkar</div>
+                        <div className="font-medium text-gray-800">{nota.tanggalBongkar ? formatDate(new Date(nota.tanggalBongkar)) : '-'}</div>
                       </div>
                       <div>
                         <div className="text-gray-400">Netto (Kg)</div>
                         <div className="font-semibold text-gray-900">
-                          {typeof (nota.timbangan?.netKg ?? nota.netto) === 'number'
-                            ? formatNumber(nota.timbangan?.netKg ?? nota.netto)
-                            : '-'}
+                          {typeof getNotaNetto(nota) === 'number' ? formatNumber(getNotaNetto(nota) as number) : '-'}
                         </div>
                       </div>
                       <div>
@@ -1936,7 +1946,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-gray-700">Jumlah Netto</span>
-                  <span className="font-semibold text-gray-900">{formatNumber(notas.reduce((sum, n) => sum + (Number(n.timbangan?.netKg ?? n.netto) || 0), 0))} Kg</span>
+                  <span className="font-semibold text-gray-900">{formatNumber(notas.reduce((sum, n) => sum + (Number(getNotaNetto(n)) || 0), 0))} Kg</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <span className="font-semibold text-red-600">Jumlah Potongan</span>
@@ -2067,8 +2077,8 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <div className="text-gray-400">Tanggal Nota</div>
-                        <div className="font-medium text-gray-800">{formatDate(new Date(nota.createdAt))}</div>
+                        <div className="text-gray-400">Tanggal Bongkar</div>
+                        <div className="font-medium text-gray-800">{nota.tanggalBongkar ? formatDate(new Date(nota.tanggalBongkar)) : '-'}</div>
                       </div>
                       <div>
                         <div className="text-gray-400">Berat Akhir</div>
