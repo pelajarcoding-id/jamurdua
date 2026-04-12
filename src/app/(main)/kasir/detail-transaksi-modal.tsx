@@ -356,22 +356,22 @@ const DetailTransaksiModal: React.FC<DetailTransaksiModalProps> = ({ isOpen, onC
             variant="outline"
             size="icon"
             onClick={() => { onEdit?.(transaksi) }}
-            className="rounded-full text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+            className="rounded-full border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
             aria-label="Edit"
             title="Edit"
           >
-            <PencilSquareIcon className="h-4 w-4" />
+            <PencilSquareIcon className="h-4 w-4 text-white" />
           </Button>
           <Button
             type="button"
             variant="outline"
             size="icon"
             onClick={() => { onDelete?.(transaksi) }}
-            className="rounded-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            className="rounded-full border border-red-600 bg-red-600 hover:bg-red-700 hover:border-red-700"
             aria-label="Hapus"
             title="Hapus"
           >
-            <TrashIcon className="h-4 w-4" />
+            <TrashIcon className="h-4 w-4 text-white" />
           </Button>
           <Button
             type="button"
@@ -379,11 +379,11 @@ const DetailTransaksiModal: React.FC<DetailTransaksiModalProps> = ({ isOpen, onC
             size="icon"
             onClick={handleExportPdf}
             disabled={exporting}
-            className="rounded-full text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+            className="rounded-full border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-700 disabled:opacity-60"
             aria-label="Export PDF"
             title="Export PDF"
           >
-            <ArrowDownTrayIcon className="h-4 w-4" />
+            <ArrowDownTrayIcon className="h-4 w-4 text-white" />
           </Button>
         </ModalFooter>
       </DialogContent>

@@ -763,24 +763,24 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
            <Button
              variant="outline"
              size="icon"
-             className="h-9 w-9 rounded-md border border-gray-200 bg-white hover:bg-gray-50"
+             className="h-9 w-9 rounded-md border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
              onClick={handleExportToPdf}
              aria-label="Download Nota (PDF)"
              title="Download Nota (PDF)"
            >
-             <ArrowDownTrayIcon className="h-4 w-4 text-gray-700" />
+             <ArrowDownTrayIcon className="h-4 w-4 text-white" />
            </Button>
 
            {!readonly && role !== 'SUPIR' ? (
              <Button
                variant="outline"
                size="icon"
-               className="h-9 w-9 rounded-md border border-gray-200 bg-white hover:bg-gray-50"
+               className="h-9 w-9 rounded-md border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
                onClick={handleEditNota}
                aria-label="Edit Nota"
                title="Edit"
              >
-               <PencilSquareIcon className="h-4 w-4 text-emerald-700" />
+               <PencilSquareIcon className="h-4 w-4 text-white" />
              </Button>
            ) : null}
 
@@ -788,13 +788,13 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
              <Button
                variant="outline"
                size="icon"
-               className="h-9 w-9 rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50"
+               className="h-9 w-9 rounded-md border border-red-600 bg-red-600 hover:bg-red-700 hover:border-red-700"
                onClick={handleDeleteNota}
                disabled={!onDelete}
                aria-label="Hapus Nota"
                title="Hapus"
              >
-               <TrashIcon className="h-4 w-4" />
+               <TrashIcon className="h-4 w-4 text-white" />
              </Button>
            ) : null}
 

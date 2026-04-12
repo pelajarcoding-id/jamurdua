@@ -198,7 +198,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                 tanggalBongkar: nota.tanggalBongkar ? (toLocalYmd(new Date(nota.tanggalBongkar as any)) as any) : undefined,
                 keterangan: (nota as any).keterangan || '',
                 timbanganId: nota.timbanganId || undefined,
-                kebunId: nota.timbangan?.kebunId || undefined, // Initialize kebunId from timbangan relation
+                kebunId: (nota as any).kebunId || nota.timbangan?.kebunId || undefined,
                 pembayaranAktual: typeof nota.pembayaranAktual === 'number' ? Math.round(nota.pembayaranAktual) : nota.pembayaranAktual,
                 pph25: Math.round(nota.pph25 || 0),
                 // Initialize with existing values, fallback to Timbangan values if 0 (legacy data)
@@ -263,6 +263,17 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
         setErrors({});
     }
   }, [isOpen, nota]);
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (!formData?.timbanganId) return
+    if (formData?.kebunId) return
+    if (!Array.isArray(timbanganList) || timbanganList.length === 0) return
+    const found = timbanganList.find((t) => Number((t as any)?.id) === Number(formData.timbanganId))
+    if (!found) return
+    setSelectedTimbangan(found)
+    setFormData((prev) => ({ ...prev, kebunId: Number((found as any).kebunId) || undefined }))
+  }, [formData.kebunId, formData.timbanganId, isOpen, timbanganList]);
 
   // --- Data Fetching ---
   useEffect(() => {
