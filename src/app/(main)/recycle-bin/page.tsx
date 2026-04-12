@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import toast from 'react-hot-toast'
 import {
   ArrowPathIcon,
@@ -115,6 +116,10 @@ export default function RecycleBinPage() {
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [confirmDeleteData, setConfirmDeleteData] = useState<{ entity: string; id: number; label?: string } | null>(null)
+
+  const [confirmProcessFilesOpen, setConfirmProcessFilesOpen] = useState(false)
+  const [confirmDeleteFileOpen, setConfirmDeleteFileOpen] = useState(false)
+  const [confirmDeleteFileData, setConfirmDeleteFileData] = useState<PendingDeletion | null>(null)
 
   const [kasir, setKasir] = useState<RecycleKasir[]>([])
   const [notaSawit, setNotaSawit] = useState<RecycleNota[]>([])
@@ -307,7 +312,6 @@ export default function RecycleBinPage() {
   }
 
   const processFiles = async () => {
-    if (!confirm('Proses penghapusan file sekarang? Ini akan menghapus file yang masa berlakunya sudah habis.')) return
     setProcessingFiles(true)
     try {
       const res = await fetch('/api/file-retention/process', {
@@ -327,7 +331,6 @@ export default function RecycleBinPage() {
   }
 
   const deleteFile = async (id: number) => {
-    if (!confirm('Hapus file ini secara permanen?')) return
     setDeletingFileId(id)
     try {
       const res = await fetch(`/api/file-retention/delete?id=${id}`, { method: 'DELETE' })
@@ -339,6 +342,11 @@ export default function RecycleBinPage() {
     } finally {
       setDeletingFileId(null)
     }
+  }
+
+  const openConfirmDeleteFile = (file: PendingDeletion) => {
+    setConfirmDeleteFileData(file)
+    setConfirmDeleteFileOpen(true)
   }
 
   return (
@@ -657,11 +665,7 @@ export default function RecycleBinPage() {
                 )}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={fetchPendingFiles} disabled={loadingFiles}>
-                  <ArrowPathIcon className={`w-4 h-4 mr-2 ${loadingFiles ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-                <Button onClick={processFiles} disabled={processingFiles} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => setConfirmProcessFilesOpen(true)} disabled={processingFiles} className="bg-blue-600 hover:bg-blue-700">
                   <TrashIcon className={`w-4 h-4 mr-2 ${processingFiles ? 'animate-spin' : ''}`} />
                   Proses Sekarang
                 </Button>
@@ -705,7 +709,7 @@ export default function RecycleBinPage() {
                             size="icon"
                             variant="outline"
                             className="rounded-md text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
-                            onClick={() => deleteFile(f.id)}
+                            onClick={() => openConfirmDeleteFile(f)}
                             disabled={deletingFileId === f.id}
                             title="Hapus Sekarang"
                           >
@@ -721,6 +725,36 @@ export default function RecycleBinPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmProcessFilesOpen}
+        onClose={() => setConfirmProcessFilesOpen(false)}
+        onConfirm={async () => {
+          setConfirmProcessFilesOpen(false)
+          await processFiles()
+        }}
+        title="Konfirmasi Proses File"
+        description="Proses penghapusan file sekarang? Ini akan menghapus file yang masa berlakunya sudah habis."
+        variant="emerald"
+      />
+
+      <ConfirmationModal
+        isOpen={confirmDeleteFileOpen}
+        onClose={() => { setConfirmDeleteFileOpen(false); setConfirmDeleteFileData(null) }}
+        onConfirm={async () => {
+          const id = confirmDeleteFileData?.id
+          setConfirmDeleteFileOpen(false)
+          setConfirmDeleteFileData(null)
+          if (id) await deleteFile(id)
+        }}
+        title="Konfirmasi Hapus File"
+        description={
+          confirmDeleteFileData
+            ? `Hapus file ini secara permanen?\n\n${confirmDeleteFileData.entity || '-'}${confirmDeleteFileData.entityId ? ` #${confirmDeleteFileData.entityId}` : ''}\n${confirmDeleteFileData.url}`
+            : 'Hapus file ini secara permanen?'
+        }
+        variant="emerald"
+      />
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="w-[96vw] sm:w-auto max-w-2xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col [&>button.absolute]:hidden">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/route-auth'
 import { createAuditLog } from '@/lib/audit'
+import { scheduleFileDeletion } from '@/lib/file-retention'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,11 +42,32 @@ export async function DELETE(request: Request) {
       await createAuditLog(guard.id, 'PERMANENT_DELETE', 'InventoryItem', String(id), { name: item.name })
     }
     else if (entity === 'SESI_UANG_JALAN') {
-      const sesi = await prisma.sesiUangJalan.findUnique({ where: { id } })
+      const sesi = await prisma.sesiUangJalan.findUnique({
+        where: { id },
+        include: {
+          rincian: { select: { id: true, gambarUrl: true } },
+        },
+      })
       if (!sesi || !(sesi as any).deletedAt) return NextResponse.json({ error: 'Not found in recycle bin' }, { status: 404 })
-      
-      await prisma.sesiUangJalan.delete({ where: { id } })
-      await createAuditLog(guard.id, 'PERMANENT_DELETE', 'SesiUangJalan', String(id), { keterangan: sesi.keterangan })
+
+      const rincianImages = (sesi.rincian || []).map((r) => r.gambarUrl).filter((u): u is string => !!u)
+      const rincianCount = Array.isArray(sesi.rincian) ? sesi.rincian.length : 0
+
+      await prisma.$transaction([
+        prisma.uangJalan.deleteMany({ where: { sesiUangJalanId: id } }),
+        prisma.sesiUangJalan.delete({ where: { id } }),
+      ])
+
+      for (const url of rincianImages) {
+        await scheduleFileDeletion({
+          url,
+          entity: 'UangJalan',
+          entityId: String(id),
+          reason: 'PERMANENT_DELETE_SESI_UANG_JALAN',
+        })
+      }
+
+      await createAuditLog(guard.id, 'PERMANENT_DELETE', 'SesiUangJalan', String(id), { keterangan: sesi.keterangan, rincianCount })
     }
     else {
       return NextResponse.json({ error: 'Unknown entity' }, { status: 400 })

@@ -13,14 +13,14 @@ const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(res => r
 export default function CostCenterPage() {
     const [startDate, setStartDate] = useState(() => {
         const now = new Date()
-        const start = new Date(now.getFullYear(), now.getMonth(), 1)
+        const start = new Date(now.getFullYear(), 0, 1)
         return start.toISOString().slice(0, 10)
     })
     const [endDate, setEndDate] = useState(() => {
         const now = new Date()
         return now.toISOString().slice(0, 10)
     })
-    const [quickRange, setQuickRange] = useState<'today' | 'yesterday' | 'last_week' | 'last_30_days' | 'this_month' | 'this_year' | 'custom'>('this_month')
+    const [quickRange, setQuickRange] = useState<'today' | 'yesterday' | 'last_week' | 'last_30_days' | 'this_month' | 'this_year' | 'custom'>('this_year')
     const [kebunList, setKebunList] = useState<Array<{ id: number; name: string }>>([]);
     const [kendaraanList, setKendaraanList] = useState<Array<{ platNomor: string; merk: string }>>([]);
     const [perusahaanList, setPerusahaanList] = useState<Array<{ id: number; name: string }>>([]);

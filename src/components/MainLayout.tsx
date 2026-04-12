@@ -66,6 +66,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         onConfirm={handleLogout}
         title="Konfirmasi Logout"
         description="Apakah Anda yakin ingin keluar dari aplikasi?"
+        variant="emerald"
       />
       <SideNav isMinimized={isMinimized} setIsMinimized={setIsMinimized} isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
       

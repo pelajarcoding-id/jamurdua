@@ -72,6 +72,9 @@ export default function NotaSawitPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
   const [isBulkUbahStatusOpen, setIsBulkUbahStatusOpen] = useState(false);
+  const [isBulkHargaOpen, setIsBulkHargaOpen] = useState(false)
+  const [bulkHargaValue, setBulkHargaValue] = useState('')
+  const [bulkHargaSubmitting, setBulkHargaSubmitting] = useState(false)
   const [isUbahStatusModalOpen, setIsUbahStatusModalOpen] = useState(false);
   const [selectedNota, setSelectedNota] = useState<NotaSawitData | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -523,6 +526,52 @@ export default function NotaSawitPage() {
       console.error(error);
     }
   }, [rowSelection, data, refreshData]);
+
+  const handleBulkUpdateHarga = useCallback(async () => {
+    const selectedIds = Object.keys(rowSelection).map(index => data[parseInt(index, 10)].id);
+    if (selectedIds.length === 0) return;
+
+    const harga = Math.round(Number(String(bulkHargaValue).replace(/[^\d.-]/g, '')) || 0)
+    if (harga <= 0) {
+      toast.error('Harga per kg harus lebih dari 0.')
+      return
+    }
+
+    const previousData = [...data]
+    const updatedData = data.map(item => {
+      if (!selectedIds.includes(item.id)) return item
+      const beratAkhir = Math.max(0, Number(item.beratAkhir || 0))
+      const totalPembayaran = Math.round(beratAkhir * harga)
+      const pph = Math.round(totalPembayaran * 0.0025)
+      const pph25 = Math.round(Number((item as any).pph25 || 0))
+      const pembayaranSetelahPph = Math.round(totalPembayaran - pph - pph25)
+      return { ...item, hargaPerKg: harga, totalPembayaran, pph, pembayaranSetelahPph }
+    })
+    setData(updatedData)
+
+    const toastId = toast.loading('Mengupdate harga nota terpilih...')
+    setBulkHargaSubmitting(true)
+    try {
+      const response = await fetch('/api/nota-sawit/bulk-update-harga', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds, hargaPerKg: harga }),
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || 'Gagal update harga')
+      }
+      setIsBulkHargaOpen(false)
+      setBulkHargaValue('')
+      refreshData()
+      toast.success('Harga nota terpilih berhasil diupdate', { id: toastId })
+    } catch (error: any) {
+      setData(previousData)
+      toast.error(error?.message || 'Gagal update harga, mengembalikan perubahan.', { id: toastId })
+    } finally {
+      setBulkHargaSubmitting(false)
+    }
+  }, [bulkHargaValue, data, refreshData, rowSelection])
 
   const handleBulkPrint = async () => {
     const selectedIds = Object.keys(rowSelection);
@@ -1183,6 +1232,9 @@ export default function NotaSawitPage() {
                   <Button onClick={() => setIsBulkUbahStatusOpen(true)} className="rounded-full w-full sm:w-auto">
                     Ubah Status
                   </Button>
+                  <Button onClick={() => setIsBulkHargaOpen(true)} className="rounded-full w-full sm:w-auto">
+                    Update Harga
+                  </Button>
                 </>
               ) : null}
               <Button variant="destructive" onClick={handleBulkPrint} className="inline-flex items-center gap-2 rounded-full w-full sm:w-auto">
@@ -1452,6 +1504,46 @@ export default function NotaSawitPage() {
             <ModalFooter className="sm:justify-end">
               <Button variant="outline" className="rounded-full" onClick={() => setIsBulkUbahStatusOpen(false)}>
                 Batal
+              </Button>
+            </ModalFooter>
+          </div>
+        </div>
+      )}
+
+      {isBulkHargaOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+          <div className="bg-white w-[92vw] sm:w-full sm:max-w-[520px] max-h-[92vh] rounded-2xl overflow-hidden shadow-xl p-0 flex flex-col">
+            <ModalHeader
+              title="Update Harga Massal"
+              subtitle={`Set harga per kg untuk ${Object.keys(rowSelection).length} nota yang dipilih.`}
+              variant="emerald"
+              icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
+              onClose={() => { if (!bulkHargaSubmitting) setIsBulkHargaOpen(false) }}
+            />
+            <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Harga / Kg</Label>
+                  <Input
+                    inputMode="numeric"
+                    value={bulkHargaValue}
+                    onChange={(e) => setBulkHargaValue(e.target.value)}
+                    placeholder="contoh: 2000"
+                    className="rounded-xl"
+                    disabled={bulkHargaSubmitting}
+                  />
+                  <div className="text-xs text-gray-500">
+                    Catatan: jika ada nota yang sudah LUNAS, nilai pemasukan kas & jurnal akan disesuaikan otomatis.
+                  </div>
+                </div>
+              </div>
+            </ModalContentWrapper>
+            <ModalFooter className="sm:justify-end">
+              <Button variant="outline" className="rounded-full" onClick={() => setIsBulkHargaOpen(false)} disabled={bulkHargaSubmitting}>
+                Batal
+              </Button>
+              <Button className="rounded-full" onClick={handleBulkUpdateHarga} disabled={bulkHargaSubmitting}>
+                {bulkHargaSubmitting ? 'Menyimpan...' : 'Simpan'}
               </Button>
             </ModalFooter>
           </div>
