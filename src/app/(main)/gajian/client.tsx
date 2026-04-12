@@ -984,7 +984,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const gajiPokok = Math.round(agg.total || 0)
       const prev = prevMap.get(Number(u.id))
       const potonganPrev = Number(prev?.potongan || 0)
-      const potongan = Math.max(0, Math.min(potonganPrev, gajiPokok))
+      const potongan = Math.max(0, potonganPrev)
       return {
         userId: u.id,
         user: u,
@@ -1351,7 +1351,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const userId = Number(dk.userId)
       const baseSaldo = Math.max(0, Math.round(Number(hutangSaldoMap[userId] || 0)))
       const gajiPokok = Number(dk.gajiPokok || 0)
-      const potong = Math.max(0, Math.min(Number(dk.potongan || 0), baseSaldo, gajiPokok))
+      const potong = Math.max(0, Math.min(Number(dk.potongan || 0), baseSaldo))
       return { ...dk, potongan: potong, total: gajiPokok - potong }
     }))
     toast.success('Hutang baru dihapus dari proses gajian')
@@ -1470,7 +1470,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         const saldo = baseSaldo + tambahan
         const gajiPokok = Number(dk.gajiPokok || 0)
         const raw = options.mode === 'MAX' ? saldo : options.amount
-        const potong = Math.max(0, Math.min(raw, saldo, gajiPokok))
+        const potong = Math.max(0, Math.min(raw, saldo))
         return { ...dk, potongan: potong, total: gajiPokok - potong }
       })
       setDetailKaryawan(nextDetail as any)
@@ -1511,7 +1511,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const baseSaldo = Math.max(0, Math.round(Number(hutangSaldoMap[Number(userId)] || 0)))
       const tambahan = Math.max(0, Math.round(Number(hutangTambahanMap[Number(userId)]?.jumlah || 0)))
       const saldo = baseSaldo + tambahan
-      const potong = Math.max(0, Math.min(numericValue, saldo, gajiPokok))
+      const potong = Math.max(0, Math.min(numericValue, saldo))
       next[idx] = { ...current, potongan: potong, total: gajiPokok - potong }
       return next as any
     })
@@ -3013,7 +3013,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
               />
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-gray-900">Potong maksimal</div>
-                <div className="text-xs text-gray-500">Potongan = min(saldo hutang, gaji pokok).</div>
+                <div className="text-xs text-gray-500">Potongan = saldo hutang (gaji boleh minus).</div>
               </div>
             </div>
 
@@ -3021,7 +3021,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
               <Label>Nominal Potongan per Karyawan (Rp)</Label>
               <Input
                 disabled={massPotongMax}
-                value={massPotongAmount}
+                value={massPotongAmount ? formatNumber(Number(String(massPotongAmount).replace(/\D/g, '')) || 0) : ''}
                 onChange={(e) => setMassPotongAmount(e.target.value.replace(/\D/g, ''))}
                 placeholder="Contoh: 100000"
                 className="rounded-xl text-right"
