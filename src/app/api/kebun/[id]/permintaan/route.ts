@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { sendPushNotification } from '@/lib/web-push';
 import { requireRole } from '@/lib/route-auth';
 import { ensureKebunAccess } from '@/lib/kebun-access';
+import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 
 export const dynamic = 'force-dynamic'
 
 // GET: Ambil daftar permintaan untuk kebun tertentu
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -21,8 +22,22 @@ export async function GET(
     const allowed = await ensureKebunAccess(guard.id, guard.role, kebunId)
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    const { searchParams } = new URL(request.url)
+    const startDateParam = searchParams.get('startDate')
+    const endDateParam = searchParams.get('endDate')
+
+    const where: any = { kebunId }
+    if (startDateParam) {
+      const ymd = parseWibYmd(startDateParam)
+      if (ymd) where.date = { ...(where.date || {}), gte: wibStartUtc(ymd) }
+    }
+    if (endDateParam) {
+      const ymd = parseWibYmd(endDateParam)
+      if (ymd) where.date = { ...(where.date || {}), lte: wibEndUtcInclusive(ymd) }
+    }
+
     const permintaan = await (prisma as any).permintaanKebun.findMany({
-      where: { kebunId },
+      where,
       include: {
         user: {
           select: { id: true, name: true, photoUrl: true, role: true }

@@ -92,6 +92,22 @@ const createWIBDate = (year: number, month: number, day: number, isEnd: boolean 
     return new Date(Date.UTC(year, month, day, hour, minute, second, ms));
 };
 
+const formatWIBDateForInput = (date: Date | undefined) => {
+    if (!date) return '';
+    return new Intl.DateTimeFormat('en-CA', { 
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date);
+};
+
+const parseWIBDateFromInput = (dateStr: string, isEnd: boolean = false) => {
+    if (!dateStr) return undefined;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return createWIBDate(year, month - 1, day, isEnd);
+};
+
 export default function UangJalanPage() {
     const { role, id: userId } = useAuth();
     const searchParams = useSearchParams();
@@ -123,7 +139,7 @@ export default function UangJalanPage() {
     useEffect(() => {
         // Initialize dates using WIB
         const { year, month, day } = getCurrentWIBDateParts();
-        const start = createWIBDate(year, 1, 1);
+        const start = createWIBDate(year, 0, 1);
         const end = createWIBDate(year, month, day, true);
         
         setQuickRange('this_year')
@@ -265,7 +281,7 @@ export default function UangJalanPage() {
             setStartDate(createWIBDate(year, month, 1));
             setEndDate(createWIBDate(year, month, day, true));
         } else if (val === 'this_year') {
-            setStartDate(createWIBDate(year, 1, 1));
+            setStartDate(createWIBDate(year, 0, 1));
             setEndDate(createWIBDate(year, month, day, true));
         }
     }, []);
@@ -976,9 +992,9 @@ export default function UangJalanPage() {
                                                             id="start-date"
                                                             type="date"
                                                             className="col-span-2 h-8"
-                                                            value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                                                            value={formatWIBDateForInput(startDate)}
                                                             onChange={(e) => {
-                                                                setStartDate(e.target.value ? new Date(e.target.value) : undefined);
+                                                                setStartDate(parseWIBDateFromInput(e.target.value));
                                                                 setQuickRange('custom');
                                                             }}
                                                         />
@@ -989,9 +1005,9 @@ export default function UangJalanPage() {
                                                             id="end-date"
                                                             type="date"
                                                             className="col-span-2 h-8"
-                                                            value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                                                            value={formatWIBDateForInput(endDate)}
                                                             onChange={(e) => {
-                                                                setEndDate(e.target.value ? new Date(e.target.value) : undefined);
+                                                                setEndDate(parseWIBDateFromInput(e.target.value, true));
                                                                 setQuickRange('custom');
                                                             }}
                                                         />

@@ -27,6 +27,24 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { ModalHeader } from '@/components/ui/modal-elements'
 
+const formatWibYmd = (date: Date) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+
+const formatWibYm = (date: Date) => formatWibYmd(date).slice(0, 7)
+
+const parseMonthToWibDate = (ym: string) => {
+  const raw = String(ym || '').trim()
+  if (!raw) return null
+  const m = raw.match(/^(\d{4})-(\d{2})$/)
+  if (!m) return null
+  return new Date(`${m[1]}-${m[2]}-01T00:00:00+07:00`)
+}
+
 const formatTitle = (value: string) => {
   return value
     .toLowerCase()
@@ -74,8 +92,8 @@ export default function PermintaanTab({ kebunId }: { kebunId: number }) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
   const [dateRange, setDateRange] = useState({
-    start: new Date().toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
+    start: formatWibYmd(new Date()),
+    end: formatWibYmd(new Date())
   });
 
   const isAdminOrOwner = role === 'ADMIN' || role === 'PEMILIK';
@@ -87,23 +105,26 @@ export default function PermintaanTab({ kebunId }: { kebunId: number }) {
   const fetchItems = async () => {
     try {
       setIsLoading(true);
-      let start, end;
+      let startYmd: string
+      let endYmd: string
       
       if (filterType === 'month') {
-        start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).toISOString();
-        end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).toISOString();
+        const ymd = formatWibYmd(selectedDate)
+        const y = Number(ymd.slice(0, 4))
+        const m = Number(ymd.slice(5, 7))
+        const endDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+        startYmd = `${ymd.slice(0, 8)}01`
+        endYmd = `${ymd.slice(0, 5)}${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
       } else if (filterType === 'year') {
-        start = new Date(selectedDate.getFullYear(), 0, 1).toISOString();
-        end = new Date(selectedDate.getFullYear(), 11, 31).toISOString();
+        const y = Number(formatWibYmd(selectedDate).slice(0, 4))
+        startYmd = `${y}-01-01`
+        endYmd = `${y}-12-31`
       } else {
-        // Range
-        start = new Date(dateRange.start).toISOString();
-        const endDate = new Date(dateRange.end);
-        endDate.setHours(23, 59, 59, 999);
-        end = endDate.toISOString();
+        startYmd = dateRange.start
+        endYmd = dateRange.end
       }
       
-      const res = await fetch(`/api/kebun/${kebunId}/permintaan?startDate=${start}&endDate=${end}`);
+      const res = await fetch(`/api/kebun/${kebunId}/permintaan?startDate=${encodeURIComponent(startYmd)}&endDate=${encodeURIComponent(endYmd)}`);
       if (!res.ok) throw new Error('Gagal mengambil data');
       const data = await res.json();
       setItems(data);
@@ -117,14 +138,12 @@ export default function PermintaanTab({ kebunId }: { kebunId: number }) {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (filterType === 'month') {
-      const date = new Date(e.target.value + '-01');
-      if (!isNaN(date.getTime())) setSelectedDate(date);
+      const date = parseMonthToWibDate(e.target.value)
+      if (date && !isNaN(date.getTime())) setSelectedDate(date);
     } else if (filterType === 'year') {
       const year = parseInt(e.target.value);
       if (!isNaN(year)) {
-        const date = new Date();
-        date.setFullYear(year);
-        setSelectedDate(date);
+        setSelectedDate(new Date(`${year}-01-01T00:00:00+07:00`));
       }
     }
   };
@@ -248,7 +267,7 @@ export default function PermintaanTab({ kebunId }: { kebunId: number }) {
                   <Input 
                     type="month" 
                     className="h-10 w-full sm:w-40 bg-white" 
-                    value={selectedDate.toISOString().slice(0, 7)}
+                    value={formatWibYm(selectedDate)}
                     onChange={handleDateChange}
                   />
                 )}
@@ -256,7 +275,7 @@ export default function PermintaanTab({ kebunId }: { kebunId: number }) {
                 {filterType === 'year' && (
                   <select
                     className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-32"
-                    value={selectedDate.getFullYear()}
+                    value={Number(formatWibYmd(selectedDate).slice(0, 4))}
                     onChange={handleDateChange}
                   >
                     {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (

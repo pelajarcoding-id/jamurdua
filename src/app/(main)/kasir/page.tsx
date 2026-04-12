@@ -131,7 +131,7 @@ const KasirPage = () => {
   useEffect(() => {
     // Initialize dates using WIB
     const { year, month, day } = getCurrentWIBDateParts();
-    const start = createWIBDate(year, 1, 1);
+    const start = createWIBDate(year, 0, 1);
     const end = createWIBDate(year, month, day, true);
     
     setQuickRange('this_year')
@@ -282,7 +282,7 @@ const KasirPage = () => {
       setStartDate(createWIBDate(year, month, 1));
       setEndDate(createWIBDate(year, month, day, true));
     } else if (val === 'this_year') {
-      setStartDate(createWIBDate(year, 1, 1));
+      setStartDate(createWIBDate(year, 0, 1));
       setEndDate(createWIBDate(year, month, day, true));
     }
   };

@@ -77,7 +77,49 @@ interface BiayaLain {
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(date);
-const toYmdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const formatWIBDateForInput = (date: Date | undefined) => {
+  if (!date) return ''
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+const toYmdLocal = (d: Date) => formatWIBDateForInput(d)
+
+const createWIBDate = (year: number, month: number, day: number, isEnd: boolean = false) => {
+  const hour = isEnd ? 16 : -7
+  const minute = isEnd ? 59 : 0
+  const second = isEnd ? 59 : 0
+  const ms = isEnd ? 999 : 0
+  return new Date(Date.UTC(year, month, day, hour, minute, second, ms))
+}
+
+const parseWIBDateFromInput = (dateStr: string, isEnd: boolean = false) => {
+  if (!dateStr) return undefined
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return createWIBDate(year, month - 1, day, isEnd)
+}
+
+const getCurrentWIBDateParts = () => {
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  })
+  const parts = formatter.formatToParts(now)
+  const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0')
+  return {
+    year: getPart('year'),
+    month: getPart('month') - 1,
+    day: getPart('day'),
+  }
+}
 
 const createHistoryColumns = (
   onDelete: (id: number) => void,
@@ -280,9 +322,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const handleResetForm = () => {
     setEditingGajianId(null);
     // Reset to current month
-    const now = new Date();
-    setStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    const { year, month } = getCurrentWIBDateParts()
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+    setStartDate(createWIBDate(year, month, 1))
+    setEndDate(createWIBDate(year, month, lastDay, true))
     setNotas([]);
     setRowSelection({});
     setNotasToProcess([]);
@@ -323,9 +366,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   };
 
   useEffect(() => {
-    const now = new Date();
-    setStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    const { year, month } = getCurrentWIBDateParts()
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+    setStartDate(createWIBDate(year, month, 1))
+    setEndDate(createWIBDate(year, month, lastDay, true))
   }, []);
   const [keterangan, setKeterangan] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -576,8 +620,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       // Set form state with draft data
       setEditingGajianId(draftData.id);
       setKebunId(String(draftData.kebunId));
-      setStartDate(new Date(draftData.tanggalMulai));
-      setEndDate(new Date(draftData.tanggalSelesai));
+      const startYmd = formatWIBDateForInput(new Date(draftData.tanggalMulai))
+      const endYmd = formatWIBDateForInput(new Date(draftData.tanggalSelesai))
+      setStartDate(parseWIBDateFromInput(startYmd));
+      setEndDate(parseWIBDateFromInput(endYmd, true));
       setNotasToProcess(draftData.detailGajian.map((d: DetailGajianWithRelations) => d.notaSawit));
       setSavedBiaya(draftData.biayaLain.map((b: BiayaLainGajian) => ({ 
         id: String(b.id), 
@@ -630,18 +676,22 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       
       // Build hutangRows table for the draft's period (same as in proses gajian)
       try {
-        const adjustedEndDateForHutang = new Date(draftData.tanggalSelesai);
-        adjustedEndDateForHutang.setHours(23, 59, 59, 999);
+        const draftStartYmd = formatWIBDateForInput(new Date(draftData.tanggalMulai))
+        const draftEndYmd = formatWIBDateForInput(new Date(draftData.tanggalSelesai))
+        const adjustedStartDateForHutang = parseWIBDateFromInput(draftStartYmd)
+        const adjustedEndDateForHutang = parseWIBDateFromInput(draftEndYmd, true)
         const hutangParams = new URLSearchParams({
           kebunId: String(draftData.kebunId),
-          startDate: new Date(draftData.tanggalMulai).toISOString(),
-          endDate: adjustedEndDateForHutang.toISOString(),
+          startDate: adjustedStartDateForHutang?.toISOString() || new Date(draftData.tanggalMulai).toISOString(),
+          endDate: adjustedEndDateForHutang?.toISOString() || new Date(draftData.tanggalSelesai).toISOString(),
         });
         const hutangRes = await fetch(`/api/karyawan-kebun?${hutangParams.toString()}`, { cache: 'no-store' });
         if (hutangRes.ok) {
           const json = await hutangRes.json();
           const list = Array.isArray(json.data) ? json.data : [];
-          const tglLabel = adjustedEndDateForHutang.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
+          const tglLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: '2-digit' }).format(
+            (adjustedEndDateForHutang as any) || new Date(draftData.tanggalSelesai)
+          );
           const mapped = list.map((r: any) => ({
             name: r.karyawan?.name || '-',
             tanggal: tglLabel,
@@ -659,12 +709,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       }
       
       // Fetch notas that are not yet in the processing list
-      const adjustedEndDate = new Date(draftData.tanggalSelesai);
-      adjustedEndDate.setHours(23, 59, 59, 999);
+      const draftStartYmd = formatWIBDateForInput(new Date(draftData.tanggalMulai))
+      const draftEndYmd = formatWIBDateForInput(new Date(draftData.tanggalSelesai))
+      const adjustedStartDate = parseWIBDateFromInput(draftStartYmd)
+      const adjustedEndDate = parseWIBDateFromInput(draftEndYmd, true)
       const params = new URLSearchParams({
         kebunId: String(draftData.kebunId),
-        startDate: new Date(draftData.tanggalMulai).toISOString(),
-        endDate: adjustedEndDate.toISOString(),
+        startDate: adjustedStartDate?.toISOString() || new Date(draftData.tanggalMulai).toISOString(),
+        endDate: adjustedEndDate?.toISOString() || new Date(draftData.tanggalSelesai).toISOString(),
         page: '1',
         limit: '1000', // Fetch all to compare
       });
@@ -730,13 +782,13 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     }
     if (!editingGajianId) {
       const kebunIdNum = Number(kebunId)
-      const startKey = format(startDate, 'yyyy-MM-dd')
-      const endKey = format(endDate, 'yyyy-MM-dd')
+      const startKey = formatWIBDateForInput(startDate)
+      const endKey = formatWIBDateForInput(endDate)
       const existsDraft = (draftsGajian || []).some((d: any) => {
         const sameKebun = Number(d?.kebunId) === kebunIdNum
         if (!sameKebun) return false
-        const dStart = format(new Date(d.tanggalMulai), 'yyyy-MM-dd')
-        const dEnd = format(new Date(d.tanggalSelesai), 'yyyy-MM-dd')
+        const dStart = formatWIBDateForInput(new Date(d.tanggalMulai))
+        const dEnd = formatWIBDateForInput(new Date(d.tanggalSelesai))
         return dStart === startKey && dEnd === endKey
       })
       if (existsDraft) {
@@ -747,12 +799,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     setLoading(true);
     setSearchAttempted(true);
     try {
-      const adjustedEndDate = new Date(endDate);
-      adjustedEndDate.setHours(23, 59, 59, 999);
       const params = new URLSearchParams({
         kebunId,
         startDate: startDate.toISOString(),
-        endDate: adjustedEndDate.toISOString(),
+        endDate: endDate.toISOString(),
         page: String(newPage),
         limit: String(limit),
       });
@@ -806,8 +856,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
     if (detailKaryawan.length === 0 && kebunId && startDate && endDate) {
       try {
-        const adjustedEndDate = new Date(endDate)
-        adjustedEndDate.setHours(23, 59, 59, 999)
         const paramsActive = new URLSearchParams({
           kebunId,
           jobType: 'KEBUN',
@@ -818,7 +866,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         const paramsAbsensi = new URLSearchParams({
           kebunId,
           startDate: startDate.toISOString(),
-          endDate: adjustedEndDate.toISOString(),
+          endDate: endDate.toISOString(),
           unpaid: '1',
         })
         const [resKaryawan, resAbsensi] = await Promise.all([
@@ -903,8 +951,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const refreshGajiKaryawanDraft = useCallback(async () => {
     if (!editingGajianId) return
     if (!kebunId || !startDate || !endDate) throw new Error('Pilih kebun dan periode terlebih dahulu')
-    const adjustedEndDate = new Date(endDate)
-    adjustedEndDate.setHours(23, 59, 59, 999)
     const paramsActive = new URLSearchParams({
       kebunId,
       jobType: 'KEBUN',
@@ -915,7 +961,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     const paramsAbsensi = new URLSearchParams({
       kebunId,
       startDate: startDate.toISOString(),
-      endDate: adjustedEndDate.toISOString(),
+      endDate: endDate.toISOString(),
       unpaid: '1',
     })
     const [resKaryawan, resAbsensi] = await Promise.all([
@@ -978,11 +1024,9 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     }
     setBoronganLoading(true)
     try {
-      const adjustedEndDate = new Date(endDate)
-      adjustedEndDate.setHours(23, 59, 59, 999)
       const params = new URLSearchParams({
         startDate: startDate.toISOString(),
-        endDate: adjustedEndDate.toISOString(),
+        endDate: endDate.toISOString(),
         unpaid: '1',
         upahBorongan: '1',
       })
@@ -1317,12 +1361,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   const fetchHutangSaldoForPeriod = useCallback(async () => {
     if (!kebunId || !startDate || !endDate) return {} as Record<number, number>
-    const adjustedEndDate = new Date(endDate)
-    adjustedEndDate.setHours(23, 59, 59, 999)
     const params = new URLSearchParams({
       kebunId,
       startDate: startDate.toISOString(),
-      endDate: adjustedEndDate.toISOString(),
+      endDate: endDate.toISOString(),
     })
     const res = await fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' })
     if (!res.ok) throw new Error('Gagal mengambil data hutang')
@@ -1345,7 +1387,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     const existing = id ? hutangTambahanMap[Number(id)] : undefined
     setTambahHutangKaryawanId(id)
     setTambahHutangJumlah(existing?.jumlah || 0)
-    setTambahHutangTanggal(existing?.date || (endDate ? format(endDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')))
+    setTambahHutangTanggal(existing?.date || (endDate ? formatWIBDateForInput(endDate) : formatWIBDateForInput(new Date())))
     setTambahHutangDeskripsi(existing?.deskripsi || 'Hutang Karyawan')
     setOpenTambahHutang(true)
   }, [detailKaryawan, endDate, hutangTambahanMap])
@@ -1366,7 +1408,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         ...prev,
         [karyawanIdNum]: {
           jumlah: Math.round(Number(tambahHutangJumlah) || 0),
-          date: tambahHutangTanggal || (endDate ? format(endDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
+          date: tambahHutangTanggal || (endDate ? formatWIBDateForInput(endDate) : formatWIBDateForInput(new Date())),
           deskripsi: tambahHutangDeskripsi || 'Hutang Karyawan',
         },
       }))
@@ -1420,9 +1462,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     setHutangLoading(true)
     try {
       const map = Object.keys(hutangSaldoMap).length > 0 ? hutangSaldoMap : await fetchHutangSaldoForPeriod()
-      const adjustedEndDate = new Date(endDate)
-      adjustedEndDate.setHours(23, 59, 59, 999)
-      const tgl = adjustedEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })
+      const tgl = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: '2-digit' }).format(endDate)
 
       setPotongan(prev => prev.filter(p => p.deskripsi !== 'Potongan Hutang Karyawan Kebun'))
 
@@ -1511,18 +1551,16 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       return;
     }
     try {
-      const adjustedEndDate = new Date(endDate);
-      adjustedEndDate.setHours(23, 59, 59, 999);
       const params = new URLSearchParams({
         kebunId,
         startDate: startDate.toISOString(),
-        endDate: adjustedEndDate.toISOString(),
+        endDate: endDate.toISOString(),
       });
       const res = await fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data hutang');
       const json = await res.json();
       const list = Array.isArray(json.data) ? json.data : [];
-      const tgl = adjustedEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
+      const tgl = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: '2-digit' }).format(endDate);
       const mapped = list.map((r: any) => ({
         name: r.karyawan?.name || '-',
         tanggal: tgl,
@@ -1551,9 +1589,9 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const jsPDF = (await import('jspdf')).default;
       const autoTable = (await import('jspdf-autotable')).default;
       const doc = new jsPDF();
-      const start = startDate.toLocaleDateString('id-ID', { day: 'numeric' });
-      const end = endDate.toLocaleDateString('id-ID', { day: 'numeric' });
-      const monthLabel = endDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      const start = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' }).format(startDate);
+      const end = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' }).format(endDate);
+      const monthLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric' }).format(endDate);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text(`DAFTAR HUTANG PERIODE  TGL ${start} s/d ${end} - ${monthLabel}`, 14, 20);
@@ -1753,13 +1791,13 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     if (!kebunId || !startDate || !endDate) return null
     const kebunIdNum = Number(kebunId)
     if (!Number.isFinite(kebunIdNum)) return null
-    const startKey = format(startDate, 'yyyy-MM-dd')
-    const endKey = format(endDate, 'yyyy-MM-dd')
+    const startKey = formatWIBDateForInput(startDate)
+    const endKey = formatWIBDateForInput(endDate)
     return (draftsGajian || []).find((d: any) => {
       const sameKebun = Number(d?.kebunId) === kebunIdNum
       if (!sameKebun) return false
-      const dStart = format(new Date(d.tanggalMulai), 'yyyy-MM-dd')
-      const dEnd = format(new Date(d.tanggalSelesai), 'yyyy-MM-dd')
+      const dStart = formatWIBDateForInput(new Date(d.tanggalMulai))
+      const dEnd = formatWIBDateForInput(new Date(d.tanggalSelesai))
       return dStart === startKey && dEnd === endKey
     }) || null
   }, [draftsGajian, editingGajianId, endDate, kebunId, startDate])
@@ -1818,14 +1856,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                 <Input 
                   className="input-style rounded-xl w-full min-w-0" 
                   type="date" 
-                  value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)} 
+                  value={startDate ? formatWIBDateForInput(startDate) : ''}
+                  onChange={(e) => setStartDate(parseWIBDateFromInput(e.target.value))} 
                 />
                 <Input 
                   className="input-style rounded-xl w-full min-w-0" 
                   type="date" 
-                  value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)} 
+                  value={endDate ? formatWIBDateForInput(endDate) : ''}
+                  onChange={(e) => setEndDate(parseWIBDateFromInput(e.target.value, true))} 
                 />
               </div>
             </div>

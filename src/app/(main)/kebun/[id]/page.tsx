@@ -80,12 +80,27 @@ type GajianWithDetails = Gajian & {
   detailKaryawan: (DetailGajianKaryawan & { user: User })[]
 }
 
-function GajianTab({ kebunId }: { kebunId: number }) {
+const getWibNowParts = () => {
   const now = new Date()
-  const defaultStart = format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM-dd')
-  const defaultEnd = format(new Date(now.getFullYear(), now.getMonth() + 1, 0), 'yyyy-MM-dd')
-  const defaultHistoryStart = format(new Date(now.getFullYear(), 0, 1), 'yyyy-MM-dd')
-  const defaultHistoryEnd = format(new Date(now.getFullYear(), 11, 31), 'yyyy-MM-dd')
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  })
+  const parts = formatter.formatToParts(now)
+  const getPart = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0')
+  return { year: getPart('year'), month: getPart('month'), day: getPart('day') }
+}
+
+function GajianTab({ kebunId }: { kebunId: number }) {
+  const { year, month } = getWibNowParts()
+  const monthKey = String(month).padStart(2, '0')
+  const endDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const defaultStart = `${year}-${monthKey}-01`
+  const defaultEnd = `${year}-${monthKey}-${String(endDay).padStart(2, '0')}`
+  const defaultHistoryStart = `${year}-01-01`
+  const defaultHistoryEnd = `${year}-12-31`
 
   const [startDate, setStartDate] = useState(defaultStart)
   const [endDate, setEndDate] = useState(defaultEnd)
@@ -152,13 +167,10 @@ function GajianTab({ kebunId }: { kebunId: number }) {
   const fetchPreview = useCallback(async () => {
     setPreviewLoading(true)
     try {
-      const startISO = new Date(startDate).toISOString()
-      const endISO = new Date(endDate).toISOString()
-
       const [unpaidRes, actRes, notaRes, potonganRes] = await Promise.all([
-        fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${startISO}&endDate=${endISO}&unpaid=1`, { cache: 'no-store' }),
-        fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${startISO}&endDate=${endISO}&unpaid=1`),
-        fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${startISO}&endDate=${endISO}`, { cache: 'no-store' }),
+        fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`, { cache: 'no-store' }),
+        fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`),
+        fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?startDate=${startDate}&endDate=${endDate}`, { cache: 'no-store' }),
       ])
 
@@ -220,8 +232,8 @@ function GajianTab({ kebunId }: { kebunId: number }) {
     try {
       const params = new URLSearchParams({ fetchHistory: 'true', kebunId: String(kebunId) })
       if (historyStartDate && historyEndDate) {
-        params.set('startDate', new Date(historyStartDate).toISOString())
-        params.set('endDate', new Date(historyEndDate).toISOString())
+        params.set('startDate', historyStartDate)
+        params.set('endDate', historyEndDate)
       }
       const res = await fetch(`/api/gajian?${params.toString()}`, { cache: 'no-store' })
       if (res.ok) {
@@ -273,9 +285,6 @@ function GajianTab({ kebunId }: { kebunId: number }) {
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true)
     try {
-      const startISO = new Date(startDate).toISOString()
-      const endISO = new Date(endDate).toISOString()
-
       const detailKaryawan = unpaidList
         .filter(u => Number(u.total) > 0)
         .map(u => ({
@@ -293,8 +302,8 @@ function GajianTab({ kebunId }: { kebunId: number }) {
 
       const payload = {
         kebunId,
-        tanggalMulai: startISO,
-        tanggalSelesai: endISO,
+        tanggalMulai: startDate,
+        tanggalSelesai: endDate,
         detailKaryawan,
         biayaLain,
         potongan: potonganList
@@ -722,7 +731,7 @@ function GajianTab({ kebunId }: { kebunId: number }) {
         onClose={() => setIsConfirmOpen(false)}
         onConfirm={handleSubmit}
         title="Konfirmasi Ajukan Gajian"
-        description={`Ajukan gajian periode ${format(new Date(startDate), 'dd MMM yyyy', { locale: localeId })} - ${format(new Date(endDate), 'dd MMM yyyy', { locale: localeId })}?`}
+        description={`Ajukan gajian periode ${format(new Date(`${startDate}T00:00:00+07:00`), 'dd MMM yyyy', { locale: localeId })} - ${format(new Date(`${endDate}T00:00:00+07:00`), 'dd MMM yyyy', { locale: localeId })}?`}
         variant="emerald"
       />
     </div>

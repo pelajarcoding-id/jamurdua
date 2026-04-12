@@ -75,6 +75,10 @@ export default function NotaSawitPage() {
   const [isBulkHargaOpen, setIsBulkHargaOpen] = useState(false)
   const [bulkHargaValue, setBulkHargaValue] = useState('')
   const [bulkHargaSubmitting, setBulkHargaSubmitting] = useState(false)
+  const [duplicateWarningOpen, setDuplicateWarningOpen] = useState(false)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<any[]>([])
+  const [pendingDuplicatePayload, setPendingDuplicatePayload] = useState<any | null>(null)
+  const [submittingDuplicateProceed, setSubmittingDuplicateProceed] = useState(false)
   const [isUbahStatusModalOpen, setIsUbahStatusModalOpen] = useState(false);
   const [selectedNota, setSelectedNota] = useState<NotaSawitData | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -241,6 +245,19 @@ export default function NotaSawitPage() {
     return 'Pilih Rentang Waktu';
   }, [quickRange, startDate, endDate]);
 
+  const toWibYmd = useCallback((dt?: Date) => {
+    if (!dt) return ''
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+    const wib = new Date(dt.getTime() + WIB_OFFSET_MS)
+    const y = wib.getUTCFullYear()
+    const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(wib.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }, [])
+
+  const wibStartFromYmd = useCallback((ymd: string) => new Date(`${ymd}T00:00:00+07:00`), [])
+  const wibEndFromYmd = useCallback((ymd: string) => new Date(`${ymd}T23:59:59.999+07:00`), [])
+
   useEffect(() => {
     setCursorId(null);
     setCursorStack([]);
@@ -248,41 +265,46 @@ export default function NotaSawitPage() {
   }, [debouncedSearchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, limit]);
 
   const applyQuickRange = useCallback((val: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const shiftDays = (dt: Date, days: number) => new Date(dt.getTime() + days * 24 * 60 * 60 * 1000)
+    const todayYmd = toWibYmd(new Date())
+    const todayStart = wibStartFromYmd(todayYmd)
+    const todayEnd = wibEndFromYmd(todayYmd)
     setQuickRange(val);
     
     if (val === 'all') {
       setStartDate(undefined);
       setEndDate(undefined);
     } else if (val === 'today') {
-      setStartDate(today);
-      setEndDate(today);
+      setStartDate(todayStart);
+      setEndDate(todayEnd);
     } else if (val === 'yesterday') {
-      const y = new Date(today);
-      y.setDate(today.getDate() - 1);
-      setStartDate(y);
-      setEndDate(y);
+      const yStart = shiftDays(todayStart, -1)
+      const yYmd = toWibYmd(yStart)
+      setStartDate(wibStartFromYmd(yYmd));
+      setEndDate(wibEndFromYmd(yYmd));
     } else if (val === 'last_week') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 7);
+      const start = shiftDays(todayStart, -7)
       setStartDate(start);
-      setEndDate(today);
+      setEndDate(todayEnd);
     } else if (val === 'last_30_days') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 30);
+      const start = shiftDays(todayStart, -30)
       setStartDate(start);
-      setEndDate(today);
+      setEndDate(todayEnd);
     } else if (val === 'this_month') {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      setStartDate(start);
-      setEndDate(today);
+      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
+      const y = wibToday.getUTCFullYear()
+      const m = String(wibToday.getUTCMonth() + 1).padStart(2, '0')
+      const startYmd = `${y}-${m}-01`
+      setStartDate(wibStartFromYmd(startYmd));
+      setEndDate(todayEnd);
     } else if (val === 'this_year') {
-      const start = new Date(today.getFullYear(), 0, 1);
-      setStartDate(start);
-      setEndDate(today);
+      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
+      const y = wibToday.getUTCFullYear()
+      const startYmd = `${y}-01-01`
+      setStartDate(wibStartFromYmd(startYmd));
+      setEndDate(todayEnd);
     }
-  }, []);
+  }, [toWibYmd, wibEndFromYmd, wibStartFromYmd]);
 
   const handleSaveStatus = useCallback(async (id: number, status: 'LUNAS' | 'BELUM_LUNAS') => {
     const previousData = [...data];
@@ -413,6 +435,13 @@ export default function NotaSawitPage() {
            
            if (!response.ok) {
                const errData = await response.json().catch(() => ({}));
+               if (response.status === 409 && errData?.code === 'DUPLICATE_NOTA') {
+                 setDuplicateCandidates(Array.isArray(errData?.duplicates) ? errData.duplicates : [])
+                 setPendingDuplicatePayload(payload)
+                 setDuplicateWarningOpen(true)
+                 toast.dismiss(toastId)
+                 return
+               }
                throw new Error(errData.error || 'Gagal menambahkan data');
            }
            
@@ -425,6 +454,33 @@ export default function NotaSawitPage() {
          console.error(error);
     }
   }, [selectedNota, refreshData, handleCloseModal]);
+
+  const handleProceedDuplicateCreate = useCallback(async () => {
+    if (!pendingDuplicatePayload || submittingDuplicateProceed) return
+    setSubmittingDuplicateProceed(true)
+    const toastId = toast.loading('Menambahkan nota...')
+    try {
+      const response = await fetch('/api/nota-sawit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...pendingDuplicatePayload, forceDuplicate: true }),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.error || 'Gagal menambahkan data')
+      }
+      refreshData()
+      handleCloseModal()
+      setDuplicateWarningOpen(false)
+      setDuplicateCandidates([])
+      setPendingDuplicatePayload(null)
+      toast.success('Nota berhasil ditambahkan', { id: toastId })
+    } catch (error: any) {
+      toast.error(error?.message || 'Gagal menambahkan data', { id: toastId })
+    } finally {
+      setSubmittingDuplicateProceed(false)
+    }
+  }, [handleCloseModal, pendingDuplicatePayload, refreshData, submittingDuplicateProceed])
 
   const handleDelete = useCallback(async () => {
     if (!selectedNota) return;
@@ -1147,9 +1203,9 @@ export default function NotaSawitPage() {
                               id="start-date"
                               type="date"
                               className="col-span-2 h-8"
-                              value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                              value={startDate ? toWibYmd(startDate) : ''}
                               onChange={(e) => {
-                                setStartDate(e.target.value ? new Date(e.target.value) : undefined);
+                                setStartDate(e.target.value ? wibStartFromYmd(e.target.value) : undefined);
                                 setQuickRange('custom');
                               }}
                             />
@@ -1160,9 +1216,9 @@ export default function NotaSawitPage() {
                               id="end-date"
                               type="date"
                               className="col-span-2 h-8"
-                              value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                              value={endDate ? toWibYmd(endDate) : ''}
                               onChange={(e) => {
-                                setEndDate(e.target.value ? new Date(e.target.value) : undefined);
+                                setEndDate(e.target.value ? wibEndFromYmd(e.target.value) : undefined);
                                 setQuickRange('custom');
                               }}
                             />
@@ -1549,6 +1605,112 @@ export default function NotaSawitPage() {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={duplicateWarningOpen}
+        onOpenChange={(open) => {
+          if (!open && !submittingDuplicateProceed) {
+            setDuplicateWarningOpen(false)
+            setDuplicateCandidates([])
+            setPendingDuplicatePayload(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[96vw] sm:w-full sm:max-w-2xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Peringatan Duplikasi Nota"
+            subtitle="Ditemukan nota lain dengan data identik. Pastikan ini bukan input ganda."
+            variant="emerald"
+            icon={<DocumentTextIcon className="h-5 w-5 text-white" />}
+            onClose={() => {
+              if (submittingDuplicateProceed) return
+              setDuplicateWarningOpen(false)
+              setDuplicateCandidates([])
+              setPendingDuplicatePayload(null)
+            }}
+          />
+          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto">
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                Sistem menemukan nota dengan kombinasi yang sama: Tanggal Bongkar, Pabrik, Supir, Kendaraan, Bruto, Tara, Netto, Potongan, dan Berat Akhir.
+              </div>
+              <div className="space-y-2">
+                {(duplicateCandidates || []).length === 0 ? (
+                  <div className="text-sm text-gray-500">Tidak ada kandidat.</div>
+                ) : (
+                  duplicateCandidates.map((d: any) => (
+                    <div key={String(d?.id)} className="rounded-xl border border-gray-100 bg-white p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-gray-900">Nota #{d?.id}</div>
+                          <div className="text-xs text-gray-500">
+                            {d?.tanggalBongkar ? new Date(d.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {d?.pabrikSawit?.name || '-'} • {d?.supir?.name || '-'} • {d?.kendaraanPlatNomor || '-'}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="rounded-full"
+                          onClick={() => {
+                            const id = Number(d?.id)
+                            if (!Number.isFinite(id) || id <= 0) return
+                            window.open(`/nota-sawit?search=${encodeURIComponent(String(id))}`, '_blank')
+                          }}
+                        >
+                          Lihat
+                        </Button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                        <div className="rounded-lg bg-gray-50 px-2 py-1">
+                          <div className="text-gray-500">Bruto</div>
+                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.bruto || 0))}</div>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 px-2 py-1">
+                          <div className="text-gray-500">Tara</div>
+                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.tara || 0))}</div>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 px-2 py-1">
+                          <div className="text-gray-500">Netto</div>
+                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.netto || 0))}</div>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 px-2 py-1">
+                          <div className="text-gray-500">Potongan</div>
+                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.potongan || 0))}</div>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 px-2 py-1">
+                          <div className="text-gray-500">Berat Akhir</div>
+                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.beratAkhir || 0))}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-between">
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => {
+                if (submittingDuplicateProceed) return
+                setDuplicateWarningOpen(false)
+                setDuplicateCandidates([])
+                setPendingDuplicatePayload(null)
+              }}
+              disabled={submittingDuplicateProceed}
+            >
+              Batal
+            </Button>
+            <Button
+              className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleProceedDuplicateCreate}
+              disabled={submittingDuplicateProceed || !pendingDuplicatePayload}
+            >
+              {submittingDuplicateProceed ? 'Menyimpan...' : 'Tetap Simpan'}
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!viewImageUrl} onOpenChange={(open) => !open && setViewImageUrl(null)}>
         <DialogContent className="max-w-5xl w-[95vw] p-0 overflow-hidden border-none bg-white shadow-2xl [&>button.absolute]:hidden">

@@ -38,6 +38,24 @@ type User = {
   name: string;
 };
 
+const formatWibYmd = (date: Date) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+
+const formatWibYm = (date: Date) => formatWibYmd(date).slice(0, 7)
+
+const parseMonthToWibDate = (ym: string) => {
+  const raw = String(ym || '').trim()
+  if (!raw) return null
+  const m = raw.match(/^(\d{4})-(\d{2})$/)
+  if (!m) return null
+  return new Date(`${m[1]}-${m[2]}-01T00:00:00+07:00`)
+}
+
 const formatNumber = (value: number | string) => {
   const numeric = typeof value === 'string' ? parseNumber(value) : value;
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(numeric || 0);
@@ -110,7 +128,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
 
   // Form State
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: formatWibYmd(new Date()),
     jenisPekerjaan: '',
     keterangan: '',
     biaya: 0,
@@ -130,7 +148,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
   const [editUserQuery, setEditUserQuery] = useState('');
   const [openEditUserSelect, setOpenEditUserSelect] = useState(false);
   const [editForm, setEditForm] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: formatWibYmd(new Date()),
     jenisPekerjaan: '',
     keterangan: '',
     biaya: 0,
@@ -145,40 +163,46 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
   const [activityFilter, setActivityFilter] = useState<'all' | 'upah' | 'aktivitas'>('all');
   const [dateRange, setDateRange] = useState({
-    start: new Date().toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
+    start: formatWibYmd(new Date()),
+    end: formatWibYmd(new Date())
   });
 
   useEffect(() => {
     fetchActivities();
-    fetchUsers();
   }, [kebunId, selectedDate, filterType, dateRange]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [kebunId]);
 
   const fetchActivities = async () => {
     try {
       setIsLoading(true);
-      let start, end;
-      
+      let startYmd: string
+      let endYmd: string
+
       if (filterType === 'month') {
-        start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).toISOString();
-        end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).toISOString();
+        const ymd = formatWibYmd(selectedDate)
+        const y = Number(ymd.slice(0, 4))
+        const m = Number(ymd.slice(5, 7))
+        const endDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+        startYmd = `${ymd.slice(0, 8)}01`
+        endYmd = `${ymd.slice(0, 5)}${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
       } else if (filterType === 'year') {
-        start = new Date(selectedDate.getFullYear(), 0, 1).toISOString();
-        end = new Date(selectedDate.getFullYear(), 11, 31).toISOString();
+        const y = Number(formatWibYmd(selectedDate).slice(0, 4))
+        startYmd = `${y}-01-01`
+        endYmd = `${y}-12-31`
       } else {
-        // Range
-        start = new Date(dateRange.start).toISOString();
-        const endDate = new Date(dateRange.end);
-        endDate.setHours(23, 59, 59, 999);
-        end = endDate.toISOString();
+        startYmd = dateRange.start
+        endYmd = dateRange.end
       }
       
-      const res = await fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${start}&endDate=${end}`);
+      const res = await fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startYmd)}&endDate=${encodeURIComponent(endYmd)}`);
       if (!res.ok) throw new Error('Gagal mengambil data');
       const data = await res.json();
       const grouped = new Map<string, Pekerjaan>();
       (Array.isArray(data) ? data : []).forEach((item: Pekerjaan) => {
-        const dateKey = new Date(item.date).toISOString().split('T')[0];
+        const dateKey = item.date ? formatWibYmd(new Date(item.date)) : '';
       const key = `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${item.biaya || 0}|${item.jumlah || 0}|${item.satuan || ''}|${item.hargaSatuan || 0}|${(item as any).imageUrl || ''}`;
         const isPaid = !!(item.upahBorongan && item.gajianStatus === 'FINALIZED')
         if (!grouped.has(key)) {
@@ -210,11 +234,9 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/karyawan?limit=100'); // Ambil karyawan (limit 100 untuk dropdown)
+      const res = await fetch(`/api/kebun/${kebunId}/karyawan?limit=1000`, { cache: 'no-store' });
       if (res.ok) {
         const responseData = await res.json();
-        // Respons API /api/karyawan mengembalikan { data: [...], total, page, limit }
-        // Jadi kita harus ambil properti .data, atau fallback ke array kosong jika gagal
         if (Array.isArray(responseData.data)) {
             setUsers(responseData.data);
         } else if (Array.isArray(responseData)) {
@@ -232,14 +254,12 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (filterType === 'month') {
-      const date = new Date(e.target.value + '-01');
-      if (!isNaN(date.getTime())) setSelectedDate(date);
+      const date = parseMonthToWibDate(e.target.value)
+      if (date && !isNaN(date.getTime())) setSelectedDate(date);
     } else if (filterType === 'year') {
       const year = parseInt(e.target.value);
       if (!isNaN(year)) {
-        const date = new Date();
-        date.setFullYear(year);
-        setSelectedDate(date);
+        setSelectedDate(new Date(`${year}-01-01T00:00:00+07:00`));
       }
     }
   };
@@ -276,7 +296,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
 
       toast.success('Pekerjaan berhasil dicatat', { id: loadingToast });
       setFormData({
-        date: new Date().toISOString().split('T')[0],
+        date: formatWibYmd(new Date()),
         jenisPekerjaan: '',
         keterangan: '',
         biaya: 0,
@@ -390,7 +410,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
       }
 
       const safeJenis = String(selectedActivity.jenisPekerjaan || 'pekerjaan').replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s+/g, '-')
-      const safeDate = activityDate ? activityDate.toISOString().slice(0, 10) : 'tanggal'
+      const safeDate = activityDate ? formatWibYmd(activityDate) : 'tanggal'
       doc.save(`detail-pekerjaan-${safeDate}-${safeJenis}.pdf`)
     } catch {
       toast.error('Gagal export PDF')
@@ -405,7 +425,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
     setEditBuktiPreview(item.imageUrl || null);
     const userIds = item.users && item.users.length > 0 ? item.users.map(u => u.id) : (item.user ? [item.user.id] : []);
     setEditForm({
-      date: new Date(item.date).toISOString().split('T')[0],
+      date: item.date ? formatWibYmd(new Date(item.date)) : formatWibYmd(new Date()),
       jenisPekerjaan: item.jenisPekerjaan,
       keterangan: item.keterangan || '',
       biaya: item.biaya || 0,
@@ -545,7 +565,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
               <Input 
                 type="month" 
                 className="h-10 w-full sm:w-40 bg-white" 
-                value={selectedDate.toISOString().slice(0, 7)}
+                value={formatWibYm(selectedDate)}
                 onChange={handleDateChange}
               />
             )}
@@ -553,7 +573,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
             {filterType === 'year' && (
               <select
                 className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-32"
-                value={selectedDate.getFullYear()}
+                value={Number(formatWibYmd(selectedDate).slice(0, 4))}
                 onChange={handleDateChange}
               >
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (

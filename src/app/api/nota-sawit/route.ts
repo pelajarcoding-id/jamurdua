@@ -295,6 +295,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const roundInt = (v: any) => Math.round(Number(v) || 0)
     const useTimbanganKebun = body.useTimbanganKebun === true || body.useTimbanganKebun === 'true'
+    const forceDuplicate = body.forceDuplicate === true || body.forceDuplicate === 'true'
     const supirId = Number(body.supirId);
     const kendaraanPlatNomor = body.kendaraanPlatNomor as string;
     const pabrikSawitId = Number(body.pabrikSawitId);
@@ -302,12 +303,12 @@ export async function POST(request: Request) {
     const tanggalBongkarValue = body.tanggalBongkar;
     const tanggalBongkarRaw = tanggalBongkarValue !== undefined && tanggalBongkarValue !== null ? String(tanggalBongkarValue).trim() : ''
     let tanggalBongkar: Date | null = null
+    const tanggalBongkarYmd = tanggalBongkarRaw ? parseWibYmd(tanggalBongkarRaw) : null
     if (tanggalBongkarRaw) {
-      const ymd = parseWibYmd(tanggalBongkarRaw)
-      if (!ymd) {
+      if (!tanggalBongkarYmd) {
         return NextResponse.json({ error: 'Tanggal bongkar tidak valid' }, { status: 400 })
       }
-      tanggalBongkar = wibStartUtc(ymd)
+      tanggalBongkar = wibStartUtc(tanggalBongkarYmd)
     }
     const potongan = roundInt(body.potongan);
     const hargaPerKg = roundInt(body.hargaPerKg);
@@ -375,6 +376,54 @@ export async function POST(request: Request) {
     const pph = roundInt(totalPembayaran * 0.0025);
     const pph25 = roundInt(body.pph25 || 0);
     const pembayaranSetelahPph = totalPembayaran - pph - pph25;
+
+    if (!forceDuplicate && tanggalBongkarYmd) {
+      const start = wibStartUtc(tanggalBongkarYmd)
+      const end = wibEndExclusiveUtc(tanggalBongkarYmd)
+      const duplicates = await prisma.notaSawit.findMany({
+        where: {
+          deletedAt: null,
+          tanggalBongkar: { gte: start, lt: end },
+          pabrikSawitId,
+          supirId,
+          kendaraanPlatNomor,
+          bruto,
+          tara,
+          netto: effectiveNetto,
+          potongan,
+          beratAkhir,
+        },
+        include: {
+          supir: { select: { id: true, name: true } },
+          pabrikSawit: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      })
+
+      if (duplicates.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Kemungkinan duplikat nota ditemukan',
+            code: 'DUPLICATE_NOTA',
+            duplicates: duplicates.map((d) => ({
+              id: d.id,
+              tanggalBongkar: d.tanggalBongkar,
+              supir: d.supir ? { id: d.supir.id, name: d.supir.name } : null,
+              pabrikSawit: d.pabrikSawit ? { id: d.pabrikSawit.id, name: d.pabrikSawit.name } : null,
+              kendaraanPlatNomor: d.kendaraanPlatNomor,
+              bruto: d.bruto,
+              tara: d.tara,
+              netto: d.netto,
+              potongan: d.potongan,
+              beratAkhir: d.beratAkhir,
+              createdAt: d.createdAt,
+            })),
+          },
+          { status: 409 },
+        )
+      }
+    }
 
     const pembayaranAktualValue = body.pembayaranAktual;
     const pembayaranAktual = (pembayaranAktualValue !== undefined && pembayaranAktualValue !== null && pembayaranAktualValue !== '') ? roundInt(pembayaranAktualValue) : null;

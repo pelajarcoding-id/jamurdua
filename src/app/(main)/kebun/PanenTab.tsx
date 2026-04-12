@@ -59,8 +59,8 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
         end = new Date(selectedDate.getFullYear(), 11, 31).toISOString();
       } else {
         // Range
-        start = new Date(dateRange.start).toISOString();
-        const endDate = new Date(dateRange.end);
+        start = new Date(`${dateRange.start}T00:00:00`).toISOString();
+        const endDate = new Date(`${dateRange.end}T00:00:00`);
         endDate.setHours(23, 59, 59, 999);
         end = endDate.toISOString();
       }
@@ -91,8 +91,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
     }
   };
 
-  const totalNetto = panenData.reduce((acc, curr) => acc + curr.netto, 0);
-  const totalBeratAkhir = panenData.reduce((acc, curr) => acc + curr.beratAkhir, 0);
+  const totalNetto = panenData.reduce((acc, curr) => acc + curr.beratAkhir, 0);
   const averageNetto = panenData.length > 0 ? totalNetto / panenData.length : 0;
 
   return (
@@ -208,7 +207,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-bold text-gray-900">Nota ke {idx + 1}</span>
                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-wider">Berhasil</span>
-                        <span className="text-sm font-black text-gray-900">Netto {item.netto.toLocaleString('id-ID')} kg</span>
+                        <span className="text-sm font-black text-gray-900">Berat Akhir {item.beratAkhir.toLocaleString('id-ID')} kg</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                         <div className="flex items-center gap-1">
@@ -247,6 +246,8 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                       <span>Bruto: {item.bruto.toLocaleString('id-ID')} kg</span>
                       <span>•</span>
                       <span>Tara: {item.tara.toLocaleString('id-ID')} kg</span>
+                      <span>•</span>
+                      <span>Netto: {item.netto.toLocaleString('id-ID')} kg</span>
                       <span>•</span>
                       <span>Potongan: {item.potongan.toLocaleString('id-ID')} kg</span>
                    </div>
