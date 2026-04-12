@@ -374,8 +374,8 @@ export default function UangJalanPage() {
 
                 const created = await response.json()
                 const rincian = Array.isArray(created?.rincian) ? created.rincian : []
-                const totalPemasukan = rincian.filter((r: any) => r.tipe === 'PEMASUKAN').reduce((acc: number, r: any) => acc + Number(r.amount || 0), 0)
-                const totalPengeluaran = rincian.filter((r: any) => r.tipe === 'PENGELUARAN').reduce((acc: number, r: any) => acc + Number(r.amount || 0), 0)
+                const totalPemasukan = rincian.filter((r: any) => String(r?.tipe || '').toUpperCase() === 'PEMASUKAN').reduce((acc: number, r: any) => acc + Number(r.amount || 0), 0)
+                const totalPengeluaran = rincian.filter((r: any) => String(r?.tipe || '').toUpperCase() === 'PENGELUARAN').reduce((acc: number, r: any) => acc + Number(r.amount || 0), 0)
 
                 const fallback: SesiUangJalanWithDetails = {
                     id: created.id,
@@ -547,8 +547,8 @@ export default function UangJalanPage() {
         setData(prevData => prevData.map(sesi => {
             if (sesi.id === sesiId) {
                 const newRincian = [tempRincian, ...sesi.rincian];
-                const totalPemasukan = newRincian.filter(r => r.tipe === 'PEMASUKAN').reduce((acc, r) => acc + r.amount, 0);
-                const totalPengeluaran = newRincian.filter(r => r.tipe === 'PENGELUARAN').reduce((acc, r) => acc + r.amount, 0);
+                const totalPemasukan = newRincian.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PEMASUKAN').reduce((acc, r) => acc + r.amount, 0);
+                const totalPengeluaran = newRincian.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PENGELUARAN').reduce((acc, r) => acc + r.amount, 0);
 
                 return {
                     ...sesi,
@@ -565,7 +565,7 @@ export default function UangJalanPage() {
         if (summary) {
             setSummary(prev => {
                 if (!prev) return null;
-                const isPemasukan = tipe === 'PEMASUKAN';
+                const isPemasukan = String(tipe || '').toUpperCase() === 'PEMASUKAN';
                 return {
                     ...prev,
                     totalDiberikan: isPemasukan ? prev.totalDiberikan + amount : prev.totalDiberikan,
@@ -635,8 +635,8 @@ export default function UangJalanPage() {
         setData(prevData => prevData.map(sesi => {
             if (sesi.id === sesiId) {
                 const newRincian = sesi.rincian.map(r => r.id === rincianId ? { ...r, tipe, amount, description, date: dateValue } as any : r)
-                const totalPemasukan = newRincian.filter(r => r.tipe === 'PEMASUKAN').reduce((acc, r) => acc + r.amount, 0)
-                const totalPengeluaran = newRincian.filter(r => r.tipe === 'PENGELUARAN').reduce((acc, r) => acc + r.amount, 0)
+                const totalPemasukan = newRincian.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PEMASUKAN').reduce((acc, r) => acc + r.amount, 0)
+                const totalPengeluaran = newRincian.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PENGELUARAN').reduce((acc, r) => acc + r.amount, 0)
 
                 return {
                     ...sesi,
@@ -656,8 +656,8 @@ export default function UangJalanPage() {
                 ...sesi,
                 rincian: sesi.rincian.map(r => r.id === rincianId ? { ...r, tipe, amount, description, date: dateValue } as any : r),
             } : sesi)
-            const nextTotalPemasukan = nextData.reduce((acc, s) => acc + (s.rincian?.filter(r => r.tipe === 'PEMASUKAN').reduce((a, r) => a + r.amount, 0) || 0), 0)
-            const nextTotalPengeluaran = nextData.reduce((acc, s) => acc + (s.rincian?.filter(r => r.tipe === 'PENGELUARAN').reduce((a, r) => a + r.amount, 0) || 0), 0)
+            const nextTotalPemasukan = nextData.reduce((acc, s) => acc + (s.rincian?.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PEMASUKAN').reduce((a, r) => a + r.amount, 0) || 0), 0)
+            const nextTotalPengeluaran = nextData.reduce((acc, s) => acc + (s.rincian?.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PENGELUARAN').reduce((a, r) => a + r.amount, 0) || 0), 0)
             setSummary({ ...previousSummary, totalDiberikan: previousSummary.totalDiberikan - prevTotalPemasukan + nextTotalPemasukan, totalPengeluaran: previousSummary.totalPengeluaran - prevTotalPengeluaran + nextTotalPengeluaran })
         }
 
@@ -712,8 +712,8 @@ export default function UangJalanPage() {
         setData(prevData => prevData.map(sesi => {
             if (sesi.id === sesiId) {
                 const newRincian = sesi.rincian.filter(r => r.id !== rincianId)
-                const totalPemasukan = newRincian.filter(r => r.tipe === 'PEMASUKAN').reduce((acc, r) => acc + r.amount, 0)
-                const totalPengeluaran = newRincian.filter(r => r.tipe === 'PENGELUARAN').reduce((acc, r) => acc + r.amount, 0)
+                const totalPemasukan = newRincian.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PEMASUKAN').reduce((acc, r) => acc + r.amount, 0)
+                const totalPengeluaran = newRincian.filter(r => String((r as any)?.tipe || '').toUpperCase() === 'PENGELUARAN').reduce((acc, r) => acc + r.amount, 0)
                 return {
                     ...sesi,
                     rincian: newRincian,

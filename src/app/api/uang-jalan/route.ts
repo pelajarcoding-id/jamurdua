@@ -90,11 +90,11 @@ export async function GET(request: Request) {
     if (idList.length > 0) {
       const pemasukanAgg = await prisma.uangJalan.aggregate({
         _sum: { amount: true },
-        where: { tipe: 'PEMASUKAN', sesiUangJalanId: { in: idList }, deletedAt: null },
+        where: { tipe: { equals: 'PEMASUKAN', mode: 'insensitive' }, sesiUangJalanId: { in: idList }, deletedAt: null },
       });
       const pengeluaranAgg = await prisma.uangJalan.aggregate({
         _sum: { amount: true },
-        where: { tipe: 'PENGELUARAN', sesiUangJalanId: { in: idList }, deletedAt: null },
+        where: { tipe: { equals: 'PENGELUARAN', mode: 'insensitive' }, sesiUangJalanId: { in: idList }, deletedAt: null },
       });
       totalDiberikan = pemasukanAgg._sum.amount || 0;
       totalPengeluaran = pengeluaranAgg._sum.amount || 0;
@@ -115,13 +115,15 @@ export async function GET(request: Request) {
       ],
     });
 
+    const normalizeTipe = (val: any) => String(val || '').toUpperCase()
+
     const result = sesiUangJalan.map((sesi: SesiWithDetails) => {
       const totalPemasukan = sesi.rincian
-        .filter((r: UangJalan) => r.tipe === 'PEMASUKAN')
+        .filter((r: UangJalan) => normalizeTipe(r.tipe) === 'PEMASUKAN')
         .reduce((acc: number, r: UangJalan) => acc + r.amount, 0);
 
       const totalPengeluaran = sesi.rincian
-        .filter((r: UangJalan) => r.tipe === 'PENGELUARAN')
+        .filter((r: UangJalan) => normalizeTipe(r.tipe) === 'PENGELUARAN')
         .reduce((acc: number, r: UangJalan) => acc + r.amount, 0);
 
       return {

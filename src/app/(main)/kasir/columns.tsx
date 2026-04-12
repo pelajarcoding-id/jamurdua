@@ -67,6 +67,7 @@ export const columns = (
           ) : null}
         </div>
     ),
+    footer: () => <div className="text-gray-700">TOTAL</div>,
   },
   {
     accessorKey: 'kategori',
@@ -101,6 +102,13 @@ export const columns = (
         {row.original.tipe === 'PEMASUKAN' ? formatCurrency(row.original.jumlah) : ''}
       </div>
     ),
+    footer: ({ table }) => {
+      const total = table.getRowModel().rows.reduce((acc, r) => {
+        const tipe = String((r.original as any)?.tipe || '').toUpperCase()
+        return tipe === 'PEMASUKAN' ? acc + Number((r.original as any)?.jumlah || 0) : acc
+      }, 0)
+      return <div className="text-right">{formatCurrency(total)}</div>
+    },
   },
   {
     header: 'Pengeluaran',
@@ -110,6 +118,13 @@ export const columns = (
         {row.original.tipe === 'PENGELUARAN' ? formatCurrency(row.original.jumlah) : ''}
       </div>
     ),
+    footer: ({ table }) => {
+      const total = table.getRowModel().rows.reduce((acc, r) => {
+        const tipe = String((r.original as any)?.tipe || '').toUpperCase()
+        return tipe === 'PENGELUARAN' ? acc + Number((r.original as any)?.jumlah || 0) : acc
+      }, 0)
+      return <div className="text-right text-red-600">{formatCurrency(total)}</div>
+    },
   },
   {
     accessorKey: 'keterangan',
