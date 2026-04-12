@@ -132,7 +132,7 @@ export default function PrintGajianPage() {
               </td>
               <td className="border border-black p-1">{item.detail?.notaSawit?.kendaraanPlatNomor || ''}</td>
               <td className="border border-black p-1">{item.detail?.notaSawit?.supir?.name || ''}</td>
-              <td className="border border-black p-1 text-right">{item.detail?.notaSawit?.timbangan ? formatNumber(item.detail.notaSawit.timbangan.netKg) : ''}</td>
+              <td className="border border-black p-1 text-right">{item.detail ? formatNumber(item.detail.notaSawit.beratAkhir) : ''}</td>
               <td className="border border-black p-1">{item.biaya?.deskripsi || ''}</td>
               <td className="border border-black p-1 text-right">{item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah)} ${item.biaya.satuan || ''}` : ''}</td>
               <td className="border border-black p-1 text-right">{item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : ''}</td>

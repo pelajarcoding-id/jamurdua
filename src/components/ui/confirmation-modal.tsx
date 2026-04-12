@@ -11,9 +11,12 @@ interface ConfirmationModalProps {
     title: string;
     description: string;
     variant?: ModalVariant;
+    cancelLabel?: string;
+    confirmLabel?: string;
+    confirmDisabled?: boolean;
 }
 
-export function ConfirmationModal({ isOpen, onClose, onConfirm, title, description, variant = 'blue' }: ConfirmationModalProps) {
+export function ConfirmationModal({ isOpen, onClose, onConfirm, title, description, variant = 'blue', cancelLabel = 'Batal', confirmLabel = 'Konfirmasi', confirmDisabled = false }: ConfirmationModalProps) {
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
             <DialogContent className="bg-white p-0 overflow-hidden [&>button.absolute]:hidden">
@@ -27,10 +30,10 @@ export function ConfirmationModal({ isOpen, onClose, onConfirm, title, descripti
                 </ModalContentWrapper>
                 <ModalFooter>
                     <Button variant="outline" onClick={onClose} className="rounded-full">
-                        Batal
+                        {cancelLabel}
                     </Button>
-                    <Button variant="destructive" onClick={onConfirm} className="rounded-full">
-                        Konfirmasi
+                    <Button variant="destructive" onClick={onConfirm} className="rounded-full" disabled={confirmDisabled}>
+                        {confirmLabel}
                     </Button>
                 </ModalFooter>
             </DialogContent>

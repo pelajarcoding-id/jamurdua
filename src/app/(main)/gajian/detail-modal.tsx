@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowPathIcon, DocumentArrowDownIcon, DocumentTextIcon, PrinterIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { ModalHeader } from "@/components/ui/modal-elements";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 
 // Define extended types to match the API response
 type NotaSawitWithRelations = NotaSawit & {
@@ -48,7 +49,7 @@ const formatDate = (date: Date | string) => new Intl.DateTimeFormat('id-ID', { d
 
 const formatKgNota = (nota?: NotaSawitWithRelations | null) => {
   if (!nota) return ''
-  const kg = nota.timbangan?.netKg ?? nota.beratAkhir
+  const kg = nota.beratAkhir
   if (!Number.isFinite(kg)) return ''
   return formatNumber(kg)
 }
@@ -75,13 +76,18 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
   const printRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isReverting, setIsReverting] = useState(false);
+  const [isRevertConfirmOpen, setIsRevertConfirmOpen] = useState(false);
   const [dibuatOlehName, setDibuatOlehName] = useState('')
   const [disetujuiOlehName, setDisetujuiOlehName] = useState('')
 
   const handleRevert = async () => {
     if (!gajianProp?.id) return;
-    if (!confirm('Apakah Anda yakin ingin membatalkan finalisasi gajian ini? Status akan kembali menjadi DRAFT dan relasi ke nota/aktivitas akan dilepas.')) return;
+    setIsRevertConfirmOpen(true)
+  };
 
+  const handleConfirmRevert = async () => {
+    if (!gajianProp?.id || isReverting) return
+    setIsRevertConfirmOpen(false)
     setIsReverting(true);
     try {
       const response = await fetch(`/api/gajian/${gajianProp.id}/revert`, {
@@ -954,6 +960,16 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
           </div>
         </DialogFooter>
       </DialogContent>
+      <ConfirmationModal
+        isOpen={isRevertConfirmOpen}
+        onClose={() => setIsRevertConfirmOpen(false)}
+        onConfirm={handleConfirmRevert}
+        title="Konfirmasi Batalkan Finalisasi"
+        description="Apakah Anda yakin ingin membatalkan finalisasi gajian ini? Status akan kembali menjadi DRAFT dan relasi ke nota/aktivitas akan dilepas."
+        variant="emerald"
+        confirmLabel={isReverting ? 'Memproses...' : 'Batalkan'}
+        confirmDisabled={isReverting}
+      />
     </Dialog>
   );
 }
