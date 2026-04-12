@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit';
 import { auth } from '@/auth';
+import { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic'
 
@@ -57,18 +58,60 @@ export async function POST(request: Request, { params }: Params) {
         if (jenis === 'STNK') {
             updateData.tanggalMatiStnk = new Date(berlakuHingga);
             if (fotoUrl) updateData.fotoStnkUrl = fotoUrl;
+        } else if (jenis === 'IZIN_TRAYEK') {
+            if (fotoUrl) updateData._izinTrayekUrl = fotoUrl
+            updateData._izinTrayekDate = new Date(berlakuHingga)
         } else if (jenis === 'PAJAK') {
             updateData.tanggalPajakTahunan = new Date(berlakuHingga);
-            if (fotoUrl) updateData.fotoPajakUrl = fotoUrl;
         } else if (jenis === 'SPEKSI') {
             updateData.speksi = new Date(berlakuHingga);
             if (fotoUrl) updateData.fotoSpeksiUrl = fotoUrl;
         }
 
-        await prisma.kendaraan.update({
+        const izinTrayekUrl = updateData._izinTrayekUrl || null
+        delete updateData._izinTrayekUrl
+        const izinTrayekDate = updateData._izinTrayekDate || null
+        delete updateData._izinTrayekDate
+
+        await (prisma.kendaraan as any).update({
             where: { platNomor },
-            data: updateData
-        });
+            data: updateData,
+        })
+
+        if (jenis === 'IZIN_TRAYEK' && izinTrayekDate) {
+            const col: any = await prisma.$queryRaw(
+                Prisma.sql`SELECT 1
+                           FROM information_schema.columns
+                           WHERE table_schema = 'public'
+                             AND table_name = 'Kendaraan'
+                             AND column_name = 'tanggalIzinTrayek'
+                           LIMIT 1`
+            )
+            if (Array.isArray(col) && col.length > 0) {
+                await prisma.$executeRaw(
+                    Prisma.sql`UPDATE "Kendaraan" SET "tanggalIzinTrayek" = ${izinTrayekDate} WHERE "platNomor" = ${platNomor}`
+                )
+            }
+        }
+
+        if ((jenis === 'IZIN_TRAYEK' || jenis === 'PAJAK') && fotoUrl) {
+            await prisma.$executeRaw(
+                Prisma.sql`UPDATE "Kendaraan" SET "fotoPajakUrl" = ${fotoUrl} WHERE "platNomor" = ${platNomor}`
+            )
+            const col: any = await prisma.$queryRaw(
+                Prisma.sql`SELECT 1
+                           FROM information_schema.columns
+                           WHERE table_schema = 'public'
+                             AND table_name = 'Kendaraan'
+                             AND column_name = 'fotoIzinTrayekUrl'
+                           LIMIT 1`
+            )
+            if (Array.isArray(col) && col.length > 0) {
+                await prisma.$executeRaw(
+                    Prisma.sql`UPDATE "Kendaraan" SET "fotoIzinTrayekUrl" = ${fotoUrl} WHERE "platNomor" = ${platNomor}`
+                )
+            }
+        }
 
         // 3. Create Audit Log
         const session = await auth();

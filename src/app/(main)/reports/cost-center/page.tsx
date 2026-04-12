@@ -217,6 +217,9 @@ export default function CostCenterPage() {
     const [profitDetailLoading, setProfitDetailLoading] = useState(false)
     const [profitDetailKas, setProfitDetailKas] = useState<any | null>(null)
     const [profitDetailGaji, setProfitDetailGaji] = useState<any | null>(null)
+    const [profitDetailKasPage, setProfitDetailKasPage] = useState(1)
+    const [profitDetailGajiPage, setProfitDetailGajiPage] = useState(1)
+    const profitDetailPageSize = 10
     const [profitDetailIncome, setProfitDetailIncome] = useState<number>(0)
     const [profitDetailExporting, setProfitDetailExporting] = useState(false)
 
@@ -1861,7 +1864,9 @@ export default function CostCenterPage() {
                             setProfitDetailKebun(null)
                             setProfitDetailKas(null)
                             setProfitDetailGaji(null)
-                    setProfitDetailIncome(0)
+                            setProfitDetailIncome(0)
+                            setProfitDetailKasPage(1)
+                            setProfitDetailGajiPage(1)
                         }
                     }}
                 >
@@ -1919,7 +1924,7 @@ export default function CostCenterPage() {
                                                 ) : (profitDetailKas?.data || []).length === 0 ? (
                                                     <tr><td colSpan={4} className="px-5 py-6 text-sm text-gray-500">Tidak ada transaksi kas tag kebun.</td></tr>
                                                 ) : (
-                                                    (profitDetailKas?.data || []).map((r: any) => (
+                                                    (profitDetailKas?.data || []).slice((profitDetailKasPage - 1) * profitDetailPageSize, profitDetailKasPage * profitDetailPageSize).map((r: any) => (
                                                         <tr key={r.id} className="hover:bg-gray-50/50">
                                                             <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-700">{formatDateId(r.date)}</td>
                                                             <td className="px-5 py-3 text-sm font-medium text-gray-900">{r.deskripsi}</td>
@@ -1938,6 +1943,31 @@ export default function CostCenterPage() {
                                                 </tr>
                                             </tfoot>
                                         </table>
+                                    </div>
+                                    <div className="px-5 py-3 border-t bg-white flex items-center justify-between">
+                                        <div className="text-xs text-gray-500">
+                                            {(() => {
+                                                const len = (profitDetailKas?.data || []).length;
+                                                if (len === 0) return '0 data';
+                                                const from = (profitDetailKasPage - 1) * profitDetailPageSize + 1;
+                                                const to = Math.min(len, profitDetailKasPage * profitDetailPageSize);
+                                                return `${from}-${to} dari ${len}`;
+                                            })()}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setProfitDetailKasPage(p => Math.max(1, p - 1))}
+                                                disabled={profitDetailKasPage === 1}
+                                                className="h-8 px-3 rounded-lg border text-xs font-medium disabled:opacity-50"
+                                            >Prev</button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setProfitDetailKasPage(p => p + 1)}
+                                                disabled={profitDetailKasPage >= Math.ceil((profitDetailKas?.data || []).length / profitDetailPageSize)}
+                                                className="h-8 px-3 rounded-lg border text-xs font-medium disabled:opacity-50"
+                                            >Next</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1960,7 +1990,7 @@ export default function CostCenterPage() {
                                                 ) : (profitDetailGaji?.data || []).length === 0 ? (
                                                     <tr><td colSpan={2} className="px-5 py-6 text-sm text-gray-500">Tidak ada data gajian pada periode.</td></tr>
                                                 ) : (
-                                                    (profitDetailGaji?.data || []).map((g: any) => {
+                                                    (profitDetailGaji?.data || []).slice((profitDetailGajiPage - 1) * profitDetailPageSize, profitDetailGajiPage * profitDetailPageSize).map((g: any) => {
                                                         const total = Number(g.totalGaji || 0)
                                                         return (
                                                             <tr key={g.id} className="hover:bg-gray-50/50">
@@ -1980,6 +2010,31 @@ export default function CostCenterPage() {
                                                 </tr>
                                             </tfoot>
                                         </table>
+                                    </div>
+                                    <div className="px-5 py-3 border-t bg-white flex items-center justify-between">
+                                        <div className="text-xs text-gray-500">
+                                            {(() => {
+                                                const len = (profitDetailGaji?.data || []).length;
+                                                if (len === 0) return '0 data';
+                                                const from = (profitDetailGajiPage - 1) * profitDetailPageSize + 1;
+                                                const to = Math.min(len, profitDetailGajiPage * profitDetailPageSize);
+                                                return `${from}-${to} dari ${len}`;
+                                            })()}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setProfitDetailGajiPage(p => Math.max(1, p - 1))}
+                                                disabled={profitDetailGajiPage === 1}
+                                                className="h-8 px-3 rounded-lg border text-xs font-medium disabled:opacity-50"
+                                            >Prev</button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setProfitDetailGajiPage(p => p + 1)}
+                                                disabled={profitDetailGajiPage >= Math.ceil((profitDetailGaji?.data || []).length / profitDetailPageSize)}
+                                                className="h-8 px-3 rounded-lg border text-xs font-medium disabled:opacity-50"
+                                            >Next</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

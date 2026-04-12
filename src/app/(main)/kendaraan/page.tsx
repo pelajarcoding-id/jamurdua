@@ -460,6 +460,7 @@ export default function KendaraanPage() {
             <DataTable 
                 columns={tableColumns} 
                 data={data} 
+                onRowClick={(row) => handleOpenDetail(row)}
                 renderMobileCards={({ data, isLoading }) => (
                   <div className="space-y-3">
                     {isLoading ? (
@@ -823,6 +824,22 @@ export default function KendaraanPage() {
         isOpen={isDetailModalOpen}
         onClose={handleCloseDetail}
         kendaraan={selectedKendaraan}
+        onEdit={(kendaraan) => {
+          handleCloseDetail();
+          handleOpenModal(kendaraan);
+        }}
+        onDelete={(kendaraan) => {
+          handleCloseDetail();
+          handleOpenConfirm(kendaraan);
+        }}
+        onRenewDocument={(kendaraan) => {
+          handleCloseDetail();
+          handleOpenDocumentRenewal(kendaraan);
+        }}
+        onService={(kendaraan) => {
+          handleCloseDetail();
+          handleOpenService(kendaraan);
+        }}
       />
 
       <ConfirmationModal

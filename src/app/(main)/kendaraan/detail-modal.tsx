@@ -15,7 +15,9 @@ import {
     RectangleStackIcon,
     EyeIcon,
     ArrowDownTrayIcon,
-    XMarkIcon
+    XMarkIcon,
+    PencilSquareIcon,
+    TrashIcon
 } from "@heroicons/react/24/outline";
 import useSWR from 'swr';
 import { KendaraanData } from "./columns";
@@ -24,6 +26,10 @@ interface DetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     kendaraan: KendaraanData | null;
+    onEdit?: (kendaraan: KendaraanData) => void;
+    onDelete?: (kendaraan: KendaraanData) => void;
+    onRenewDocument?: (kendaraan: KendaraanData) => void;
+    onService?: (kendaraan: KendaraanData) => void;
 }
 
 interface ServiceLog {
@@ -38,7 +44,7 @@ interface ServiceLog {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
+export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRenewDocument, onService }: DetailModalProps) {
     const { data: logsResp, isLoading } = useSWR<{ data: ServiceLog[]; total: number; nextCursor: number | null }>(
         isOpen && kendaraan?.platNomor ? `/api/kendaraan/${kendaraan.platNomor}/service` : null,
         fetcher
@@ -60,6 +66,10 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    const fotoGabunganUrl = kendaraan ? (kendaraan.imageUrl || kendaraan.fotoStnkUrl || null) : null
+    const izinTrayekUrl = kendaraan
+        ? ((kendaraan as any).fotoIzinTrayekUrl || (kendaraan as any).fotoPajakUrlLegacy || (kendaraan as any).fotoPajakUrl || null)
+        : null
 
     const handleExportPDF = async () => {
         if (!printRef.current || !kendaraan) return;
@@ -406,6 +416,14 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
                                                     </span>
                                                 </div>
                                             )}
+                                            {(kendaraan as any).tanggalIzinTrayek && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-gray-600">Izin Trayek</span>
+                                                    <span className={`font-medium ${new Date((kendaraan as any).tanggalIzinTrayek) < new Date() ? 'text-red-600' : 'text-green-600'}`}>
+                                                        {format(new Date((kendaraan as any).tanggalIzinTrayek), 'dd MMMM yyyy', { locale: idLocale })}
+                                                    </span>
+                                                </div>
+                                            )}
                                             {kendaraan.speksi && (
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Speksi</span>
@@ -418,16 +436,16 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
                                     </div>
                                 </div>
 
-                                {kendaraan.imageUrl && (
+                                {fotoGabunganUrl && (
                                     <div className="bg-gray-50 p-4 rounded-xl border mb-8">
                                             <h3 className="font-semibold text-sm text-gray-500 mb-3 flex items-center gap-2">
                                             <IdentificationIcon className="w-4 h-4" />
-                                            Foto Kendaraan
+                                            Foto Kendaraan + STNK
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div data-pdf-image="vehicle" className="relative w-full h-48 rounded-lg overflow-hidden border bg-white">
                                                 <img 
-                                                    src={kendaraan.imageUrl} 
+                                                    src={fotoGabunganUrl || undefined} 
                                                     alt={`Foto ${kendaraan.platNomor}`} 
                                                     className="w-full h-full object-contain bg-black/5"
                                                 />
@@ -437,32 +455,32 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
                                 )}
 
                                 {/* Digital Documents */}
-                                {(kendaraan.fotoStnkUrl || kendaraan.fotoPajakUrl || kendaraan.fotoSpeksiUrl) && (
+                                {((kendaraan.fotoStnkUrl && kendaraan.fotoStnkUrl !== fotoGabunganUrl) || izinTrayekUrl || kendaraan.fotoSpeksiUrl) && (
                                     <div className="bg-gray-50 p-4 rounded-xl border mb-8">
                                         <h3 className="font-semibold text-sm text-gray-500 mb-3 flex items-center gap-2">
                                             <RectangleStackIcon className="w-4 h-4" />
                                             Dokumen Digital
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {kendaraan.fotoStnkUrl && (
+                                            {kendaraan.fotoStnkUrl && kendaraan.fotoStnkUrl !== fotoGabunganUrl && (
                                                 <div className="space-y-2">
                                                     <p className="text-sm font-medium text-gray-700">Foto STNK</p>
                                                     <div data-pdf-image="document" className="relative w-full h-48 rounded-lg overflow-hidden border bg-white">
                                                         <img 
-                                                            src={kendaraan.fotoStnkUrl} 
+                                                            src={kendaraan.fotoStnkUrl || undefined} 
                                                             alt="Foto STNK" 
                                                             className="w-full h-full object-contain"
                                                         />
                                                     </div>
                                                 </div>
                                             )}
-                                            {kendaraan.fotoPajakUrl && (
+                                            {izinTrayekUrl && (
                                                 <div className="space-y-2">
-                                                    <p className="text-sm font-medium text-gray-700">Foto Pajak</p>
+                                                    <p className="text-sm font-medium text-gray-700">Foto Izin Trayek</p>
                                                     <div data-pdf-image="document" className="relative w-full h-48 rounded-lg overflow-hidden border bg-white">
                                                         <img 
-                                                            src={kendaraan.fotoPajakUrl} 
-                                                            alt="Foto Pajak" 
+                                                            src={izinTrayekUrl || undefined} 
+                                                            alt="Foto Izin Trayek" 
                                                             className="w-full h-full object-contain"
                                                         />
                                                     </div>
@@ -473,7 +491,7 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
                                                     <p className="text-sm font-medium text-gray-700">Foto Speksi</p>
                                                     <div data-pdf-image="document" className="relative w-full h-48 rounded-lg overflow-hidden border bg-white">
                                                         <img 
-                                                            src={kendaraan.fotoSpeksiUrl} 
+                                                            src={kendaraan.fotoSpeksiUrl || undefined} 
                                                             alt="Foto Speksi" 
                                                             className="w-full h-full object-contain"
                                                         />
@@ -486,10 +504,22 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
 
                                 {/* Document History */}
                                 <div className="mb-8">
-                                    <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                                        <RectangleStackIcon className="w-5 h-5" />
-                                        Riwayat Dokumen
-                                    </h3>
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                                            <RectangleStackIcon className="w-5 h-5" />
+                                            Riwayat Dokumen
+                                        </h3>
+                                        {onRenewDocument && kendaraan ? (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full sm:w-auto rounded-full flex items-center justify-center gap-2"
+                                                onClick={() => onRenewDocument(kendaraan)}
+                                            >
+                                                <RectangleStackIcon className="w-4 h-4" />
+                                                Perpanjang Dokumen
+                                            </Button>
+                                        ) : null}
+                                    </div>
                                     <div className="border rounded-lg overflow-x-auto">
                                         <Table>
                                             <TableHeader className="bg-gray-50">
@@ -555,10 +585,22 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
 
                                 {/* Service History */}
                                 <div>
-                                    <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                                        <WrenchIcon className="w-5 h-5" />
-                                        Riwayat Servis
-                                    </h3>
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                                            <WrenchIcon className="w-5 h-5" />
+                                            Riwayat Servis
+                                        </h3>
+                                        {onService && kendaraan ? (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full sm:w-auto rounded-full flex items-center justify-center gap-2"
+                                                onClick={() => onService(kendaraan)}
+                                            >
+                                                <WrenchIcon className="w-4 h-4" />
+                                                Catat Servis
+                                            </Button>
+                                        ) : null}
+                                    </div>
                                     <div className="border rounded-lg overflow-x-auto">
                                         <Table>
                                             <TableHeader className="bg-gray-50">
@@ -625,7 +667,29 @@ export function DetailModal({ isOpen, onClose, kendaraan }: DetailModalProps) {
                         </div>
 
                         {/* Footer with Export Button */}
-                        <div className="p-4 border-t bg-gray-50 shrink-0 flex justify-end">
+                        <div className="p-4 border-t bg-gray-50 shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                {onDelete && kendaraan ? (
+                                    <Button
+                                        onClick={() => onDelete(kendaraan)}
+                                        variant="outline"
+                                        className="w-full sm:w-auto rounded-full flex items-center justify-center gap-2 border-red-200 text-red-700 hover:bg-red-50"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                        Hapus
+                                    </Button>
+                                ) : null}
+                                {onEdit && kendaraan ? (
+                                    <Button 
+                                        onClick={() => onEdit(kendaraan)}
+                                        variant="outline"
+                                        className="w-full sm:w-auto rounded-full flex items-center justify-center gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                        <PencilSquareIcon className="w-4 h-4" />
+                                        Edit Data
+                                    </Button>
+                                ) : null}
+                            </div>
                             <Button 
                                 onClick={handleExportPDF}
                                 disabled={isExporting}

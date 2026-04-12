@@ -987,21 +987,24 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
               icon={<DocumentDuplicateIcon className="h-5 w-5 text-white" />}
               onClose={() => { setIsCropping(false); setPreview(null); setSelectedFile(null); }}
             />
-            <div className="flex-1 min-h-0 flex justify-center items-center p-4 bg-gray-100 overflow-y-auto">
+            <div className="flex-1 min-h-0 flex justify-center items-start p-4 bg-gray-100 overflow-auto">
                 {preview && (
-                    <ReactCrop
-                        crop={crop}
-                        onChange={(_, percentCrop) => setCrop(percentCrop)}
-                        onComplete={(c) => setCompletedCrop(c)}
-                    >
-                        <img
-                            ref={imgRef}
-                            src={preview}
-                            alt="Crop preview"
-                            onLoad={onImageLoad}
-                            className="max-h-full"
-                        />
-                    </ReactCrop>
+                    <div className="w-full flex justify-center">
+                        <ReactCrop
+                            crop={crop}
+                            onChange={(_, percentCrop) => setCrop(percentCrop)}
+                            onComplete={(c) => setCompletedCrop(c)}
+                            className="max-w-full max-h-[70vh]"
+                        >
+                            <img
+                                ref={imgRef}
+                                src={preview}
+                                alt="Crop preview"
+                                onLoad={onImageLoad}
+                                className="max-h-[70vh] w-auto max-w-full object-contain"
+                            />
+                        </ReactCrop>
+                    </div>
                 )}
             </div>
             <ModalFooter className="flex-row flex-shrink-0 pb-[calc(16px+env(safe-area-inset-bottom))]">

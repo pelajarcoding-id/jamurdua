@@ -230,7 +230,9 @@ model Kendaraan {
   imageUrl            String?
   speksi              DateTime?
   tanggalPajakTahunan DateTime?
-  fotoPajakUrl        String?
+  tanggalIzinTrayek   DateTime?
+  fotoIzinTrayekUrl   String?
+  fotoPajakUrlLegacy  String?          @map("fotoPajakUrl")
   fotoSpeksiUrl       String?
   fotoStnkUrl         String?
   kasTransaksi        KasTransaksi[]

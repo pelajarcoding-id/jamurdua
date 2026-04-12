@@ -1,6 +1,5 @@
 import React from 'react';
 import useSWR from 'swr';
-import { Kendaraan } from '@prisma/client';
 import { 
   Table, 
   TableBody, 
@@ -15,6 +14,15 @@ import { ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/ou
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+type KendaraanAlert = {
+  platNomor: string
+  merk: string
+  tanggalMatiStnk: Date | string
+  tanggalPajakTahunan?: Date | string | null
+  tanggalIzinTrayek?: Date | string | null
+  speksi?: Date | string | null
+}
+
 interface DocumentStatus {
     date: Date | null;
     daysLeft: number | null;
@@ -25,14 +33,14 @@ interface VehicleAlertGroup {
   platNomor: string;
   merk: string;
   stnk: DocumentStatus;
-  pajak: DocumentStatus;
+  izinTrayek: DocumentStatus;
   speksi: DocumentStatus;
   minDaysLeft: number; // For sorting
   hasIssues: boolean;
 }
 
 export default function VehicleExpirySection() {
-  const { data: vehicles, isLoading } = useSWR<Kendaraan[]>('/api/kendaraan/alerts', fetcher);
+  const { data: vehicles, isLoading } = useSWR<KendaraanAlert[]>('/api/kendaraan/alerts', fetcher);
 
   if (isLoading) {
     return (
@@ -74,8 +82,8 @@ export default function VehicleExpirySection() {
         };
 
         const stnk = getStatus(v.tanggalMatiStnk);
-        const pajak = getStatus(v.tanggalPajakTahunan);
-        const speksi = getStatus(v.speksi);
+        const izinTrayek = getStatus((v.tanggalIzinTrayek ?? v.tanggalPajakTahunan) ?? null);
+        const speksi = getStatus(v.speksi ?? null);
 
         // Calculate minimum days left for sorting (prioritize issues)
         // Use a large number for 'none' or 'ok' so they go to bottom
@@ -88,19 +96,19 @@ export default function VehicleExpirySection() {
 
         const minDaysLeft = Math.min(
             getSortValue(stnk),
-            getSortValue(pajak),
+            getSortValue(izinTrayek),
             getSortValue(speksi)
         );
 
         const hasIssues = stnk.status === 'expired' || stnk.status === 'warning' ||
-                          pajak.status === 'expired' || pajak.status === 'warning' ||
+                          izinTrayek.status === 'expired' || izinTrayek.status === 'warning' ||
                           speksi.status === 'expired' || speksi.status === 'warning';
 
         return {
             platNomor: v.platNomor,
             merk: v.merk,
             stnk,
-            pajak,
+            izinTrayek,
             speksi,
             minDaysLeft,
             hasIssues
@@ -232,7 +240,7 @@ export default function VehicleExpirySection() {
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   {renderStatusCompact('STNK', vehicle.stnk)}
-                  {renderStatusCompact('Pajak Tahunan', vehicle.pajak)}
+                  {renderStatusCompact('Izin Trayek', vehicle.izinTrayek)}
                   {renderStatusCompact('Speksi', vehicle.speksi)}
                 </div>
               </div>
@@ -245,7 +253,7 @@ export default function VehicleExpirySection() {
                   <TableRow>
                   <TableHead className="w-[200px]">Kendaraan</TableHead>
                   <TableHead>STNK</TableHead>
-                  <TableHead>Pajak Tahunan</TableHead>
+                  <TableHead>Izin Trayek</TableHead>
                   <TableHead>Speksi</TableHead>
                   </TableRow>
               </TableHeader>
@@ -257,7 +265,7 @@ export default function VehicleExpirySection() {
                       <div className="text-xs text-gray-500">{vehicle.merk}</div>
                       </TableCell>
                       <TableCell>{renderStatusCell(vehicle.stnk)}</TableCell>
-                      <TableCell>{renderStatusCell(vehicle.pajak)}</TableCell>
+                      <TableCell>{renderStatusCell(vehicle.izinTrayek)}</TableCell>
                       <TableCell>{renderStatusCell(vehicle.speksi)}</TableCell>
                   </TableRow>
                   ))}

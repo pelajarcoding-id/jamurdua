@@ -18,37 +18,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { ChevronDownIcon, ChevronUpIcon, TruckIcon, XMarkIcon, CheckIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { TruckIcon, XMarkIcon, CheckIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
 
 import type { Kendaraan } from '@prisma/client'
-
-interface CollapsibleSectionProps {
-    title: string;
-    children: React.ReactNode;
-    defaultOpen?: boolean;
-}
-
-const CollapsibleSection = ({ title, children, defaultOpen = false }: CollapsibleSectionProps) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-    return (
-        <div className="border rounded-xl overflow-hidden">
-            <button 
-                type="button"
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-            >
-                <span className="font-medium text-sm text-gray-700">{title}</span>
-                {isOpen ? <ChevronUpIcon className="w-4 h-4 text-gray-500" /> : <ChevronDownIcon className="w-4 h-4 text-gray-500" />}
-            </button>
-            {isOpen && (
-                <div className="p-4 bg-white border-t">
-                    {children}
-                </div>
-            )}
-        </div>
-    );
-}
 
 interface KendaraanModalProps {
     isOpen: boolean;
@@ -65,20 +38,18 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
         jenis: '', 
         tanggalMatiStnk: '',
         tanggalPajakTahunan: '',
+        tanggalIzinTrayek: '',
         speksi: '',
         imageUrl: '',
         fotoStnkUrl: '',
-        fotoPajakUrl: '',
+        fotoIzinTrayekUrl: '',
         fotoSpeksiUrl: '',
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     
-    const [stnkFile, setStnkFile] = useState<File | null>(null);
-    const [previewStnkUrl, setPreviewStnkUrl] = useState<string | null>(null);
-
-    const [pajakFile, setPajakFile] = useState<File | null>(null);
-    const [previewPajakUrl, setPreviewPajakUrl] = useState<string | null>(null);
+    const [izinTrayekFile, setIzinTrayekFile] = useState<File | null>(null);
+    const [previewIzinTrayekUrl, setPreviewIzinTrayekUrl] = useState<string | null>(null);
 
     const [speksiFile, setSpeksiFile] = useState<File | null>(null);
     const [previewSpeksiUrl, setPreviewSpeksiUrl] = useState<string | null>(null);
@@ -88,26 +59,27 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
 
     useEffect(() => {
         if (initialData) {
+            const izinTrayekUrl = ((initialData as any).fotoIzinTrayekUrl ?? '') as string
+            const izinTrayekDate = (initialData as any).tanggalIzinTrayek ?? null
             setFormData({
                 platNomor: initialData.platNomor,
                 merk: initialData.merk,
                 jenis: initialData.jenis,
                 tanggalMatiStnk: initialData.tanggalMatiStnk ? new Date(initialData.tanggalMatiStnk).toISOString().split('T')[0] : '',
                 tanggalPajakTahunan: initialData.tanggalPajakTahunan ? new Date(initialData.tanggalPajakTahunan).toISOString().split('T')[0] : '',
+                tanggalIzinTrayek: izinTrayekDate ? new Date(izinTrayekDate).toISOString().split('T')[0] : '',
                 speksi: initialData.speksi ? new Date(initialData.speksi).toISOString().split('T')[0] : '',
                 imageUrl: initialData.imageUrl || '',
                 fotoStnkUrl: initialData.fotoStnkUrl || '',
-                fotoPajakUrl: initialData.fotoPajakUrl || '',
+                fotoIzinTrayekUrl: izinTrayekUrl,
                 fotoSpeksiUrl: initialData.fotoSpeksiUrl || '',
             });
-            setPreviewUrl(initialData.imageUrl || null);
-            setPreviewStnkUrl(initialData.fotoStnkUrl || null);
-            setPreviewPajakUrl(initialData.fotoPajakUrl || null);
+            setPreviewUrl(initialData.imageUrl || initialData.fotoStnkUrl || null);
+            setPreviewIzinTrayekUrl(izinTrayekUrl || null);
             setPreviewSpeksiUrl(initialData.fotoSpeksiUrl || null);
             
             setImageFile(null);
-            setStnkFile(null);
-            setPajakFile(null);
+            setIzinTrayekFile(null);
             setSpeksiFile(null);
             setErrors({});
         } else {
@@ -117,20 +89,19 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                 jenis: '', 
                 tanggalMatiStnk: '',
                 tanggalPajakTahunan: '',
+                tanggalIzinTrayek: '',
                 speksi: '',
                 imageUrl: '',
                 fotoStnkUrl: '',
-                fotoPajakUrl: '',
+                fotoIzinTrayekUrl: '',
                 fotoSpeksiUrl: '',
             });
             setPreviewUrl(null);
-            setPreviewStnkUrl(null);
-            setPreviewPajakUrl(null);
+            setPreviewIzinTrayekUrl(null);
             setPreviewSpeksiUrl(null);
 
             setImageFile(null);
-            setStnkFile(null);
-            setPajakFile(null);
+            setIzinTrayekFile(null);
             setSpeksiFile(null);
             setErrors({});
         }
@@ -165,29 +136,18 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
             setPreviewUrl(objectUrl);
         } else {
             setPreviewUrl(null);
-            setFormData(prev => ({ ...prev, imageUrl: '' }));
+            setFormData(prev => ({ ...prev, imageUrl: '', fotoStnkUrl: '' }));
         }
     };
 
-    const handleStnkFileChange = (file: File | null) => {
-        setStnkFile(file);
+    const handleIzinTrayekFileChange = (file: File | null) => {
+        setIzinTrayekFile(file);
         if (file) {
             const objectUrl = URL.createObjectURL(file);
-            setPreviewStnkUrl(objectUrl);
+            setPreviewIzinTrayekUrl(objectUrl);
         } else {
-            setPreviewStnkUrl(null);
-            setFormData(prev => ({ ...prev, fotoStnkUrl: '' }));
-        }
-    };
-
-    const handlePajakFileChange = (file: File | null) => {
-        setPajakFile(file);
-        if (file) {
-            const objectUrl = URL.createObjectURL(file);
-            setPreviewPajakUrl(objectUrl);
-        } else {
-            setPreviewPajakUrl(null);
-            setFormData(prev => ({ ...prev, fotoPajakUrl: '' }));
+            setPreviewIzinTrayekUrl(null);
+            setFormData(prev => ({ ...prev, fotoIzinTrayekUrl: '' }));
         }
     };
 
@@ -223,24 +183,31 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
         }
 
         setUploading(true);
-        let finalImageUrl = formData.imageUrl;
-        let finalStnkUrl = formData.fotoStnkUrl;
-        let finalPajakUrl = formData.fotoPajakUrl;
+        const combinedExistingUrl = formData.imageUrl || formData.fotoStnkUrl
+        let finalImageUrl = combinedExistingUrl
+        let finalStnkUrl = combinedExistingUrl
+        let finalIzinTrayekUrl = formData.fotoIzinTrayekUrl
         let finalSpeksiUrl = formData.fotoSpeksiUrl;
 
         try {
-            if (imageFile) finalImageUrl = await uploadFile(imageFile) || finalImageUrl;
-            if (stnkFile) finalStnkUrl = await uploadFile(stnkFile) || finalStnkUrl;
-            if (pajakFile) finalPajakUrl = await uploadFile(pajakFile) || finalPajakUrl;
+            if (imageFile) {
+                const uploaded = await uploadFile(imageFile)
+                if (uploaded) {
+                    finalImageUrl = uploaded
+                    finalStnkUrl = uploaded
+                }
+            }
+            if (izinTrayekFile) finalIzinTrayekUrl = await uploadFile(izinTrayekFile) || finalIzinTrayekUrl;
             if (speksiFile) finalSpeksiUrl = await uploadFile(speksiFile) || finalSpeksiUrl;
 
             const dataToSubmit = {
                 ...formData,
                 imageUrl: finalImageUrl,
                 fotoStnkUrl: finalStnkUrl,
-                fotoPajakUrl: finalPajakUrl,
+                fotoIzinTrayekUrl: finalIzinTrayekUrl,
                 fotoSpeksiUrl: finalSpeksiUrl,
                 tanggalPajakTahunan: formData.tanggalPajakTahunan ? new Date(formData.tanggalPajakTahunan) : null,
+                tanggalIzinTrayek: formData.tanggalIzinTrayek ? new Date(formData.tanggalIzinTrayek) : null,
                 speksi: formData.speksi ? new Date(formData.speksi) : null,
             };
 
@@ -332,46 +299,30 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                             </div>
 
                             <div className="grid gap-2">
+                                <Label htmlFor="tanggalIzinTrayek">Izin Trayek Mati (Opsional)</Label>
+                                <Input id="tanggalIzinTrayek" type="date" name="tanggalIzinTrayek" value={formData.tanggalIzinTrayek} onChange={handleChange} className="w-full rounded-xl" />
+                            </div>
+
+                            <div className="grid gap-2">
                                 <Label htmlFor="speksi">Speksi (Opsional)</Label>
                                 <Input id="speksi" type="date" name="speksi" value={formData.speksi} onChange={handleChange} className="w-full rounded-xl" />
                             </div>
                         </div>
 
-                        <CollapsibleSection title="Foto Kendaraan" defaultOpen={!!previewUrl}>
-                            <div className="grid gap-2">
-                                <ImageUpload 
-                                    onFileChange={handleFileChange}
-                                    previewUrl={previewUrl}
-                                />
-                            </div>
-                        </CollapsibleSection>
+                        <div className="grid gap-2">
+                            <Label>Foto Kendaraan + STNK</Label>
+                            <ImageUpload onFileChange={handleFileChange} previewUrl={previewUrl} />
+                        </div>
 
-                        <CollapsibleSection title="Foto STNK" defaultOpen={!!previewStnkUrl}>
-                            <div className="grid gap-2">
-                                <ImageUpload 
-                                    onFileChange={handleStnkFileChange}
-                                    previewUrl={previewStnkUrl}
-                                />
-                            </div>
-                        </CollapsibleSection>
+                        <div className="grid gap-2">
+                            <Label>Foto Izin Trayek</Label>
+                            <ImageUpload onFileChange={handleIzinTrayekFileChange} previewUrl={previewIzinTrayekUrl} />
+                        </div>
 
-                        <CollapsibleSection title="Foto Pajak Tahunan" defaultOpen={!!previewPajakUrl}>
-                            <div className="grid gap-2">
-                                <ImageUpload 
-                                    onFileChange={handlePajakFileChange}
-                                    previewUrl={previewPajakUrl}
-                                />
-                            </div>
-                        </CollapsibleSection>
-
-                        <CollapsibleSection title="Foto Speksi" defaultOpen={!!previewSpeksiUrl}>
-                            <div className="grid gap-2">
-                                <ImageUpload 
-                                    onFileChange={handleSpeksiFileChange}
-                                    previewUrl={previewSpeksiUrl}
-                                />
-                            </div>
-                        </CollapsibleSection>
+                        <div className="grid gap-2">
+                            <Label>Foto Speksi</Label>
+                            <ImageUpload onFileChange={handleSpeksiFileChange} previewUrl={previewSpeksiUrl} />
+                        </div>
                     </ModalContentWrapper>
                     <ModalFooter className="sm:justify-between">
                         <Button type="button" variant="outline" onClick={onClose} disabled={uploading} className="rounded-full">

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/route-auth'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,12 +27,30 @@ async function isUrlReferenced(url: string) {
     prisma.notaSawit.findFirst({ where: { gambarNotaUrl: u, deletedAt: null }, select: { id: true } }),
     prisma.user.findFirst({ where: { photoUrl: u }, select: { id: true } }),
     prisma.timbangan.findFirst({ where: { photoUrl: u }, select: { id: true } }),
-    prisma.kendaraan.findFirst({
-      where: {
-        OR: [{ imageUrl: u }, { fotoPajakUrl: u }, { fotoSpeksiUrl: u }, { fotoStnkUrl: u }],
-      },
-      select: { platNomor: true },
-    }),
+    (async () => {
+      try {
+        return await prisma.$queryRaw(
+          Prisma.sql`SELECT "platNomor"
+                     FROM "Kendaraan"
+                     WHERE "imageUrl" = ${u}
+                        OR "fotoStnkUrl" = ${u}
+                        OR "fotoSpeksiUrl" = ${u}
+                        OR "fotoPajakUrl" = ${u}
+                        OR "fotoIzinTrayekUrl" = ${u}
+                     LIMIT 1`
+        )
+      } catch {
+        return await prisma.$queryRaw(
+          Prisma.sql`SELECT "platNomor"
+                     FROM "Kendaraan"
+                     WHERE "imageUrl" = ${u}
+                        OR "fotoStnkUrl" = ${u}
+                        OR "fotoSpeksiUrl" = ${u}
+                        OR "fotoPajakUrl" = ${u}
+                     LIMIT 1`
+        )
+      }
+    })() as any,
     prisma.riwayatDokumen.findFirst({ where: { fotoUrl: u }, select: { id: true } }),
     prisma.serviceLog.findFirst({ where: { fotoUrl: u }, select: { id: true } }),
     prisma.inventoryItem.findFirst({ where: { imageUrl: u, deletedAt: null }, select: { id: true } }),

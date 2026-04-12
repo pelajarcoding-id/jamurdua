@@ -51,6 +51,7 @@ interface DataTableProps<TData, TValue> {
     rowHeight: number;
     maxHeight?: number;
   };
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -79,6 +80,7 @@ export function DataTable<TData, TValue>({
   extraFilters,
   renderMobileCards,
   virtualize,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -248,7 +250,11 @@ export function DataTable<TData, TValue>({
                         <td colSpan={columns.length} style={{ height: topSpacer }} />
                       </tr>
                       {slice.map((row: any) => (
-                        <tr key={row.id}>
+                        <tr 
+                          key={row.id} 
+                          onClick={() => onRowClick?.(row.original)}
+                          className={onRowClick ? "cursor-pointer hover:bg-gray-50" : ""}
+                        >
                           {row.getVisibleCells().map((cell: any) => (
                             <td key={cell.id} className="px-2 py-2 text-xs md:px-6 md:py-4 md:text-sm text-gray-700">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -264,7 +270,11 @@ export function DataTable<TData, TValue>({
                 })()
               ) : (
                 rowsSafe.map((row: any) => (
-                  <tr key={row.id}>
+                  <tr 
+                    key={row.id}
+                    onClick={() => onRowClick?.(row.original)}
+                    className={onRowClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : "transition-colors"}
+                  >
                     {row.getVisibleCells().map((cell: any) => (
                       <td key={cell.id} className="px-2 py-2 text-xs md:px-6 md:py-4 md:text-sm text-gray-700">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

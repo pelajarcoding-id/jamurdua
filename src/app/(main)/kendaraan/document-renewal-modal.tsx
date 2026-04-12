@@ -201,6 +201,7 @@ export function DocumentRenewalModal({ isOpen, onClose, platNomor }: DocumentRen
                                 <SelectContent>
                                     <SelectItem value="STNK">STNK</SelectItem>
                                     <SelectItem value="PAJAK">Pajak Tahunan</SelectItem>
+                                    <SelectItem value="IZIN_TRAYEK">Izin Trayek</SelectItem>
                                     <SelectItem value="SPEKSI">Speksi (KIR)</SelectItem>
                                 </SelectContent>
                             </Select>

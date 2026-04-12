@@ -70,7 +70,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { platNomor, merk, jenis, tanggalMatiStnk, imageUrl, tanggalPajakTahunan, speksi, fotoStnkUrl, fotoPajakUrl, fotoSpeksiUrl } = body;
+        const { platNomor, merk, jenis, tanggalMatiStnk, imageUrl, tanggalPajakTahunan, tanggalIzinTrayek, speksi, fotoStnkUrl, fotoIzinTrayekUrl, fotoPajakUrl, fotoSpeksiUrl } = body;
 
         if (!platNomor || !merk || !jenis || !tanggalMatiStnk) {
             return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
@@ -85,20 +85,54 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: `Kendaraan dengan plat nomor ${platNomor} sudah terdaftar.` }, { status: 400 });
         }
 
-        const newKendaraan = await prisma.kendaraan.create({
-            data: {
-                platNomor,
-                merk,
-                jenis,
-                tanggalMatiStnk: new Date(tanggalMatiStnk),
-                imageUrl,
-                tanggalPajakTahunan: tanggalPajakTahunan ? new Date(tanggalPajakTahunan) : null,
-                speksi: speksi ? new Date(speksi) : null,
-                fotoStnkUrl,
-                fotoPajakUrl,
-                fotoSpeksiUrl,
-            },
-        });
+        if (tanggalIzinTrayek) {
+            const col: any = await prisma.$queryRaw(
+                Prisma.sql`SELECT 1
+                           FROM information_schema.columns
+                           WHERE table_schema = 'public'
+                             AND table_name = 'Kendaraan'
+                             AND column_name = 'tanggalIzinTrayek'
+                           LIMIT 1`
+            )
+            if (!Array.isArray(col) || col.length === 0) {
+                return NextResponse.json(
+                    { error: 'Kolom tanggalIzinTrayek belum ada di database. Jalankan migrasi (prisma migrate deploy) lalu restart aplikasi.' },
+                    { status: 400 }
+                )
+            }
+        }
+
+        const izinTrayekUrl = fotoIzinTrayekUrl || fotoPajakUrl || null
+        const baseData: any = {
+            platNomor,
+            merk,
+            jenis,
+            tanggalMatiStnk: new Date(tanggalMatiStnk),
+            imageUrl,
+            tanggalPajakTahunan: tanggalPajakTahunan ? new Date(tanggalPajakTahunan) : null,
+            speksi: speksi ? new Date(speksi) : null,
+            fotoStnkUrl: fotoStnkUrl || imageUrl,
+            fotoSpeksiUrl,
+        }
+
+        const newKendaraan = await (prisma.kendaraan as any).create({ data: baseData })
+
+        if (tanggalIzinTrayek) {
+            await prisma.$executeRaw(
+                Prisma.sql`UPDATE "Kendaraan" SET "tanggalIzinTrayek" = ${new Date(tanggalIzinTrayek)} WHERE "platNomor" = ${platNomor}`
+            )
+        }
+
+        if (izinTrayekUrl) {
+            await prisma.$executeRaw(
+                Prisma.sql`UPDATE "Kendaraan" SET "fotoPajakUrl" = ${izinTrayekUrl} WHERE "platNomor" = ${platNomor}`
+            )
+            prisma
+                .$executeRaw(
+                    Prisma.sql`UPDATE "Kendaraan" SET "fotoIzinTrayekUrl" = ${izinTrayekUrl} WHERE "platNomor" = ${platNomor}`
+                )
+                .catch(() => null)
+        }
 
         // Audit Log
         const session = await auth();
@@ -109,7 +143,21 @@ export async function POST(request: Request) {
             jenis
         });
 
-        return NextResponse.json(newKendaraan, { status: 201 });
+        const created = await (async () => {
+            try {
+                const rows = await prisma.$queryRaw(
+                    Prisma.sql`SELECT *
+                               FROM "Kendaraan"
+                               WHERE "platNomor" = ${newKendaraan.platNomor}
+                               LIMIT 1`
+                )
+                return Array.isArray(rows) ? rows[0] : rows
+            } catch {
+                return newKendaraan
+            }
+        })()
+
+        return NextResponse.json(created, { status: 201 });
     } catch (error) {
         console.error("Error creating kendaraan:", error);
         if (error instanceof Prisma.PrismaClientKnownRequestError) {

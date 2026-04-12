@@ -19,6 +19,21 @@ export async function GET() {
   try {
     const guard = await requireAuth()
     if (guard.response) return guard.response
+    const fetchKendaraan = async () => {
+      try {
+        return await prisma.$queryRaw(
+          Prisma.sql`SELECT "platNomor","imageUrl","fotoStnkUrl","fotoSpeksiUrl","createdAt","fotoPajakUrl" AS "fotoPajakUrlLegacy","fotoIzinTrayekUrl"
+                   FROM "Kendaraan"
+                   ORDER BY "createdAt" DESC`
+        )
+      } catch {
+        return await prisma.$queryRaw(
+          Prisma.sql`SELECT "platNomor","imageUrl","fotoStnkUrl","fotoSpeksiUrl","createdAt","fotoPajakUrl" AS "fotoPajakUrlLegacy"
+                   FROM "Kendaraan"
+                   ORDER BY "createdAt" DESC`
+        )
+      }
+    }
     const [
       users,
       kendaraan,
@@ -33,16 +48,7 @@ export async function GET() {
       perusahaanBiaya,
     ] = await Promise.all([
       prisma.user.findMany({ select: { id: true, name: true, photoUrl: true, createdAt: true } }),
-      prisma.kendaraan.findMany({
-        select: {
-          platNomor: true,
-          imageUrl: true,
-          fotoStnkUrl: true,
-          fotoPajakUrl: true,
-          fotoSpeksiUrl: true,
-          createdAt: true,
-        },
-      }),
+      fetchKendaraan() as any,
       prisma.riwayatDokumen.findMany({
         select: { id: true, kendaraanPlat: true, jenis: true, fotoUrl: true, createdAt: true },
       }),
@@ -110,11 +116,12 @@ export async function GET() {
           entityId: String(k.platNomor),
         })
       }
-      if (k.fotoPajakUrl) {
+      const izinTrayekUrl = k.fotoIzinTrayekUrl || k.fotoPajakUrlLegacy
+      if (izinTrayekUrl) {
         items.push({
-          id: `KENDARAAN-PAJAK-${k.platNomor}`,
-          url: k.fotoPajakUrl,
-          category: 'KENDARAAN_PAJAK',
+          id: `KENDARAAN-IZIN-TRAYEK-${k.platNomor}`,
+          url: izinTrayekUrl,
+          category: 'KENDARAAN_IZIN_TRAYEK',
           label: k.platNomor,
           createdAt: k.createdAt?.toISOString?.() ?? null,
           entity: 'Kendaraan',
