@@ -1163,7 +1163,7 @@ export default function CostCenterPage() {
                         <div className="card-style p-0 overflow-hidden mt-6">
                             <div className="px-6 py-4 border-b bg-gray-50">
                                 <div className="text-sm font-semibold text-gray-900">Profit Kebun</div>
-                                <div className="text-xs text-gray-500">Pendapatan (Nota Sawit) - Biaya (Kas tag kebun + Gajian).</div>
+                                <div className="text-xs text-gray-500">Pendapatan (Nota Sawit) - Biaya (Kas tag kebun + Uang Jalan tag kebun + Gajian).</div>
                             </div>
                             {loadingKebunProfit ? (
                                 <div className="px-6 py-6 text-sm text-gray-500">Memuat...</div>
@@ -1202,6 +1202,10 @@ export default function CostCenterPage() {
                                                         <div className="font-medium text-gray-800">{formatCurrency(Number(r.kasCost || 0))}</div>
                                                     </div>
                                                     <div>
+                                                        <div className="text-gray-400">Biaya Uang Jalan</div>
+                                                        <div className="font-medium text-gray-800">{formatCurrency(Number(r.uangJalanCost || 0))}</div>
+                                                    </div>
+                                                    <div>
                                                         <div className="text-gray-400">Biaya Gaji</div>
                                                         <div className="font-medium text-gray-800">{formatCurrency(Number(r.gajiCost || 0))}</div>
                                                     </div>
@@ -1221,6 +1225,7 @@ export default function CostCenterPage() {
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Trip</th>
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Pendapatan</th>
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Biaya Kas</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Biaya Uang Jalan</th>
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Biaya Gaji</th>
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Biaya</th>
                                                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Profit</th>
@@ -1234,6 +1239,7 @@ export default function CostCenterPage() {
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 text-right">{Number(r.totalTrips || 0).toLocaleString('id-ID')}</td>
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(Number(r.income || 0))}</td>
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(Number(r.kasCost || 0))}</td>
+                                                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(Number(r.uangJalanCost || 0))}</td>
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(Number(r.gajiCost || 0))}</td>
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(Number(r.totalCost || 0))}</td>
                                                         <td className={`px-6 py-3 whitespace-nowrap text-sm font-bold text-right ${Number(r.grossProfit || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatCurrency(Number(r.grossProfit || 0))}</td>
@@ -1261,6 +1267,9 @@ export default function CostCenterPage() {
                                                     </td>
                                                     <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
                                                         {formatCurrency(kebunProfitRows.reduce((acc: number, r: any) => acc + Number(r.kasCost || 0), 0))}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
+                                                        {formatCurrency(kebunProfitRows.reduce((acc: number, r: any) => acc + Number(r.uangJalanCost || 0), 0))}
                                                     </td>
                                                     <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
                                                         {formatCurrency(kebunProfitRows.reduce((acc: number, r: any) => acc + Number(r.gajiCost || 0), 0))}

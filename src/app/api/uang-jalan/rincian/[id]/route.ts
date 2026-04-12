@@ -46,15 +46,6 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const body = await request.json();
     const { tipe, amount, description, date, tagKendaraanPlatNomor, tagKebunId, tagPerusahaanId, tagKaryawanId, gambarUrl } = body;
 
-    const tagGroupCount =
-      (tagKendaraanPlatNomor ? 1 : 0) +
-      (tagKebunId ? 1 : 0) +
-      (tagPerusahaanId ? 1 : 0) +
-      (tagKaryawanId ? 1 : 0)
-    if (tagGroupCount > 1) {
-      return NextResponse.json({ error: 'Pilih salah satu tag: Kendaraan atau Kebun atau Perusahaan atau Karyawan' }, { status: 400 })
-    }
-
     if (gambarUrl && existing.gambarUrl && existing.gambarUrl !== gambarUrl) {
       await scheduleFileDeletion({
         url: existing.gambarUrl,

@@ -522,7 +522,8 @@ export default function KendaraanPage() {
                 onSearchChange={handleSearchChange}
                 searchPlaceholder="Cari plat nomor..."
                 isLoading={loading}
-                virtualize={{ enabled: true, rowHeight: 44, maxHeight: 60 }}
+                showPageSizeSelector
+                pageSizeOptions={[10, 20, 50, 100]}
             />
             </div>
         </RoleGate>

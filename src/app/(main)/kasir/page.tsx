@@ -131,13 +131,14 @@ const KasirPage = () => {
   useEffect(() => {
     // Initialize dates using WIB
     const { year, month, day } = getCurrentWIBDateParts();
-    const start = createWIBDate(year, month, 1);
+    const start = createWIBDate(year, 1, 1);
     const end = createWIBDate(year, month, day, true);
     
+    setQuickRange('this_year')
     setStartDate(start);
     setEndDate(end);
   }, []);
-  const [quickRange, setQuickRange] = useState('this_month');
+  const [quickRange, setQuickRange] = useState('this_year');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<KasTransaksi | null>(null);
   const [detailTransaction, setDetailTransaction] = useState<KasTransaksi | null>(null);
@@ -253,6 +254,7 @@ const KasirPage = () => {
         case 'yesterday': return 'Kemarin';
         case 'last_week': return 'Minggu Lalu';
         case 'this_month': return 'Bulan Ini';
+        case 'this_year': return 'Tahun Ini';
         default: return 'Pilih Rentang Waktu';
       }
     }
@@ -278,6 +280,9 @@ const KasirPage = () => {
       setEndDate(createWIBDate(year, month, day, true));
     } else if (val === 'this_month') {
       setStartDate(createWIBDate(year, month, 1));
+      setEndDate(createWIBDate(year, month, day, true));
+    } else if (val === 'this_year') {
+      setStartDate(createWIBDate(year, 1, 1));
       setEndDate(createWIBDate(year, month, day, true));
     }
   };
@@ -959,6 +964,7 @@ const KasirPage = () => {
                         <Button variant="outline" size="sm" onClick={() => { setQuickRange('yesterday'); applyQuickRange('yesterday'); }} className={quickRange === 'yesterday' ? 'bg-accent' : ''}>Kemarin</Button>
                         <Button variant="outline" size="sm" onClick={() => { setQuickRange('last_week'); applyQuickRange('last_week'); }} className={quickRange === 'last_week' ? 'bg-accent' : ''}>Minggu Lalu</Button>
                         <Button variant="outline" size="sm" onClick={() => { setQuickRange('this_month'); applyQuickRange('this_month'); }} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                        <Button variant="outline" size="sm" onClick={() => { setQuickRange('this_year'); applyQuickRange('this_year'); }} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                       </div>
                       <div className="border-t pt-4 space-y-2">
                         <h4 className="font-medium leading-none">Kustom</h4>

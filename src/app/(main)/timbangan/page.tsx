@@ -605,7 +605,6 @@ export default function TimbanganPage() {
               data={data} 
               meta={tableMeta}
               isLoading={loading}
-              virtualize={{ enabled: true, rowHeight: 56, maxHeight: 70 }}
             />
           </div>
 
@@ -613,7 +612,21 @@ export default function TimbanganPage() {
             <div className="text-sm text-gray-500">
               Menampilkan <span className="font-medium text-gray-800">{Math.min((page - 1) * limit + 1, totalItems)}</span> - <span className="font-medium text-gray-800">{Math.min(page * limit, totalItems)}</span> dari <span className="font-medium text-gray-800">{totalItems}</span> data
             </div>
-            <div className="flex space-x-2">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Per halaman</span>
+                <select
+                  value={limit}
+                  onChange={(e) => { setLimit(Number(e.target.value) || 10); setPage(1); }}
+                  className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <div className="flex space-x-2">
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1 || loading}
@@ -628,6 +641,7 @@ export default function TimbanganPage() {
               >
                 Berikutnya
               </button>
+              </div>
             </div>
           </div>
         </div>

@@ -72,20 +72,21 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
     const [deleteRincianTarget, setDeleteRincianTarget] = useState<any>(null);
 
     const rincianTagSummary = () => {
-        if (rincianTag.kendaraanPlatNomor) return `Kendaraan: ${rincianTag.kendaraanPlatNomor}`
+        const parts: string[] = []
+        if (rincianTag.kendaraanPlatNomor) parts.push(`Kendaraan: ${rincianTag.kendaraanPlatNomor}`)
         if (rincianTag.kebunId) {
             const kb = kebunList.find((k: any) => String(k?.id) === String(rincianTag.kebunId))
-            return `Kebun: ${String(kb?.name || kb?.nama || rincianTag.kebunId)}`
+            parts.push(`Kebun: ${String(kb?.name || kb?.nama || rincianTag.kebunId)}`)
         }
         if (rincianTag.perusahaanId) {
             const p = perusahaanList.find((x: any) => String(x?.id) === String(rincianTag.perusahaanId))
-            return `Perusahaan: ${String(p?.name || rincianTag.perusahaanId)}`
+            parts.push(`Perusahaan: ${String(p?.name || rincianTag.perusahaanId)}`)
         }
         if (rincianTag.karyawanId) {
             const u = karyawanList.find((x: any) => String(x?.id) === String(rincianTag.karyawanId))
-            return `Karyawan: ${String(u?.name || `#${rincianTag.karyawanId}`)}`
+            parts.push(`Karyawan: ${String(u?.name || `#${rincianTag.karyawanId}`)}`)
         }
-        return 'Tanpa tag'
+        return parts.length > 0 ? parts.join(' • ') : 'Tanpa tag'
     }
 
     const formatRupiah = (angka: string) => {
@@ -775,7 +776,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={plat}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: checked ? '' : plat, kebunId: '', perusahaanId: '', karyawanId: '' })}
+                                            onClick={() => setRincianTag(prev => ({ ...prev, kendaraanPlatNomor: checked ? '' : plat }))}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">
@@ -822,7 +823,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={idVal}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: checked ? '' : idVal, perusahaanId: '', karyawanId: '' })}
+                                            onClick={() => setRincianTag(prev => ({ ...prev, kebunId: checked ? '' : idVal }))}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">{label}</div>
@@ -867,7 +868,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={idVal}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: checked ? '' : idVal, karyawanId: '' })}
+                                            onClick={() => setRincianTag(prev => ({ ...prev, perusahaanId: checked ? '' : idVal }))}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">{label}</div>
@@ -912,7 +913,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                         <button
                                             key={idVal}
                                             type="button"
-                                            onClick={() => setRincianTag({ kendaraanPlatNomor: '', kebunId: '', perusahaanId: '', karyawanId: checked ? '' : idVal })}
+                                            onClick={() => setRincianTag(prev => ({ ...prev, karyawanId: checked ? '' : idVal }))}
                                             className={`w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 ${checked ? 'bg-emerald-50/60' : ''}`}
                                         >
                                             <div className="text-sm text-gray-900 text-left">{label}</div>

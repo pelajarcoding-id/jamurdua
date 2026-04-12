@@ -32,8 +32,9 @@ export async function GET(request: Request) {
       kebuns.map(async (k) => {
         const notas = await prisma.notaSawit.findMany({
           where: {
-            kebunId: k.id,
-            createdAt: { gte: startUtc, lt: endExclusiveUtc },
+            deletedAt: null,
+            tanggalBongkar: { gte: startUtc, lt: endExclusiveUtc },
+            AND: [{ OR: [{ kebunId: k.id }, { timbangan: { kebunId: k.id } }] }],
           },
           select: { kendaraanPlatNomor: true, totalPembayaran: true },
         })
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
         const totalTrips = notas.length
         const income = notas.reduce((acc, n) => acc + (n.totalPembayaran || 0), 0)
 
-        const [kasAgg, gajiAgg] = await Promise.all([
+        const [kasAgg, uangJalanAgg, gajiAgg] = await Promise.all([
           prisma.kasTransaksi.aggregate({
             where: {
               deletedAt: null,
@@ -50,6 +51,16 @@ export async function GET(request: Request) {
               date: { gte: startUtc, lt: endExclusiveUtc },
             },
             _sum: { jumlah: true },
+          }),
+          prisma.uangJalan.aggregate({
+            where: {
+              deletedAt: null,
+              tipe: 'PENGELUARAN',
+              description: { contains: `[KEBUN:${k.id}]` },
+              sesiUangJalan: { deletedAt: null },
+              date: { gte: startUtc, lt: endExclusiveUtc },
+            } as any,
+            _sum: { amount: true },
           }),
           prisma.gajian.aggregate({
             where: {
@@ -61,7 +72,9 @@ export async function GET(request: Request) {
           }),
         ])
 
-        const kasCost = kasAgg._sum.jumlah || 0
+        const kasCostOnly = kasAgg._sum.jumlah || 0
+        const uangJalanCost = uangJalanAgg._sum.amount || 0
+        const kasCost = kasCostOnly + uangJalanCost
         const gajiCost = gajiAgg._sum.totalGaji || 0
         const totalCost = kasCost + gajiCost
         const grossProfit = income - totalCost
@@ -71,6 +84,7 @@ export async function GET(request: Request) {
           kebunName: k.name,
           totalTrips,
           kasCost,
+          uangJalanCost,
           gajiCost,
           totalCost,
           income,

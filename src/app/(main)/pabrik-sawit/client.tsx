@@ -387,7 +387,7 @@ export default function PabrikSawitClient() {
           <div className="bg-white p-6 rounded-lg shadow-md mb-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-base font-semibold text-gray-900">Selisih Timbangan Kebun vs Pabrik</div>
+                <div className="text-base font-semibold text-gray-900">Selisih Timbangan Pabrik vs Kebun</div>
                 <div className="text-xs text-gray-500">Akumulasi selisih bruto per pabrik pada periode terpilih</div>
               </div>
               <div className="text-xs text-gray-500 whitespace-nowrap">Periode: <span className="font-semibold text-gray-900">{dateDisplay}</span></div>

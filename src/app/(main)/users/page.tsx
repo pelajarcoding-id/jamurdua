@@ -345,7 +345,8 @@ export default function UsersPage() {
 
                 searchPlaceholder="Cari nama atau email..."
                 isLoading={loading}
-                virtualize={{ enabled: true, rowHeight: 56, maxHeight: 60 }}
+                showPageSizeSelector
+                pageSizeOptions={[10, 20, 50, 100]}
             />
             </div>
             

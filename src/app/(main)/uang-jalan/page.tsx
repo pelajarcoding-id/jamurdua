@@ -115,7 +115,7 @@ export default function UangJalanPage() {
     const [summary, setSummary] = useState<SummaryData | null>(null);
     const [startDate, setStartDate] = useState<Date | undefined>(undefined);
     const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-    const [quickRange, setQuickRange] = useState('this_month');
+    const [quickRange, setQuickRange] = useState('this_year');
     const [selectedSupirId, setSelectedSupirId] = useState<string>('all');
     const [supirQuery, setSupirQuery] = useState('');
     const [openSupir, setOpenSupir] = useState(false);
@@ -123,9 +123,10 @@ export default function UangJalanPage() {
     useEffect(() => {
         // Initialize dates using WIB
         const { year, month, day } = getCurrentWIBDateParts();
-        const start = createWIBDate(year, month, 1);
+        const start = createWIBDate(year, 1, 1);
         const end = createWIBDate(year, month, day, true);
         
+        setQuickRange('this_year')
         setStartDate(start);
         setEndDate(end);
     }, []);
@@ -233,6 +234,7 @@ export default function UangJalanPage() {
                 case 'last_week': return '7 Hari Terakhir';
                 case 'last_30_days': return '30 Hari Terakhir';
                 case 'this_month': return 'Bulan Ini';
+                case 'this_year': return 'Tahun Ini';
                 default: return 'Pilih Rentang Waktu';
             }
         }
@@ -261,6 +263,9 @@ export default function UangJalanPage() {
             setEndDate(createWIBDate(year, month, day, true));
         } else if (val === 'this_month') {
             setStartDate(createWIBDate(year, month, 1));
+            setEndDate(createWIBDate(year, month, day, true));
+        } else if (val === 'this_year') {
+            setStartDate(createWIBDate(year, 1, 1));
             setEndDate(createWIBDate(year, month, day, true));
         }
     }, []);
@@ -960,6 +965,7 @@ export default function UangJalanPage() {
                                                 <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_week')} className={quickRange === 'last_week' ? 'bg-accent' : ''}>7 Hari</Button>
                                                 <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_30_days')} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
                                                 <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_month')} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                                                <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_year')} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                                             </div>
                                             <div className="border-t pt-4 space-y-2">
                                                 <h4 className="font-medium leading-none">Kustom</h4>
