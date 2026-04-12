@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
+    const search = url.searchParams.get('search') || url.searchParams.get('platNomor');
     const pageParam = url.searchParams.get('page');
     const limitParam = url.searchParams.get('limit');
     const cursorParam = url.searchParams.get('cursorId');
@@ -21,16 +22,24 @@ export async function GET(request: Request) {
       end.setDate(end.getDate() + 1);
     }
 
-    const where = {
-      ...(start || end
-        ? {
-            date: {
-              ...(start ? { gte: start } : {}),
-              ...(end ? { lt: end } : {}),
-            },
-          }
-        : {}),
-    };
+    const andWhere: any[] = [];
+    if (start || end) {
+      andWhere.push({
+        date: {
+          ...(start ? { gte: start } : {}),
+          ...(end ? { lt: end } : {}),
+        },
+      });
+    }
+    if (search) {
+      andWhere.push({
+        OR: [
+          { kendaraanPlat: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+    const where = andWhere.length > 0 ? { AND: andWhere } : {};
 
     const total = await prisma.serviceLog.count({ where });
 

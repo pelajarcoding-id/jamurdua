@@ -45,6 +45,8 @@ export default function KendaraanPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedKendaraan, setSelectedKendaraan] = useState<KendaraanData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [jenisFilter, setJenisFilter] = useState<string>('all')
+  const [jenisOptions, setJenisOptions] = useState<string[]>([])
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -55,10 +57,34 @@ export default function KendaraanPage() {
     if (q !== searchQuery) setSearchQuery(q);
   }, [searchParams, searchQuery]);
 
+  useEffect(() => {
+    const j = searchParams.get('jenis') || 'all'
+    if (j !== jenisFilter) setJenisFilter(j)
+  }, [searchParams, jenisFilter])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/kendaraan/jenis-list', { cache: 'no-store' })
+        const json = await res.json()
+        const list = Array.isArray(json?.data) ? (json.data as string[]) : []
+        setJenisOptions(list)
+      } catch {
+        setJenisOptions([])
+      }
+    }
+    load()
+  }, [])
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/kendaraan?page=${page}&limit=${limit}&search=${debouncedSearchQuery}`, { cache: 'no-store' });
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('limit', String(limit))
+      if (debouncedSearchQuery) params.set('search', debouncedSearchQuery)
+      if (jenisFilter && jenisFilter !== 'all') params.set('jenis', jenisFilter)
+      const res = await fetch(`/api/kendaraan?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const kendaraanData = await res.json();
       setData(kendaraanData.data);
@@ -68,7 +94,7 @@ export default function KendaraanPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery]);
+  }, [page, limit, debouncedSearchQuery, jenisFilter]);
 
   useEffect(() => {
     fetchData();
@@ -209,6 +235,18 @@ export default function KendaraanPage() {
     router.replace(`${pathname}?${params.toString()}`);
   }, [pathname, router, searchParams, searchQuery]);
 
+  const handleJenisChange = useCallback((value: string) => {
+    setJenisFilter(value)
+    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (value && value !== 'all') {
+      params.set('jenis', value)
+    } else {
+      params.delete('jenis')
+    }
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [pathname, router, searchParams])
+
   const handleDelete = useCallback(async () => {
     if (!selectedKendaraan) return;
 
@@ -261,12 +299,12 @@ export default function KendaraanPage() {
 
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [quickRange, setQuickRange] = useState<string>('this_month');
+  const [quickRange, setQuickRange] = useState<string>('this_year');
   const [isRangeOpen, setIsRangeOpen] = useState(false);
   useEffect(() => {
     const now = new Date();
-    const s = new Date(now.getFullYear(), now.getMonth(), 1);
-    const e2 = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const s = new Date(now.getFullYear(), 0, 1);
+    const e2 = new Date(now.getFullYear(), 11, 31);
     setStartDate(s.toISOString().split('T')[0]);
     setEndDate(e2.toISOString().split('T')[0]);
   }, []);
@@ -278,6 +316,7 @@ export default function KendaraanPage() {
         case 'last_7_days': return '7 Hari';
         case 'last_30_days': return '30 Hari';
         case 'this_month': return 'Bulan Ini';
+        case 'this_year': return 'Tahun Ini';
         default: return 'Pilih Rentang Waktu';
       }
     }
@@ -298,11 +337,20 @@ export default function KendaraanPage() {
   const [serviceTotal, setServiceTotal] = useState(0);
   const [serviceCursor, setServiceCursor] = useState<number | null>(null);
   const [serviceCursorStack, setServiceCursorStack] = useState<number[]>([]);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const debouncedServiceSearch = useDebounce(serviceSearch, 500);
+
+  useEffect(() => {
+    setServicePage(1);
+    setServiceCursor(null);
+    setServiceCursorStack([]);
+  }, [debouncedServiceSearch]);
 
   const serviceLogsUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (startDate) params.set('startDate', new Date(startDate).toISOString());
     if (endDate) params.set('endDate', new Date(endDate).toISOString());
+    if (debouncedServiceSearch) params.set('search', debouncedServiceSearch);
     if (serviceCursor != null) {
       params.set('cursorId', String(serviceCursor));
     } else {
@@ -310,7 +358,7 @@ export default function KendaraanPage() {
     }
     params.set('limit', String(serviceLimit));
     return `/api/kendaraan/service?${params.toString()}`;
-  }, [startDate, endDate, servicePage, serviceLimit, serviceCursor]);
+  }, [startDate, endDate, servicePage, serviceLimit, serviceCursor, debouncedServiceSearch]);
 
   const { data: allServiceLogsResp } = useSWR<{ data: ServiceLog[]; total: number; nextCursor: number | null }>(
     serviceLogsUrl,
@@ -461,6 +509,20 @@ export default function KendaraanPage() {
                 columns={tableColumns} 
                 data={data} 
                 onRowClick={(row) => handleOpenDetail(row)}
+                extraFilters={
+                  <div className="w-full md:w-56">
+                    <select
+                      value={jenisFilter}
+                      onChange={(e) => handleJenisChange(e.target.value)}
+                      className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm"
+                    >
+                      <option value="all">Semua Jenis</option>
+                      {jenisOptions.map((j) => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
+                  </div>
+                }
                 renderMobileCards={({ data, isLoading }) => (
                   <div className="space-y-3">
                     {isLoading ? (
@@ -540,6 +602,13 @@ export default function KendaraanPage() {
             </div>
           </div>
           <div className="w-full flex flex-wrap items-center gap-2 gap-y-3 mb-4">
+            <input
+              type="text"
+              placeholder="Cari plat / deskripsi..."
+              value={serviceSearch}
+              onChange={(e) => setServiceSearch(e.target.value)}
+              className="h-9 w-full sm:w-[220px] rounded-xl border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
             <Popover open={isRangeOpen} onOpenChange={setIsRangeOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -571,6 +640,7 @@ export default function KendaraanPage() {
                     <Button variant="outline" size="sm" onClick={() => { setQuickRange('last_7_days'); const t=new Date(); const s=new Date(t); s.setDate(s.getDate()-6); const e=new Date(t); e.setHours(23,59,59,999); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'last_7_days' ? 'bg-accent' : ''}>7 Hari</Button>
                     <Button variant="outline" size="sm" onClick={() => { setQuickRange('last_30_days'); const t=new Date(); const s=new Date(t); s.setDate(s.getDate()-29); const e=new Date(t); e.setHours(23,59,59,999); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
                     <Button variant="outline" size="sm" onClick={() => { setQuickRange('this_month'); const t=new Date(); const s=new Date(t.getFullYear(), t.getMonth(), 1); const e=new Date(t.getFullYear(), t.getMonth()+1, 0); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('this_year'); const t=new Date(); const s=new Date(t.getFullYear(), 0, 1); const e=new Date(t.getFullYear(), 11, 31); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                   </div>
                   <div className="border-t pt-4 space-y-2">
                     <h4 className="font-medium leading-none">Kustom</h4>

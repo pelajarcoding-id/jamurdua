@@ -13,6 +13,7 @@ export async function GET(request: Request) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
         const search = searchParams.get('search') || '';
+        const jenisFilter = searchParams.get('jenis') || '';
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
 
@@ -48,6 +49,12 @@ export async function GET(request: Request) {
                     gte: new Date(startDate),
                     lte: new Date(endDate),
                 },
+            });
+        }
+
+        if (jenisFilter) {
+            where.AND.push({
+                jenis: { equals: jenisFilter, mode: 'insensitive' },
             });
         }
 

@@ -33,6 +33,7 @@ interface VehicleAlertGroup {
   platNomor: string;
   merk: string;
   stnk: DocumentStatus;
+  pajak: DocumentStatus;
   izinTrayek: DocumentStatus;
   speksi: DocumentStatus;
   minDaysLeft: number; // For sorting
@@ -82,7 +83,8 @@ export default function VehicleExpirySection() {
         };
 
         const stnk = getStatus(v.tanggalMatiStnk);
-        const izinTrayek = getStatus((v.tanggalIzinTrayek ?? v.tanggalPajakTahunan) ?? null);
+        const pajak = getStatus(v.tanggalPajakTahunan ?? null);
+        const izinTrayek = getStatus(v.tanggalIzinTrayek ?? null);
         const speksi = getStatus(v.speksi ?? null);
 
         // Calculate minimum days left for sorting (prioritize issues)
@@ -96,11 +98,13 @@ export default function VehicleExpirySection() {
 
         const minDaysLeft = Math.min(
             getSortValue(stnk),
+            getSortValue(pajak),
             getSortValue(izinTrayek),
             getSortValue(speksi)
         );
 
         const hasIssues = stnk.status === 'expired' || stnk.status === 'warning' ||
+                          pajak.status === 'expired' || pajak.status === 'warning' ||
                           izinTrayek.status === 'expired' || izinTrayek.status === 'warning' ||
                           speksi.status === 'expired' || speksi.status === 'warning';
 
@@ -108,6 +112,7 @@ export default function VehicleExpirySection() {
             platNomor: v.platNomor,
             merk: v.merk,
             stnk,
+            pajak,
             izinTrayek,
             speksi,
             minDaysLeft,
@@ -240,6 +245,7 @@ export default function VehicleExpirySection() {
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   {renderStatusCompact('STNK', vehicle.stnk)}
+                  {renderStatusCompact('Pajak Tahunan', vehicle.pajak)}
                   {renderStatusCompact('Izin Trayek', vehicle.izinTrayek)}
                   {renderStatusCompact('Speksi', vehicle.speksi)}
                 </div>
@@ -253,6 +259,7 @@ export default function VehicleExpirySection() {
                   <TableRow>
                   <TableHead className="w-[200px]">Kendaraan</TableHead>
                   <TableHead>STNK</TableHead>
+                  <TableHead>Pajak Tahunan</TableHead>
                   <TableHead>Izin Trayek</TableHead>
                   <TableHead>Speksi</TableHead>
                   </TableRow>
@@ -265,6 +272,7 @@ export default function VehicleExpirySection() {
                       <div className="text-xs text-gray-500">{vehicle.merk}</div>
                       </TableCell>
                       <TableCell>{renderStatusCell(vehicle.stnk)}</TableCell>
+                      <TableCell>{renderStatusCell(vehicle.pajak)}</TableCell>
                       <TableCell>{renderStatusCell(vehicle.izinTrayek)}</TableCell>
                       <TableCell>{renderStatusCell(vehicle.speksi)}</TableCell>
                   </TableRow>

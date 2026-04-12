@@ -68,7 +68,7 @@ export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalPro
     return (
         <>
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-[92vw] sm:w-full sm:max-w-[520px] max-h-[92vh] p-0 overflow-hidden bg-white rounded-2xl flex flex-col [&>button.absolute]:hidden">
+            <DialogContent className="w-[94vw] sm:w-full sm:max-w-[760px] md:max-w-[980px] lg:max-w-[1100px] max-h-[92vh] p-0 overflow-hidden bg-white rounded-2xl flex flex-col [&>button.absolute]:hidden">
                 <ModalHeader
                     title="Detail Uang Jalan"
                     subtitle={`${data.supir.name} • ${formatDate(data.tanggalMulai)}`}
