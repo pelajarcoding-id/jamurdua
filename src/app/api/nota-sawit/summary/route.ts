@@ -54,54 +54,87 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      const orConditions: Prisma.NotaSawitWhereInput[] = []
-      const s = search.trim()
-      const sLower = s.toLowerCase()
-      const isNumeric = /^\d+(\.\d+)?$/.test(s)
-      const ymd = parseWibYmd(s)
-      if (ymd) orConditions.push({ tanggalBongkar: { gte: wibStartUtc(ymd), lt: wibEndExclusiveUtc(ymd) } })
-      if (isNumeric) {
-        const like = `%${s}%`
-        const baseConds: Prisma.Sql[] = [
-          Prisma.sql`(n."deletedAt" IS NULL) AND (CAST(n.id AS TEXT) ILIKE ${like}
-            OR CAST(n.bruto AS TEXT) ILIKE ${like}
-            OR CAST(n.tara AS TEXT) ILIKE ${like}
-            OR CAST(n.netto AS TEXT) ILIKE ${like}
-            OR CAST(n.potongan AS TEXT) ILIKE ${like}
-            OR CAST(n."hargaPerKg" AS TEXT) ILIKE ${like}
-            OR CAST(n."totalPembayaran" AS TEXT) ILIKE ${like})`,
-        ]
-        const startYmd = parseWibYmd(startDate)
-        const endYmd = parseWibYmd(endDate)
-        if (startYmd) baseConds.push(Prisma.sql`n."tanggalBongkar" >= ${wibStartUtc(startYmd)}`)
-        if (endYmd) baseConds.push(Prisma.sql`n."tanggalBongkar" < ${wibEndExclusiveUtc(endYmd)}`)
-        if (kebunId) baseConds.push(Prisma.sql`t."kebunId" = ${parseInt(kebunId, 10)}`)
-        if (supirId) baseConds.push(Prisma.sql`n."supirId" = ${parseInt(supirId, 10)}`)
-        if (pabrikId) baseConds.push(Prisma.sql`n."pabrikSawitId" = ${parseInt(pabrikId, 10)}`)
-        if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
-          baseConds.push(Prisma.sql`n."statusPembayaran" = ${statusPembayaran}`)
+      const tokens = search.trim().split(/\s+/).filter(Boolean)
+      const baseAnd = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      ] as Prisma.NotaSawitWhereInput[]
+
+      for (const token of tokens) {
+        const s = token.trim()
+        if (!s) continue
+        const sLower = s.toLowerCase()
+        const orConditions: Prisma.NotaSawitWhereInput[] = []
+
+        const ymd = parseWibYmd(s)
+        if (ymd) orConditions.push({ tanggalBongkar: { gte: wibStartUtc(ymd), lt: wibEndExclusiveUtc(ymd) } })
+
+        const hasDigit = /\d/.test(s)
+        const isNumericToken = hasDigit && /^[\d.,\s]+$/.test(s)
+        if (isNumericToken) {
+          const sCompact = s.replace(/\s+/g, '')
+          const numericToken = (() => {
+            if (!/[.,]/.test(sCompact)) return sCompact
+            const parts = sCompact.split(/[.,]/)
+            const last = parts[parts.length - 1] || ''
+            if (last.length === 3) return parts.join('')
+            return sCompact.replace(',', '.')
+          })()
+          const like = `%${numericToken}%`
+          const baseConds: Prisma.Sql[] = [
+            Prisma.sql`(n."deletedAt" IS NULL) AND (CAST(n.id AS TEXT) ILIKE ${like}
+              OR CAST(n.bruto AS TEXT) ILIKE ${like}
+              OR CAST(n.tara AS TEXT) ILIKE ${like}
+              OR CAST(n.netto AS TEXT) ILIKE ${like}
+              OR CAST(n.potongan AS TEXT) ILIKE ${like}
+              OR CAST(n."beratAkhir" AS TEXT) ILIKE ${like}
+              OR CAST(n."hargaPerKg" AS TEXT) ILIKE ${like}
+              OR CAST(n."totalPembayaran" AS TEXT) ILIKE ${like}
+              OR CAST(n."pembayaranSetelahPph" AS TEXT) ILIKE ${like}
+              OR CAST(n."pembayaranAktual" AS TEXT) ILIKE ${like}
+              OR CAST(n.pph AS TEXT) ILIKE ${like}
+              OR CAST(n.pph25 AS TEXT) ILIKE ${like})`,
+          ]
+          const startYmd = parseWibYmd(startDate)
+          const endYmd = parseWibYmd(endDate)
+          if (startYmd) baseConds.push(Prisma.sql`n."tanggalBongkar" >= ${wibStartUtc(startYmd)}`)
+          if (endYmd) baseConds.push(Prisma.sql`n."tanggalBongkar" < ${wibEndExclusiveUtc(endYmd)}`)
+          if (kebunId) baseConds.push(Prisma.sql`t."kebunId" = ${parseInt(kebunId, 10)}`)
+          if (supirId) baseConds.push(Prisma.sql`n."supirId" = ${parseInt(supirId, 10)}`)
+          if (pabrikId) baseConds.push(Prisma.sql`n."pabrikSawitId" = ${parseInt(pabrikId, 10)}`)
+          if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
+            baseConds.push(Prisma.sql`n."statusPembayaran" = ${statusPembayaran}`)
+          }
+          const whereSql = baseConds.slice(1).reduce((acc, curr) => Prisma.sql`${acc} AND ${curr}`, baseConds[0])
+          const idsRows: Array<{ id: number }> = await prisma.$queryRaw(
+            Prisma.sql`SELECT n.id
+                       FROM "NotaSawit" n
+                       LEFT JOIN "Timbangan" t ON t.id = n."timbanganId"
+                       WHERE ${whereSql}`,
+          )
+          const numericIds = idsRows.map((r) => r.id)
+          if (numericIds.length > 0) orConditions.push({ id: { in: numericIds } })
         }
-        const whereSql = baseConds.slice(1).reduce((acc, curr) => Prisma.sql`${acc} AND ${curr}`, baseConds[0])
-        const idsRows: Array<{ id: number }> = await prisma.$queryRaw(
-          Prisma.sql`SELECT n.id
-                     FROM "NotaSawit" n
-                     LEFT JOIN "Timbangan" t ON t.id = n."timbanganId"
-                     WHERE ${whereSql}`,
+
+        if (sLower.includes('lunas')) orConditions.push({ statusPembayaran: 'LUNAS' })
+        if (sLower.includes('belum') || sLower.includes('pending')) orConditions.push({ statusPembayaran: 'BELUM_LUNAS' })
+
+        orConditions.push(
+          { keterangan: { contains: s, mode: 'insensitive' } },
+          { statusGajian: { contains: s, mode: 'insensitive' } },
+          { supir: { name: { contains: s, mode: 'insensitive' } } },
+          { kendaraan: { platNomor: { contains: s, mode: 'insensitive' } } },
+          { kendaraanPlatNomor: { contains: s, mode: 'insensitive' } },
+          { pabrikSawit: { name: { contains: s, mode: 'insensitive' } } },
+          { kebun: { name: { contains: s, mode: 'insensitive' } } },
+          { timbangan: { kebun: { name: { contains: s, mode: 'insensitive' } } } },
+          { timbangan: { notes: { contains: s, mode: 'insensitive' } } },
         )
-        const numericIds = idsRows.map((r) => r.id)
-        if (numericIds.length > 0) orConditions.push({ id: { in: numericIds } })
+
+        baseAnd.push({ OR: orConditions })
       }
-      if (sLower.includes('lunas')) orConditions.push({ statusPembayaran: 'LUNAS' })
-      if (sLower.includes('belum') || sLower.includes('pending')) orConditions.push({ statusPembayaran: 'BELUM_LUNAS' })
-      orConditions.push(
-        { supir: { name: { contains: s, mode: 'insensitive' } } },
-        { kendaraan: { platNomor: { contains: s, mode: 'insensitive' } } },
-        { kendaraanPlatNomor: { contains: s } },
-        { pabrikSawit: { name: { contains: s, mode: 'insensitive' } } },
-        { kebun: { name: { contains: s, mode: 'insensitive' } } },
-        { timbangan: { kebun: { name: { contains: s, mode: 'insensitive' } } } },
-      )
-      where.OR = orConditions
+
+      where.AND = baseAnd
+      delete (where as any).OR
     }
 
     const rows = await prisma.notaSawit.findMany({

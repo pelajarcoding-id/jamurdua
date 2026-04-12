@@ -30,6 +30,8 @@ export default function GambarGalleryPage() {
   const { data, isLoading } = useSWR<{ data: ImageItem[]; categories: string[] }>('/api/images', fetcher)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState<string>('SEMUA')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<ImageItem | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -115,6 +117,17 @@ export default function GambarGalleryPage() {
       return true
     })
   }, [items, cat, q, startDate, endDate])
+
+  useEffect(() => {
+    setPage(1)
+  }, [q, cat, startDate, endDate, perPage])
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / perPage)), [filtered.length, perPage])
+  const paged = useMemo(() => {
+    const safePage = Math.min(Math.max(page, 1), totalPages)
+    const start = (safePage - 1) * perPage
+    return filtered.slice(start, start + perPage)
+  }, [filtered, page, perPage, totalPages])
 
   const handleDownloadPreview = useCallback(async () => {
     if (!preview?.url || downloading) return
@@ -305,29 +318,70 @@ export default function GambarGalleryPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center text-gray-500 py-12">Tidak ada gambar</div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {filtered.map(img => (
-              <div key={img.id} className="space-y-2">
-                <button
-                  onClick={() => { setPreview(img); setOpen(true) }}
-                  className="block w-full"
-                  aria-label="Lihat gambar"
-                >
-                  <NextImage
-                    src={img.url}
-                    alt={img.label || img.id}
-                    width={400}
-                    height={256}
-                    className="w-full h-32 object-cover rounded-xl border border-gray-100"
-                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 16vw"
-                    priority={false}
-                    unoptimized
-                  />
-                </button>
-                <div className="text-xs text-gray-800 truncate">{img.label || img.id}</div>
-                <div className="text-[10px] text-gray-500">{img.category.split('_').join(' ')}</div>
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="text-xs text-gray-600">
+                {(() => {
+                  const from = (page - 1) * perPage + 1
+                  const to = Math.min(filtered.length, page * perPage)
+                  return `Menampilkan ${from}-${to} dari ${filtered.length}`
+                })()}
               </div>
-            ))}
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <select
+                  className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm"
+                  value={perPage}
+                  onChange={(e) => setPerPage(Number(e.target.value))}
+                >
+                  {[20, 50, 100, 200].map((n) => (
+                    <option key={n} value={n}>{n} / halaman</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-9 rounded-xl"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9 rounded-xl"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {paged.map(img => (
+                <div key={img.id} className="space-y-2">
+                  <button
+                    onClick={() => { setPreview(img); setOpen(true) }}
+                    className="block w-full"
+                    aria-label="Lihat gambar"
+                  >
+                    <NextImage
+                      src={img.url}
+                      alt={img.label || img.id}
+                      width={400}
+                      height={256}
+                      className="w-full h-32 object-cover rounded-xl border border-gray-100"
+                      sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 16vw"
+                      priority={false}
+                      unoptimized
+                    />
+                  </button>
+                  <div className="text-xs text-gray-800 truncate">{img.label || img.id}</div>
+                  <div className="text-[10px] text-gray-500">{img.category.split('_').join(' ')}</div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

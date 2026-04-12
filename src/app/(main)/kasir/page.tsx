@@ -1138,50 +1138,41 @@ const KasirPage = () => {
             />
           </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-4">
-          <div className="flex items-center space-x-4">
-            <span className="text-xs md:text-sm text-gray-700">
-              Halaman {page} dari {Math.ceil((data?.totalItems ?? 0) / limit)}
-            </span>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-gray-500">Tampilkan</span>
-              <Select
-                value={String(limit)}
-                onValueChange={(val) => {
-                  setLimit(Number(val));
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="h-8 w-20 rounded-lg text-xs">
-                  <SelectValue placeholder={String(limit)} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-xs text-gray-500">baris</span>
-            </div>
+        <div className="flex flex-col md:flex-row items-center justify-center md:justify-between gap-4 mt-6 pt-4 border-t border-gray-100">
+          <div className="text-sm text-gray-500">
+            Menampilkan <span className="font-medium text-gray-800">{Math.min((page - 1) * limit + 1, data?.totalItems ?? 0)}</span> - <span className="font-medium text-gray-800">{Math.min(page * limit, data?.totalItems ?? 0)}</span> dari <span className="font-medium text-gray-800">{data?.totalItems ?? 0}</span> transaksi
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
+          <div className="flex items-center gap-2">
+            <select
+              className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              value={limit}
+              onChange={(e) => {
+                const next = Number(e.target.value)
+                setLimit(next)
+                setPage(1)
+              }}
+              title="Per halaman"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+            </select>
+            <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
+              disabled={page === 1 || isLoading}
+              className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Sebelumnya
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+            </button>
+            <button
               onClick={() => setPage(p => p + 1)}
-              disabled={page >= Math.ceil((data?.totalItems ?? 0) / limit)}
+              disabled={page >= Math.ceil((data?.totalItems ?? 0) / limit) || isLoading}
+              className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Berikutnya
-            </Button>
+            </button>
           </div>
         </div>
       </div>

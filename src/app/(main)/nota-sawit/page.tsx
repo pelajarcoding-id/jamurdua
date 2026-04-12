@@ -143,14 +143,22 @@ export default function NotaSawitPage() {
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
+    setPage(1);
+    setCursorId(null);
+    setCursorStack([]);
+  };
+
+  useEffect(() => {
+    const current = searchParams.get('search') || '';
+    if (debouncedSearchQuery === current) return;
     const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set('search', value);
+    if (debouncedSearchQuery) {
+      params.set('search', debouncedSearchQuery);
     } else {
       params.delete('search');
     }
     router.replace(`?${params.toString()}`);
-  };
+  }, [debouncedSearchQuery, router, searchParams]);
 
   const refreshData = useCallback(() => setRefreshToggle(prev => !prev), []);
   const handleRefresh = useCallback(() => {
@@ -1453,6 +1461,7 @@ export default function NotaSawitPage() {
                 <option value={20}>20</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value={200}>200</option>
               </select>
               <button
                 onClick={() => {

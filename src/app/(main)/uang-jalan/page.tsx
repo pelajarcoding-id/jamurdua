@@ -175,14 +175,10 @@ export default function UangJalanPage() {
                 url += `&supirId=${selectedSupirId}`;
             }
 
-            const karyawanResPromise = role === 'SUPIR'
-              ? Promise.resolve(null)
-              : fetch('/api/karyawan/tag-list?limit=1000', { cache: 'no-store' })
-
             const [sesiRes, supirRes, karyawanRes, kendaraanRes, kebunRes, perusahaanRes] = await Promise.all([
                 fetch(url, { cache: 'no-store' }),
                 fetch('/api/users?role=SUPIR&limit=1000', { cache: 'no-store' }),
-                karyawanResPromise,
+                fetch('/api/karyawan/tag-list?limit=1000', { cache: 'no-store' }),
                 fetch('/api/kendaraan?limit=1000', { cache: 'no-store' }),
                 fetch('/api/kebun?limit=1000', { cache: 'no-store' }),
                 fetch('/api/perusahaan?limit=1000', { cache: 'no-store' }),
@@ -1122,7 +1118,23 @@ export default function UangJalanPage() {
                         <div className="text-sm text-gray-500">
                             Menampilkan <span className="font-medium text-gray-800">{Math.min((page - 1) * limit + 1, totalItems)}</span> - <span className="font-medium text-gray-800">{Math.min(page * limit, totalItems)}</span> dari <span className="font-medium text-gray-800">{totalItems}</span> sesi
                         </div>
-                        <div className="flex space-x-2">
+                        <div className="flex items-center gap-2">
+                            <select
+                                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                value={limit}
+                                onChange={(e) => {
+                                    const next = Number(e.target.value)
+                                    setLimit(next)
+                                    setPage(1)
+                                }}
+                                title="Per halaman"
+                            >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={200}>200</option>
+                            </select>
                             <Button
                                 variant="outline"
                                 size="sm"

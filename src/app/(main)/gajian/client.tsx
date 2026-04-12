@@ -274,9 +274,8 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   }, [selectedMonth, selectedYear]);
 
   const [notas, setNotas] = useState<NotaSawitWithRelations[]>([]);
-  const [page, setPage] = useState(1);
   const [totalNotas, setTotalNotas] = useState(0);
-  const [limit, setLimit] = useState(10);
+  const notaFetchLimit = 5000
   const [rowSelection, setRowSelection] = useState({});
   const [notasToProcess, setNotasToProcess] = useState<ProcessingNotaSawit[]>([]);
   const [biayaLain, setBiayaLain] = useState<BiayaLain[]>([]);
@@ -775,7 +774,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const draftColumns = useMemo(() => createDraftColumns(handleContinueDraft, handleOpenDraftDeleteConfirm, handleOpenDetail), [handleContinueDraft, handleOpenDraftDeleteConfirm, handleOpenDetail]);
 
   // --- LOGIC FOR CREATE NEW GAJIAN --- //
-  const handleFetchNotas = async (newPage = 1) => {
+  const handleFetchNotas = async () => {
     if (!kebunId || !startDate || !endDate) {
       toast.error('Silakan pilih kebun dan periode tanggal terlebih dahulu.');
       return;
@@ -803,8 +802,8 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         kebunId,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        page: String(newPage),
-        limit: String(limit),
+        page: '1',
+        limit: String(notaFetchLimit),
       });
 
       if (editingGajianId) {
@@ -815,7 +814,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const { data, total } = await response.json();
       setNotas(data);
       setTotalNotas(total);
-      setPage(newPage);
       setRowSelection({});
 
       // Scroll to notas section
@@ -1868,7 +1866,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
               </div>
             </div>
             <Button
-              onClick={() => handleFetchNotas(1)}
+              onClick={() => handleFetchNotas()}
               disabled={!canSearchNota || hasDraftConflict}
               className={cn(
                 'w-full rounded-xl lg:col-span-1 h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words border',
@@ -2000,26 +1998,9 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             <div className="hidden md:block">
               <DataTable columns={columns} data={notas} rowSelection={rowSelection} setRowSelection={setRowSelection} />
             </div>
-            <div className="flex flex-col md:flex-row md:items-center justify-between mt-4 gap-2">
-              <div className="text-xs md:text-sm text-gray-700 w-full whitespace-normal break-words">
-                Menampilkan {Math.min((page - 1) * limit + 1, totalNotas)} - {Math.min(page * limit, totalNotas)} dari {totalNotas} nota
-              </div>
-              <div className="flex space-x-2 w-full md:w-auto md:justify-start justify-end">
-                <Button
-                  onClick={() => handleFetchNotas(page - 1)}
-                  disabled={page <= 1 || loading}
-                  className="border border-gray-400 bg-gray-50 text-black w-full md:w-auto h-auto min-h-[36px] px-3 py-2 text-sm md:text-base whitespace-normal break-words"
-                >
-                  Sebelumnya
-                </Button>
-                <Button
-                  onClick={() => handleFetchNotas(page + 1)}
-                  disabled={page * limit >= totalNotas || loading}
-                  className="border border-gray-400 bg-gray-50 hover:bg-gray-100 text-black w-full md:w-auto h-auto min-h-[36px] px-3 py-2 text-sm md:text-base whitespace-normal break-words"
-                >
-                  Berikutnya
-                </Button>
-              </div>
+            <div className="mt-4 text-xs md:text-sm text-gray-700">
+              Total nota ditemukan: {totalNotas} • Ditampilkan: {notas.length}
+              {totalNotas > notas.length ? ` (dibatasi ${notaFetchLimit} data)` : ''}
             </div>
             <div className="flex flex-col md:flex-row justify-end mt-6 gap-4">
               {Object.keys(rowSelection).length > 0 && (

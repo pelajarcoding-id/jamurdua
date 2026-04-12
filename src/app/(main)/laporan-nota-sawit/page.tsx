@@ -1037,6 +1037,7 @@ export default function LaporanNotaSawitPage() {
                   <option value={20}>20</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
+                  <option value={200}>200</option>
                 </select>
               </div>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isTableLoading} className="flex-1 md:flex-none px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Sebelumnya</button>

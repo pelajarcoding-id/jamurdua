@@ -184,16 +184,56 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
   }, [karyawanId, supirList])
 
   const selectedTagSummary = () => {
-    const a = tagKendaraanPlats.filter(Boolean).length
-    const b = tagKebunIds.filter(Boolean).length
-    const c = tagKaryawanIds.filter(Boolean).length
-    const d = tagPerusahaanIds.filter(Boolean).length
-    if (a + b + c + d === 0) return 'Belum ada tag'
+    const kendaraan = tagKendaraanPlats.filter(Boolean)
+    const kebunIds = tagKebunIds.filter(Boolean)
+    const karyawanIds = tagKaryawanIds.filter(Boolean)
+    const perusahaanIds = tagPerusahaanIds.filter(Boolean)
+
+    const total = kendaraan.length + kebunIds.length + karyawanIds.length + perusahaanIds.length
+    if (total === 0) return 'Belum ada tag'
+
+    const kebunNameById = new Map<string, string>()
+    for (const k of kebunList) {
+      const id = String((k as any)?.id ?? '')
+      const name = String((k as any)?.name || (k as any)?.nama || '').trim()
+      if (id && name) kebunNameById.set(id, name)
+    }
+    const karyawanNameById = new Map<string, string>()
+    for (const u of supirList) {
+      const id = String((u as any)?.id ?? '')
+      const name = String((u as any)?.name || '').trim()
+      if (id && name) karyawanNameById.set(id, name)
+    }
+    const perusahaanNameById = new Map<string, string>()
+    for (const p of perusahaanList) {
+      const id = String((p as any)?.id ?? '')
+      const name = String((p as any)?.name || '').trim()
+      if (id && name) perusahaanNameById.set(id, name)
+    }
+
+    const fmtMany = (label: string, items: string[]) => {
+      if (items.length === 0) return ''
+      const first = items[0]
+      if (items.length === 1) return `${label}: ${first}`
+      return `${label}: ${first} (+${items.length - 1})`
+    }
+
     const parts: string[] = []
-    if (a) parts.push(`Kendaraan ${a}`)
-    if (b) parts.push(`Kebun ${b}`)
-    if (c) parts.push(`Karyawan ${c}`)
-    if (d) parts.push(`Perusahaan ${d}`)
+    const kendaraanLabel = fmtMany('Kendaraan', kendaraan)
+    if (kendaraanLabel) parts.push(kendaraanLabel)
+
+    const kebunNames = kebunIds.map((id) => kebunNameById.get(id) || id)
+    const kebunLabel = fmtMany('Kebun', kebunNames)
+    if (kebunLabel) parts.push(kebunLabel)
+
+    const karyawanNames = karyawanIds.map((id) => karyawanNameById.get(id) || id)
+    const karyawanLabel = fmtMany('Karyawan', karyawanNames)
+    if (karyawanLabel) parts.push(karyawanLabel)
+
+    const perusahaanNames = perusahaanIds.map((id) => perusahaanNameById.get(id) || id)
+    const perusahaanLabel = fmtMany('Perusahaan', perusahaanNames)
+    if (perusahaanLabel) parts.push(perusahaanLabel)
+
     return parts.join(' • ')
   }
 
