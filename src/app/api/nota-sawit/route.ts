@@ -374,6 +374,8 @@ export async function POST(request: Request) {
         include: {
           supir: { select: { id: true, name: true } },
           pabrikSawit: { select: { id: true, name: true } },
+          kebun: { select: { id: true, name: true } },
+          timbangan: { select: { id: true, kebun: { select: { id: true, name: true } } } },
         },
         orderBy: { createdAt: 'desc' },
         take: 5,
@@ -389,6 +391,7 @@ export async function POST(request: Request) {
               tanggalBongkar: d.tanggalBongkar,
               supir: d.supir ? { id: d.supir.id, name: d.supir.name } : null,
               pabrikSawit: d.pabrikSawit ? { id: d.pabrikSawit.id, name: d.pabrikSawit.name } : null,
+              kebunName: d.timbangan?.kebun?.name || d.kebun?.name || null,
               kendaraanPlatNomor: d.kendaraanPlatNomor,
               bruto: d.bruto,
               tara: d.tara,

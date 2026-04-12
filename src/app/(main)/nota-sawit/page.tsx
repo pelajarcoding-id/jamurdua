@@ -146,19 +146,15 @@ export default function NotaSawitPage() {
     setPage(1);
     setCursorId(null);
     setCursorStack([]);
-  };
-
-  useEffect(() => {
-    const current = searchParams.get('search') || '';
-    if (debouncedSearchQuery === current) return;
+    setNextCursor(null);
     const params = new URLSearchParams(searchParams.toString());
-    if (debouncedSearchQuery) {
-      params.set('search', debouncedSearchQuery);
+    if (value) {
+      params.set('search', value);
     } else {
       params.delete('search');
     }
     router.replace(`?${params.toString()}`);
-  }, [debouncedSearchQuery, router, searchParams]);
+  };
 
   const refreshData = useCallback(() => setRefreshToggle(prev => !prev), []);
   const handleRefresh = useCallback(() => {
@@ -489,6 +485,31 @@ export default function NotaSawitPage() {
       setSubmittingDuplicateProceed(false)
     }
   }, [handleCloseModal, pendingDuplicatePayload, refreshData, submittingDuplicateProceed])
+
+  const handleViewDuplicateNota = useCallback(async (id: number) => {
+    if (!id) return
+    const toastId = toast.loading('Memuat detail nota...')
+    try {
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '1',
+        search: String(id),
+      })
+      const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Gagal memuat detail nota')
+      const json = await res.json()
+      const nota = Array.isArray(json?.data) ? json.data[0] : null
+      if (!nota) throw new Error('Nota tidak ditemukan')
+
+      setDuplicateWarningOpen(false)
+      setDuplicateCandidates([])
+      setPendingDuplicatePayload(null)
+      handleDetail(nota)
+      toast.dismiss(toastId)
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal memuat detail nota', { id: toastId })
+    }
+  }, [handleDetail])
 
   const handleDelete = useCallback(async () => {
     if (!selectedNota) return;
@@ -1653,16 +1674,14 @@ export default function NotaSawitPage() {
                         <div className="min-w-0">
                           <div className="font-semibold text-gray-900">Nota #{d?.id}</div>
                           <div className="text-xs text-gray-500">
-                            {d?.tanggalBongkar ? new Date(d.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {d?.pabrikSawit?.name || '-'} • {d?.supir?.name || '-'} • {d?.kendaraanPlatNomor || '-'}
+                            {d?.tanggalBongkar ? new Date(d.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {d?.kebunName || '-'} • {d?.pabrikSawit?.name || '-'} • {d?.supir?.name || '-'} • {d?.kendaraanPlatNomor || '-'}
                           </div>
                         </div>
                         <Button
                           variant="outline"
                           className="rounded-full"
                           onClick={() => {
-                            const id = Number(d?.id)
-                            if (!Number.isFinite(id) || id <= 0) return
-                            window.open(`/nota-sawit?search=${encodeURIComponent(String(id))}`, '_blank')
+                            handleViewDuplicateNota(Number(d?.id))
                           }}
                         >
                           Lihat
