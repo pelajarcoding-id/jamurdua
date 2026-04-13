@@ -704,7 +704,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-white w-[95vw] sm:max-w-4xl max-h-[92vh] p-0 overflow-hidden flex flex-col [&>button.absolute]:hidden">
+      <DialogContent className="bg-white w-[98vw] sm:max-w-6xl lg:max-w-7xl max-h-[96vh] p-0 overflow-hidden flex flex-col [&>button.absolute]:hidden">
         <ModalHeader
           title="Detail Gajian"
           subtitle={`Gajian Kebun ${gajian.kebun.name} • Periode ${formatDate(gajian.tanggalMulai)} S/D ${formatDate(gajian.tanggalSelesai)}`}

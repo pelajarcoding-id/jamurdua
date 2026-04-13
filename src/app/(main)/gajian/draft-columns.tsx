@@ -21,6 +21,24 @@ export const createDraftColumns = (
   onDetail: (id: number) => void
 ): ColumnDef<(Gajian & { kebun: Kebun })>[] => [
   {
+    id: 'continue',
+    header: '',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const gajian = row.original;
+      return (
+        <Button
+          onClick={() => onContinue(gajian.id)}
+          size="sm"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          Lanjutkan
+          <ArrowRightIcon className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+  },
+  {
     accessorKey: 'kebun.name',
     header: 'Kebun',
   },
@@ -62,17 +80,9 @@ export const createDraftColumns = (
       const gajian = row.original;
       return (
         <div className="text-right">
-          <Button
-            onClick={() => onContinue(gajian.id)}
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            Lanjutkan
-            <ArrowRightIcon className="ml-2 h-4 w-4" />
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0 ml-2">
+              <Button variant="ghost" className="h-8 w-8 p-0">
                 <span className="sr-only">Buka menu</span>
                 <EllipsisHorizontalIcon className="h-4 w-4" />
               </Button>

@@ -283,7 +283,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const [potongan, setPotongan] = useState<Potongan[]>([]);
   const [savedBiaya, setSavedBiaya] = useState<BiayaLain[]>([]);
   const [savedPotongan, setSavedPotongan] = useState<Potongan[]>([]);
-  const [biayaMuatAutoEnabled, setBiayaMuatAutoEnabled] = useState(true)
   const [editingBiayaId, setEditingBiayaId] = useState<string | null>(null)
   const [editingPotonganId, setEditingPotonganId] = useState<string | null>(null)
   const [biayaFieldErrors, setBiayaFieldErrors] = useState<Record<string, { deskripsi?: boolean; jumlah?: boolean; hargaSatuan?: boolean }>>({})
@@ -318,7 +317,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const [hutangTambahanMap, setHutangTambahanMap] = useState<Record<number, { jumlah: number; date: string; deskripsi: string }>>({})
   const [kebunDefaultBiaya, setKebunDefaultBiaya] = useState<any[]>([])
 
-  const BIAYA_MUAT_DESC = 'Biaya Muat'
   const isPotonganHutangDesc = (value: any) => /potongan\s*hutang/i.test(String(value || ''))
   const manualPotonganRows = useMemo(() => savedPotongan.filter((p) => !isPotonganHutangDesc(p?.deskripsi)), [savedPotongan])
 
@@ -353,7 +351,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     setEditingBiayaId(null)
     setEditingPotonganId(null)
     setBiayaFieldErrors({})
-    setBiayaMuatAutoEnabled(true)
     setBoronganPekerjaanIds([])
     setBoronganLoading(false)
     setRefreshingData(false)
@@ -630,6 +627,19 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     };
   }, [gajianHistory]);
 
+  const sortedGajianHistory = useMemo(() => {
+    const list = Array.isArray(gajianHistory) ? [...gajianHistory] : []
+    list.sort((a: any, b: any) => {
+      const aEnd = new Date(a?.tanggalSelesai).getTime()
+      const bEnd = new Date(b?.tanggalSelesai).getTime()
+      if (bEnd !== aEnd) return bEnd - aEnd
+      const aStart = new Date(a?.tanggalMulai).getTime()
+      const bStart = new Date(b?.tanggalMulai).getTime()
+      return bStart - aStart
+    })
+    return list
+  }, [gajianHistory])
+
   const historyColumns = useMemo(
     () => createHistoryColumns(handleOpenConfirm, handleOpenDetail, historyTotals),
     [handleOpenConfirm, handleOpenDetail, historyTotals]
@@ -800,6 +810,18 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const notasSectionRef = useRef<HTMLDivElement>(null);
 
   const draftColumns = useMemo(() => createDraftColumns(handleContinueDraft, handleOpenDraftDeleteConfirm, handleOpenDetail), [handleContinueDraft, handleOpenDraftDeleteConfirm, handleOpenDetail]);
+  const sortedDraftsGajian = useMemo(() => {
+    const list = Array.isArray(draftsGajian) ? [...draftsGajian] : []
+    list.sort((a: any, b: any) => {
+      const aEnd = new Date(a?.tanggalSelesai).getTime()
+      const bEnd = new Date(b?.tanggalSelesai).getTime()
+      if (bEnd !== aEnd) return bEnd - aEnd
+      const aStart = new Date(a?.tanggalMulai).getTime()
+      const bStart = new Date(b?.tanggalMulai).getTime()
+      return bStart - aStart
+    })
+    return list
+  }, [draftsGajian])
 
   // --- LOGIC FOR CREATE NEW GAJIAN --- //
   const handleFetchNotas = async () => {
@@ -877,20 +899,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       isAutoKg: !!db.isAutoKg
     }))
 
-    // If no default biaya configured, fallback to legacy "Biaya Muat"
-    const initialBiayaList = mappedDefaultBiaya.length > 0 
-      ? mappedDefaultBiaya 
-      : [{
-          id: `auto-biaya-muat-${Date.now()}`,
-          deskripsi: BIAYA_MUAT_DESC,
-          jumlah: totalBerat,
-          satuan: 'Kg',
-          hargaSatuan: 50,
-          total: totalBerat * 50,
-          isAutoKg: true
-        }];
-
-    setSavedBiaya(prev => [...prev, ...initialBiayaList]);
+    setSavedBiaya(prev => [...prev, ...mappedDefaultBiaya]);
     setBiayaLain([]);
     // Create new objects to avoid reference sharing issues
     setNotasToProcess(prev => [...prev, ...selectedNotas.map(n => ({ ...n }))]);
@@ -1151,10 +1160,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   const removeSavedBiaya = (id: string) => {
     setSavedBiaya(prev => {
-      const target = prev.find((x) => x.id === id)
-      if (String(target?.id || '').startsWith('auto-biaya-muat-')) {
-        setBiayaMuatAutoEnabled(false)
-      }
       return prev.filter(item => item.id !== id)
     });
     setEditingBiayaId((curr) => (curr === id ? null : curr))
@@ -1773,7 +1778,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   useEffect(() => {
     const totalKg = notasToProcess.reduce((sum, nota) => sum + (Number(nota.beratAkhir) || 0), 0)
-    let createdId: string | null = null
     setSavedBiaya((prev) => {
       let next = [...prev];
       let hasChanges = false;
@@ -1790,30 +1794,9 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         return item;
       });
 
-      // 2. Handle auto-creation of default "Biaya Muat" if enabled and not already there
-      const hasAutoMuat = next.some(b => String(b.id || '').startsWith('auto-biaya-muat-') || (b.isAutoKg && b.deskripsi === BIAYA_MUAT_DESC));
-      
-      if (!hasAutoMuat && biayaMuatAutoEnabled && totalKg > 0) {
-        createdId = `auto-biaya-muat-${Date.now()}`;
-        next.push({
-          id: createdId,
-          deskripsi: BIAYA_MUAT_DESC,
-          jumlah: totalKg,
-          satuan: 'Kg',
-          hargaSatuan: 50,
-          total: totalKg * 50,
-          isAutoKg: true,
-          keterangan: '',
-        });
-        hasChanges = true;
-      }
-
       return hasChanges ? next : prev;
     })
-    if (createdId) {
-      setEditingBiayaId((curr) => curr || createdId)
-    }
-  }, [BIAYA_MUAT_DESC, biayaMuatAutoEnabled, notasToProcess])
+  }, [notasToProcess])
 
 
 
@@ -2262,7 +2245,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             const numericValue = digits ? Number(digits) : 0
                             handleBiayaLainChange(item.id, 'jumlah', numericValue)
                           }}
-                          readOnly={String(item.id || '').startsWith('auto-biaya-muat-')}
                           data-biaya-id={item.id}
                           data-biaya-field="jumlah"
                           className={cn(
@@ -2294,11 +2276,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                           )}
                         />
                       </div>
-                      {String(item.id || '').startsWith('auto-biaya-muat-') ? (
-                        <div className="text-xs text-gray-500">
-                          Jumlah otomatis mengikuti total berat akhir nota.
-                        </div>
-                      ) : null}
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Total</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
@@ -2361,12 +2338,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                         <span className="text-gray-500">Total</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
                       </div>
-                      {String(item.id || '').startsWith('auto-biaya-muat-') ? (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-500">Jumlah berat akhir</span>
-                          <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0))} Kg</span>
-                        </div>
-                      ) : null}
                     </>
                   )}
                 </div>
@@ -2907,7 +2878,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                       Belum ada riwayat gajian
                     </div>
                   ) : (
-                    gajianHistory.map((g) => (
+                    sortedGajianHistory.map((g) => (
                       <div key={`history-${g.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1">
@@ -2954,7 +2925,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                 <div className="hidden md:block">
                   <DataTable
                     columns={historyColumns}
-                    data={gajianHistory}
+                    data={sortedGajianHistory}
                     isLoading={isHistoryLoading}
                     meta={{ onRowClick: (row: Gajian) => handleOpenDetail(row.id) }}
                   />
@@ -2973,7 +2944,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                       Tidak ada draft
                     </div>
                   ) : (
-                    draftsGajian.map((g) => (
+                    sortedDraftsGajian.map((g) => (
                       <div key={`draft-${g.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1">
@@ -3017,7 +2988,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                 </div>
 
                 <div className="hidden md:block">
-                  <DataTable columns={draftColumns} data={draftsGajian} isLoading={isHistoryLoading} />
+                  <DataTable columns={draftColumns} data={sortedDraftsGajian} isLoading={isHistoryLoading} />
                 </div>
               </div>
             </TabsContent>
