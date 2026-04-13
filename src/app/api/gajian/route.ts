@@ -316,8 +316,7 @@ export async function POST(request: Request) {
           const extraHutang = Math.max(0, Math.round(Number(extraHutangByUserId.get(userId) || 0)))
           const requestedPotong = Math.max(0, Math.round(Number(d.potongan || 0)))
           const maxPotongByDebt = currentSaldo + extraHutang
-          const maxPotongByGaji = Math.max(0, Math.round(gajiPokok))
-          const potonganEff = Math.min(requestedPotong, maxPotongByDebt, maxPotongByGaji)
+          const potonganEff = Math.min(requestedPotong, maxPotongByDebt)
           totalPotonganHutangEffective += potonganEff
 
           return {

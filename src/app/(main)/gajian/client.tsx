@@ -971,6 +971,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     const id = `new-${Date.now()}`
     setSavedBiaya(prev => [...prev, { id, deskripsi: '', jumlah: 0, satuan: '', hargaSatuan: 0 }]);
     setEditingBiayaId(id)
+    setTimeout(() => {
+      const rowEl = document.querySelector<HTMLElement>(`[data-biaya-row="${id}"]`)
+      rowEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const inputEl = document.querySelector<HTMLInputElement>(`[data-biaya-id="${id}"][data-biaya-field="deskripsi"]`)
+      inputEl?.focus()
+    }, 50)
   };
 
   const refreshNotaSawitDraft = useCallback(async () => {
@@ -2344,6 +2350,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             <TrashIcon className="h-4 w-4" />
                           </Button>
                         </div>
+                      </div>
+                      <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
+                        <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0))}</span>
+                        <span>{String(item.satuan || '').trim()}</span>
+                        <span className="text-gray-400">x</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(Number(item.hargaSatuan || 0))}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Total</span>

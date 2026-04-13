@@ -393,6 +393,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
           name: d.user?.name || '-',
           hutangBaru: Number(hutangTambahanMap.get(Number(d.userId))?.jumlah || 0),
           potong: Number(d.potongan || 0),
+          saldoHutang: d.saldoHutang,
           keterangan: (() => {
             const hutangBaru = Number(hutangTambahanMap.get(Number(d.userId))?.jumlah || 0)
             const base = String(hutangTambahanMap.get(Number(d.userId))?.deskripsi || d.keterangan || '')
@@ -416,8 +417,9 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
       const hutangUserIds = Array.from(new Set(hutangAll.map((h) => h.userId))).filter((n) => Number.isFinite(n) && n > 0)
       const saldoMap = hutangUserIds.length > 0 ? await ensureSaldoMap(hutangUserIds) : {}
       const hutangList = hutangAll.filter((h) => {
-        const saldoAfter = typeof (saldoMap as any)[h.userId] === 'number' ? Math.max(0, Math.round(Number((saldoMap as any)[h.userId]))) : 0
-        return saldoAfter > 0 || Number(h?.potong || 0) > 0 || Number(h?.hutangBaru || 0) > 0
+        const currentSaldo = typeof (saldoMap as any)[h.userId] === 'number' ? Number((saldoMap as any)[h.userId]) : null
+        const snapshotSaldo = h.saldoHutang ?? currentSaldo ?? 0
+        return snapshotSaldo > 0 || Number(h?.potong || 0) > 0 || Number(h?.hutangBaru || 0) > 0
       })
 
       if (hutangList.length > 0) {
@@ -674,8 +676,10 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
       })(),
     }))
     .filter((d) => {
-      const saldo = typeof hutangSaldoByUserId[d.userId] === 'number' ? Number(hutangSaldoByUserId[d.userId]) : 0
-      return Number(d?.potong || 0) > 0 || Number(d?.hutangBaru || 0) > 0 || saldo > 0
+      const originalDetail = (gajian.detailKaryawan || []).find(x => x.userId === d.userId)
+      const currentSaldo = typeof hutangSaldoByUserId[d.userId] === 'number' ? Number(hutangSaldoByUserId[d.userId]) : null
+      const snapshotSaldo = originalDetail?.saldoHutang ?? currentSaldo ?? 0
+      return Number(d?.potong || 0) > 0 || Number(d?.hutangBaru || 0) > 0 || snapshotSaldo > 0
     })
   const totalPotonganHutang = hutangRows.reduce((sum: number, r) => sum + r.potong, 0)
   const totalHutangBaru = hutangRows.reduce((sum: number, r) => sum + r.hutangBaru, 0)

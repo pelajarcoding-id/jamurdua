@@ -852,32 +852,32 @@ export default function KebunDetailPage() {
         <Tabs defaultValue="activity" className="w-full space-y-8">
             <div className="w-full overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
               <TabsList className="w-max min-w-full justify-start h-12 rounded-2xl bg-gray-50 border border-gray-100 p-1 gap-1">
-                <TabsTrigger value="activity" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="activity" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <ClipboardDocumentListIcon className="h-4 w-4 mr-2" />
                   Aktivitas
                 </TabsTrigger>
-                <TabsTrigger value="permintaan" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="permintaan" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <ShoppingCartIcon className="h-4 w-4 mr-2" />
                   Permintaan
                 </TabsTrigger>
-                <TabsTrigger value="inventory" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="inventory" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <CubeIcon className="h-4 w-4 mr-2" />
                   Inventory
                 </TabsTrigger>
-                <TabsTrigger value="absensi" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="absensi" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <BanknotesIcon className="h-4 w-4 mr-2" />
                   Absensi & Gaji
                 </TabsTrigger>
-                <TabsTrigger value="panen" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="panen" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <CalendarIcon className="h-4 w-4 mr-2" />
                   Panen
                 </TabsTrigger>
-                <TabsTrigger value="gajian" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="gajian" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <BanknotesIcon className="h-4 w-4 mr-2" />
                   Pengajuan Gajian
                 </TabsTrigger>
                 <RoleGate allow={['ADMIN', 'PEMILIK']}>
-                  <TabsTrigger value="default-biaya" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <TabsTrigger value="default-biaya" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                     <Cog6ToothIcon className="h-4 w-4 mr-2" />
                     Biaya Default
                   </TabsTrigger>

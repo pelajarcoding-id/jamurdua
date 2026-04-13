@@ -27,6 +27,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
   const [isModalOpen, setIsConfirmOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   
+  const [isFormOpen, setIsFormOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [selectedItem, setSelectedItem] = useState<KebunDefaultBiaya | null>(null)
   
@@ -107,6 +108,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
     setForm({ deskripsi: '', hargaSatuan: 0, satuan: 'Kg', isAutoKg: false })
     setIsEditing(false)
     setSelectedItem(null)
+    setIsFormOpen(false)
   }
 
   const startEdit = (item: KebunDefaultBiaya) => {
@@ -118,6 +120,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
       isAutoKg: item.isAutoKg,
     })
     setIsEditing(true)
+    setIsFormOpen(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -127,62 +130,85 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-blue-50 rounded-lg">
-            <BanknotesIcon className="w-5 h-5 text-blue-600" />
+          <div className="p-2 bg-emerald-50 rounded-lg">
+            <BanknotesIcon className="w-5 h-5 text-emerald-700" />
           </div>
           <h2 className="text-lg font-bold text-gray-900">Pengaturan Biaya Default</h2>
         </div>
+        <div className="-mt-4 mb-6 text-sm text-gray-500">
+          Menu ini hanya bisa diakses oleh admin dan pemilik.
+        </div>
 
-        <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200 mb-8">
-          <div className="space-y-1.5 lg:col-span-2">
-            <Label className="text-xs font-semibold uppercase text-gray-500">Deskripsi Biaya</Label>
-            <Input 
-              placeholder="Contoh: Biaya Panen" 
-              value={form.deskripsi} 
-              onChange={e => setForm({...form, deskripsi: e.target.value})}
-              className="rounded-xl h-10 bg-white"
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase text-gray-500">Harga Satuan</Label>
-            <Input 
-              type="number" 
-              placeholder="0" 
-              value={form.hargaSatuan} 
-              onChange={e => setForm({...form, hargaSatuan: Number(e.target.value)})}
-              className="rounded-xl h-10 bg-white"
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase text-gray-500">Satuan</Label>
-            <Input 
-              placeholder="Kg, HK, dll" 
-              value={form.satuan} 
-              onChange={e => setForm({...form, satuan: e.target.value})}
-              className="rounded-xl h-10 bg-white"
-              required
-            />
-          </div>
-          <div className="flex items-center gap-2 h-10">
-            <Checkbox 
-              id="isAutoKg" 
-              checked={form.isAutoKg} 
-              onCheckedChange={(checked) => setForm({...form, isAutoKg: !!checked})}
-            />
-            <Label htmlFor="isAutoKg" className="text-sm font-medium cursor-pointer">Auto-KG?</Label>
-          </div>
-          <div className="flex gap-2 lg:col-span-5 justify-end mt-2">
-            {isEditing && (
-              <Button type="button" variant="ghost" onClick={resetForm} className="rounded-full">Batal</Button>
-            )}
-            <Button type="submit" className="rounded-full bg-blue-600 hover:bg-blue-700 px-8">
+        {!isFormOpen ? (
+          <div className="flex justify-end mb-8">
+            <Button
+              type="button"
+              className="rounded-full bg-emerald-600 hover:bg-emerald-700 px-8"
+              onClick={() => {
+                setIsEditing(false)
+                setSelectedItem(null)
+                setForm({ deskripsi: '', hargaSatuan: 0, satuan: 'Kg', isAutoKg: false })
+                setIsFormOpen(true)
+              }}
+            >
               <PlusIcon className="w-4 h-4 mr-2" />
-              {isEditing ? 'Simpan Perubahan' : 'Tambah Biaya'}
+              Tambah Biaya
             </Button>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200 mb-8">
+            <div className="space-y-1.5 lg:col-span-2">
+              <Label className="text-xs font-semibold uppercase text-gray-500">Deskripsi Biaya</Label>
+              <Input 
+                placeholder="Contoh: Biaya Panen" 
+                value={form.deskripsi} 
+                onChange={e => setForm({...form, deskripsi: e.target.value})}
+                className="rounded-xl h-10 bg-white"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase text-gray-500">Harga Satuan</Label>
+              <Input 
+                type="number" 
+                placeholder="0" 
+                value={form.hargaSatuan} 
+                onChange={e => setForm({...form, hargaSatuan: Number(e.target.value)})}
+                className="rounded-xl h-10 bg-white"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase text-gray-500">Satuan</Label>
+              <Input 
+                placeholder="Kg, HK, dll" 
+                value={form.satuan} 
+                onChange={e => setForm({...form, satuan: e.target.value})}
+                className="rounded-xl h-10 bg-white"
+                required
+              />
+            </div>
+            <div className="space-y-1.5 lg:col-span-5">
+              <div className="flex items-center gap-2 h-10">
+                <Checkbox 
+                  id="isAutoKg" 
+                  checked={form.isAutoKg} 
+                  onCheckedChange={(checked) => setForm({...form, isAutoKg: !!checked})}
+                />
+                <Label htmlFor="isAutoKg" className="text-sm font-medium cursor-pointer">Auto-KG?</Label>
+              </div>
+              <div className="text-xs text-gray-500">
+                Jika dicentang akan menggunakan berat akhir nota.
+              </div>
+            </div>
+            <div className="flex gap-2 lg:col-span-5 justify-end mt-2">
+              <Button type="button" variant="outline" onClick={resetForm} className="rounded-full">Batal</Button>
+              <Button type="submit" className="rounded-full bg-emerald-600 hover:bg-emerald-700 px-8">
+                {isEditing ? 'Simpan Perubahan' : 'Simpan'}
+              </Button>
+            </div>
+          </form>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

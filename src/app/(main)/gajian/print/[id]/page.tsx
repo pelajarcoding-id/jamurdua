@@ -29,7 +29,7 @@ export default function PrintGajianPage() {
   const { id } = useParams();
   const [gajian, setGajian] = useState<GajianWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hutangRows, setHutangRows] = useState<Array<{ name: string; tanggal: string; saldo: number; potong: number; sisa: number; keterangan?: string }>>([]);
+  const [hutangRows, setHutangRows] = useState<Array<{ name: string; tanggal: string; saldo: number; potong: number; sisa: number; hutangBaru: number; keterangan?: string }>>([]);
 
   useEffect(() => {
     if (id) {
@@ -40,27 +40,41 @@ export default function PrintGajianPage() {
           setLoading(false);
           const adjustedEndDate = new Date(data.tanggalSelesai);
           adjustedEndDate.setHours(23, 59, 59, 999);
-          const params = new URLSearchParams({
-            kebunId: String(data.kebunId),
-            startDate: new Date(data.tanggalMulai).toISOString(),
-            endDate: adjustedEndDate.toISOString(),
-          });
-          fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' })
-            .then(res => res.json())
-            .then(json => {
-              const list = Array.isArray(json.data) ? json.data : [];
-              const tgl = adjustedEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
-              const mapped = list.map((r: any, idx: number) => ({
-                name: r.karyawan?.name || '-',
+          
+          const hutangTambahanRows = Array.isArray((data as any).hutangTambahan) ? (data as any).hutangTambahan : []
+          const hutangTambahanMap = new Map<number, { jumlah: number; deskripsi: string }>()
+          hutangTambahanRows.forEach((h: any) => {
+            const userId = Number(h?.userId)
+            const jumlah = Number(h?.jumlah || 0)
+            if (!Number.isFinite(userId) || userId <= 0) return
+            if (!Number.isFinite(jumlah) || jumlah <= 0) return
+            const prev = hutangTambahanMap.get(userId)
+            hutangTambahanMap.set(userId, { jumlah: (prev?.jumlah || 0) + jumlah, deskripsi: String(h?.deskripsi || prev?.deskripsi || 'Hutang Karyawan') })
+          })
+
+          const tgl = adjustedEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' });
+          const mapped = (data.detailKaryawan || [])
+            .map((d: any) => {
+              const hutangBaru = Number(hutangTambahanMap.get(Number(d.userId))?.jumlah || 0)
+              const potong = Number(d.potongan || 0)
+              const snapshotSaldo = d.saldoHutang ?? 0
+              
+              const saldoBefore = snapshotSaldo
+              const sisaAfter = Math.max(0, snapshotSaldo + hutangBaru - potong)
+              
+              return {
+                name: d.user?.name || '-',
                 tanggal: tgl,
-                saldo: Math.round(Number(r.totalPengeluaran || 0)),
-                potong: Math.round(Number(r.totalPembayaran || 0)),
-                sisa: Math.max(0, Math.round(Number(r.hutangSaldo || 0))),
-                keterangan: '',
-              }));
-              setHutangRows(mapped);
+                saldo: saldoBefore,
+                potong: potong,
+                sisa: sisaAfter,
+                hutangBaru: hutangBaru,
+                keterangan: d.keterangan || '',
+              }
             })
-            .catch(() => {});
+            .filter((r: any) => r.saldo > 0 || r.potong > 0 || r.hutangBaru > 0);
+            
+          setHutangRows(mapped);
           setTimeout(() => window.print(), 500);
         })
         .catch(err => {
@@ -216,6 +230,7 @@ export default function PrintGajianPage() {
                 <th className="border border-black p-1">NAMA</th>
                 <th className="border border-black p-1">TANGGAL</th>
                 <th className="border border-black p-1">SALDO</th>
+                <th className="border border-black p-1">HUTANG</th>
                 <th className="border border-black p-1">POTONG</th>
                 <th className="border border-black p-1">SISA</th>
                 <th className="border border-black p-1">KETERANGAN</th>
@@ -228,6 +243,7 @@ export default function PrintGajianPage() {
                   <td className="border border-black p-1">{r.name}</td>
                   <td className="border border-black p-1">{r.tanggal}</td>
                   <td className="border border-black p-1 text-right">RP. {new Intl.NumberFormat('id-ID').format(r.saldo)}</td>
+                  <td className="border border-black p-1 text-right">{r.hutangBaru > 0 ? `RP. ${new Intl.NumberFormat('id-ID').format(r.hutangBaru)}` : '-'}</td>
                   <td className="border border-black p-1 text-right">RP. {new Intl.NumberFormat('id-ID').format(r.potong)}</td>
                   <td className="border border-black p-1 text-right">RP. {new Intl.NumberFormat('id-ID').format(r.sisa)}</td>
                   <td className="border border-black p-1">{r.keterangan}</td>
@@ -240,6 +256,9 @@ export default function PrintGajianPage() {
                 <td className="border border-black p-1 text-center">JUMLAH</td>
                 <td className="border border-black p-1 text-right">
                   RP. {new Intl.NumberFormat('id-ID').format(hutangRows.reduce((a, r) => a + r.saldo, 0))}
+                </td>
+                <td className="border border-black p-1 text-right">
+                  {hutangRows.reduce((a, r) => a + r.hutangBaru, 0) > 0 ? `RP. ${new Intl.NumberFormat('id-ID').format(hutangRows.reduce((a, r) => a + r.hutangBaru, 0))}` : '-'}
                 </td>
                 <td className="border border-black p-1 text-right">
                   RP. {new Intl.NumberFormat('id-ID').format(hutangRows.reduce((a, r) => a + r.potong, 0))}
