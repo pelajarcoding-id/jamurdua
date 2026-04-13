@@ -55,10 +55,14 @@ export async function POST(request: Request) {
       const pph25 = roundInt((nota as any).pph25 || 0)
       const pembayaranSetelahPph = roundInt(totalPembayaran - pph - pph25)
 
-      const oldNetPay = roundInt((nota as any).pembayaranSetelahPph ?? (roundInt((nota as any).totalPembayaran || 0) - roundInt((nota as any).pph || 0) - roundInt((nota as any).pph25 || 0)))
+      const oldNetPay = roundInt(
+        (nota as any).pembayaranSetelahPph ??
+          (roundInt((nota as any).totalPembayaran || 0) - roundInt((nota as any).pph || 0) - roundInt((nota as any).pph25 || 0)),
+      )
       const oldAktualRaw = (nota as any).pembayaranAktual
       const oldAktual = oldAktualRaw === null || oldAktualRaw === undefined ? null : roundInt(oldAktualRaw)
-      const shouldFollowNetPay = oldAktual === null || Math.abs(oldAktual - oldNetPay) <= 1
+      const shouldFollowNetPay =
+        oldAktual === null || (oldAktual === 0 && oldNetPay > 0) || Math.abs(oldAktual - oldNetPay) <= 1
 
       const updatedNota = await prisma.notaSawit.update({
         where: { id: nota.id },
