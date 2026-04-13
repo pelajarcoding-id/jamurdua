@@ -162,6 +162,16 @@ export async function GET(request: Request) {
     }, 0)
     const lunasCount = rows.filter((r) => r.statusPembayaran === 'LUNAS').length
     const belumLunasCount = rows.filter((r) => r.statusPembayaran === 'BELUM_LUNAS').length
+    const totalPembayaranLunas = rows.reduce((sum, r) => {
+      if (r.statusPembayaran !== 'LUNAS') return sum
+      const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
+      return sum + (Number.isFinite(val) ? val : 0)
+    }, 0)
+    const totalPembayaranBelumLunas = rows.reduce((sum, r) => {
+      if (r.statusPembayaran !== 'BELUM_LUNAS') return sum
+      const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
+      return sum + (Number.isFinite(val) ? val : 0)
+    }, 0)
 
     return NextResponse.json({
       count: totalNota,
@@ -170,6 +180,8 @@ export async function GET(request: Request) {
       totalPembayaran: Math.round(totalPembayaran),
       lunasCount,
       belumLunasCount,
+      totalPembayaranLunas: Math.round(totalPembayaranLunas),
+      totalPembayaranBelumLunas: Math.round(totalPembayaranBelumLunas),
     })
   } catch (error) {
     console.error('GET /api/nota-sawit/summary error:', error)

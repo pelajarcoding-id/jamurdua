@@ -1149,12 +1149,17 @@ export default function NotaSawitPage() {
                   Periode: <span className="font-semibold text-gray-900">{dateDisplay}</span>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                 <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
                   <p className="text-xs text-emerald-700">Total Nota</p>
                   <p className="text-lg font-semibold text-gray-900" title={summary.totalNota.toLocaleString('id-ID')}>
                     {summary.totalNota.toLocaleString('id-ID')}
                   </p>
+                  {role !== 'SUPIR' && (
+                    <div className="text-xs text-gray-600 mt-0.5">
+                      Dibayar: <span className="font-semibold text-gray-900">{summary.lunasCount.toLocaleString('id-ID')}</span> • Belum: <span className="font-semibold text-gray-900">{summary.belumLunasCount.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-xl bg-amber-50/70 px-3 py-2">
                   <p className="text-xs text-amber-700">Total Tonase (Berat Akhir)</p>
@@ -1174,6 +1179,18 @@ export default function NotaSawitPage() {
                       <p className="text-xs text-emerald-700">Lunas / Belum Lunas</p>
                       <p className="text-lg font-semibold text-gray-900">
                         {summary.lunasCount.toLocaleString('id-ID')} / {summary.belumLunasCount.toLocaleString('id-ID')}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
+                      <p className="text-xs text-emerald-700">Total Nota Sawit Lunas</p>
+                      <p className="text-lg font-semibold text-gray-900" title={formatCurrency(summary.totalPembayaranLunas)}>
+                        {formatCurrency(summary.totalPembayaranLunas)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-rose-50/70 px-3 py-2">
+                      <p className="text-xs text-rose-700">Total Nota Sawit Belum Lunas</p>
+                      <p className="text-lg font-semibold text-gray-900" title={formatCurrency(summary.totalPembayaranBelumLunas)}>
+                        {formatCurrency(summary.totalPembayaranBelumLunas)}
                       </p>
                     </div>
                   </>
