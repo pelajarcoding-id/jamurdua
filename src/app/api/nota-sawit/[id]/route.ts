@@ -224,7 +224,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
               netKg: netKgNum,
             },
           })
-          dataToUpdate.kebunId = existingNota.timbangan?.kebunId || existingNota.kebunId
+          const targetKebunId = existingNota.timbangan?.kebunId || existingNota.kebunId
+          if (targetKebunId) dataToUpdate.kebun = { connect: { id: Number(targetKebunId) } }
         } else {
           const targetKebunId = kebunId ? Number(kebunId) : existingNota.kebunId
           if (!targetKebunId) {
@@ -243,7 +244,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             },
           })
           dataToUpdate.timbangan = { connect: { id: newTimbangan.id } }
-          dataToUpdate.kebunId = targetKebunId
+          dataToUpdate.kebun = { connect: { id: Number(targetKebunId) } }
         }
       }
     }

@@ -92,12 +92,21 @@ export default function NotaSawitPage() {
   // Date filter state - Default "all"
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [quickRange, setQuickRange] = useState('all');
+  const [quickRange, setQuickRange] = useState('this_year');
 
   useEffect(() => {
-    // Initialize with all time - no date filter
-    setStartDate(undefined);
-    setEndDate(undefined);
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+    const now = new Date()
+    const wibNow = new Date(now.getTime() + WIB_OFFSET_MS)
+    const year = wibNow.getUTCFullYear()
+    const month = wibNow.getUTCMonth()
+    const day = wibNow.getUTCDate()
+
+    const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0) - WIB_OFFSET_MS)
+    const end = new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - WIB_OFFSET_MS)
+    setStartDate(start)
+    setEndDate(end)
+    setQuickRange('this_year')
   }, []);
 
   const [kebunList, setKebunList] = useState<{ id: number; name: string }[]>([]);
