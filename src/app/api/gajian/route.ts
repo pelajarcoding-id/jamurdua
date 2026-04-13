@@ -254,16 +254,92 @@ export async function POST(request: Request) {
         });
       }
 
+      let sanitizedDetailKaryawan: any[] = []
+      let totalPotonganHutangEffective = 0
+
+      if (gajianId) {
+        await (tx as any).kasTransaksi.deleteMany({
+          where: {
+            gajianId: upsertedGajian.id,
+            kategori: { in: ['PEMBAYARAN_HUTANG', 'HUTANG_KARYAWAN'] },
+            deletedAt: null,
+          },
+        })
+      }
+
       if (detailKaryawan && detailKaryawan.length > 0) {
+        const userIds = detailKaryawan.map((d: any) => Number(d.userId)).filter((userId: number) => !isNaN(userId));
+        const extraHutangByUserId = new Map<number, number>()
+        if (Array.isArray(hutangTambahan)) {
+          for (const h of hutangTambahan) {
+            const uid = Number((h as any)?.userId)
+            const jml = Number((h as any)?.jumlah || 0)
+            if (!Number.isFinite(uid) || uid <= 0) continue
+            if (!Number.isFinite(jml) || jml <= 0) continue
+            extraHutangByUserId.set(uid, (extraHutangByUserId.get(uid) || 0) + jml)
+          }
+        }
+        
+        // Fetch current debt balance for these users
+        const [hutangAgg, bayarAgg] = await Promise.all([
+          tx.kasTransaksi.groupBy({
+            by: ['karyawanId'],
+            where: {
+              karyawanId: { in: userIds },
+              tipe: 'PENGELUARAN',
+              kategori: 'HUTANG_KARYAWAN',
+              deletedAt: null,
+            },
+            _sum: { jumlah: true },
+          }),
+          tx.kasTransaksi.groupBy({
+            by: ['karyawanId'],
+            where: {
+              karyawanId: { in: userIds },
+              tipe: 'PEMASUKAN',
+              kategori: 'PEMBAYARAN_HUTANG',
+              deletedAt: null,
+            },
+            _sum: { jumlah: true },
+          }),
+        ]);
+
+        const hutangMap = new Map(hutangAgg.map((r) => [r.karyawanId, Number(r._sum.jumlah || 0)]));
+        const bayarMap = new Map(bayarAgg.map((r) => [r.karyawanId, Number(r._sum.jumlah || 0)]));
+
+        sanitizedDetailKaryawan = detailKaryawan.map((d: any) => {
+          const userId = Number(d.userId)
+          const gajiPokok = Number(d.gajiPokok || 0)
+          const totalHutang = hutangMap.get(userId) || 0
+          const totalBayar = bayarMap.get(userId) || 0
+          const currentSaldo = Math.max(0, Math.round(totalHutang - totalBayar))
+          const extraHutang = Math.max(0, Math.round(Number(extraHutangByUserId.get(userId) || 0)))
+          const requestedPotong = Math.max(0, Math.round(Number(d.potongan || 0)))
+          const maxPotongByDebt = currentSaldo + extraHutang
+          const maxPotongByGaji = Math.max(0, Math.round(gajiPokok))
+          const potonganEff = Math.min(requestedPotong, maxPotongByDebt, maxPotongByGaji)
+          totalPotonganHutangEffective += potonganEff
+
+          return {
+            ...d,
+            userId,
+            gajiPokok,
+            potongan: potonganEff,
+            total: gajiPokok - potonganEff,
+            saldoHutangSnapshot: currentSaldo,
+          }
+        })
+
         await tx.detailGajianKaryawan.createMany({
-            data: detailKaryawan.map((d: any) => ({
-                gajianId: upsertedGajian.id,
-                userId: d.userId,
-                hariKerja: d.hariKerja,
-                gajiPokok: d.gajiPokok || 0,
-                potongan: d.potongan || 0,
-                total: d.total || 0,
-                keterangan: d.keterangan || null
+            data: sanitizedDetailKaryawan.map((d: any) => ({
+              gajianId: upsertedGajian.id,
+              userId: d.userId,
+              hariKerja: d.hariKerja,
+              gajiPokok: d.gajiPokok || 0,
+              potongan: d.potongan || 0,
+              saldoHutang: Number(d.saldoHutangSnapshot || 0),
+              total: d.total || 0,
+              keterangan: d.keterangan || null,
             }))
         });
       }
@@ -309,7 +385,7 @@ export async function POST(request: Request) {
       const potonganWithoutAuto = (potongan || []).filter((p: any) => String(p?.deskripsi || '') !== 'Potongan Hutang Karyawan')
       const potonganRowsToSave = [
         ...potonganWithoutAuto,
-        ...(totalPotonganHutang > 0 ? [{ deskripsi: 'Potongan Hutang Karyawan', total: totalPotonganHutang, keterangan: 'Otomatis dari detail karyawan' }] : []),
+        ...(totalPotonganHutangEffective > 0 ? [{ deskripsi: 'Potongan Hutang Karyawan', total: totalPotonganHutangEffective, keterangan: 'Otomatis dari detail karyawan' }] : []),
       ]
 
       if (potonganRowsToSave.length > 0) {
@@ -322,6 +398,23 @@ export async function POST(request: Request) {
           })),
         });
       }
+
+      const totalBiayaLainFinal = Array.isArray(biayaLain)
+        ? biayaLain.reduce((sum: number, item: any) => sum + (Number(parseFloat(String(item?.total ?? '0'))) || 0), 0)
+        : 0
+      const totalPotonganManualFinal = Array.isArray(potonganWithoutAuto)
+        ? potonganWithoutAuto.reduce((sum: number, item: any) => sum + (Number(parseFloat(String(item?.total ?? '0'))) || 0), 0)
+        : 0
+      const totalPotonganFinal = totalPotonganManualFinal + (Number(totalPotonganHutangEffective) || 0)
+      const totalGajiFinal = totalBiayaLainFinal - totalPotonganFinal
+      await tx.gajian.update({
+        where: { id: upsertedGajian.id },
+        data: {
+          totalBiayaLain: totalBiayaLainFinal,
+          totalPotongan: totalPotonganFinal,
+          totalGaji: totalGajiFinal,
+        },
+      })
 
       // Handle Absensi Payment Status Update
       if (status === 'FINALIZED' && payAbsensi) {
@@ -364,8 +457,8 @@ export async function POST(request: Request) {
         }
       }
 
-      const hutangPotonganRows = Array.isArray(detailKaryawan)
-        ? detailKaryawan
+      const hutangPotonganRows = Array.isArray(sanitizedDetailKaryawan) && sanitizedDetailKaryawan.length > 0
+        ? sanitizedDetailKaryawan
             .map((d: any) => ({
               userId: Number(d?.userId),
               potongan: Number(d?.potongan || 0),

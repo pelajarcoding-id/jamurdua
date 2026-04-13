@@ -26,6 +26,7 @@ type DetailGajianWithRelations = DetailGajian & {
 
 type DetailGajianKaryawanWithUser = DetailGajianKaryawan & {
   user: User
+  saldoHutang?: number
 }
 
 type HutangTambahanRow = {
@@ -679,19 +680,23 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
   const totalPotonganHutang = hutangRows.reduce((sum: number, r) => sum + r.potong, 0)
   const totalHutangBaru = hutangRows.reduce((sum: number, r) => sum + r.hutangBaru, 0)
   const totalPotonganAll = hasAutoPotonganHutang ? totalPotongan : (totalPotongan + totalPotonganHutang)
-  const saldoBeforeList = hutangRows
-    .map((r) => {
-      const saldoAfter = typeof hutangSaldoByUserId[r.userId] === 'number' ? Number(hutangSaldoByUserId[r.userId]) : null
-      if (saldoAfter === null) return null
-      return Math.max(0, saldoAfter - r.hutangBaru + r.potong)
-    })
-    .filter((v): v is number => typeof v === 'number')
-  const sisaAfterList = hutangRows
-    .map((r) => (typeof hutangSaldoByUserId[r.userId] === 'number' ? Math.max(0, Number(hutangSaldoByUserId[r.userId])) : null))
-    .filter((v): v is number => typeof v === 'number')
-  const totalSaldoBeforeHutang = saldoBeforeList.reduce((sum: number, v) => sum + v, 0)
-  const totalSisaAfterHutang = sisaAfterList.reduce((sum: number, v) => sum + v, 0)
-  const hasSaldoHutangData = saldoBeforeList.length > 0 || sisaAfterList.length > 0
+
+  const hutangCalculations = hutangRows.map((r) => {
+    const d = (gajian.detailKaryawan || []).find(x => x.userId === r.userId)
+    const currentSaldo = typeof hutangSaldoByUserId[r.userId] === 'number' ? Number(hutangSaldoByUserId[r.userId]) : null
+    const snapshotSaldo = d?.saldoHutang ?? currentSaldo
+    
+    if (snapshotSaldo === null) return null
+    
+    const saldoBefore = snapshotSaldo
+    const sisaAfter = Math.max(0, snapshotSaldo + r.hutangBaru - r.potong)
+    
+    return { saldoBefore, sisaAfter }
+  })
+
+  const totalSaldoBeforeHutang = hutangCalculations.reduce((sum, v) => sum + (v?.saldoBefore || 0), 0)
+  const totalSisaAfterHutang = hutangCalculations.reduce((sum, v) => sum + (v?.sisaAfter || 0), 0)
+  const hasSaldoHutangData = hutangCalculations.some(v => v !== null)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -836,17 +841,35 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                   </thead>
                   <tbody>
                     {hutangRows.map((item, index) => {
-                      const saldoAfter = typeof hutangSaldoByUserId[item.userId] === 'number' ? Number(hutangSaldoByUserId[item.userId]) : null
-                      const saldoBefore = saldoAfter === null ? null : Math.max(0, saldoAfter - item.hutangBaru + item.potong)
-                      const sisaAfter = saldoAfter === null ? null : Math.max(0, saldoAfter)
+                      const d = (gajian.detailKaryawan || []).find(x => x.userId === item.userId)
+                      const currentSaldo = typeof hutangSaldoByUserId[item.userId] === 'number' ? Number(hutangSaldoByUserId[item.userId]) : null
+                      
+                      // Snapshot from DB (for finalized) or current from API (for draft)
+                      const snapshotSaldo = d?.saldoHutang ?? currentSaldo
+                      
+                      let saldoBefore: number | null = null
+                      let sisaAfter: number | null = null
+
+                      if (snapshotSaldo !== null) {
+                        if (isPreview) {
+                          // In Preview, currentSaldo is BEFORE the transactions
+                          saldoBefore = snapshotSaldo
+                          sisaAfter = Math.max(0, snapshotSaldo + item.hutangBaru - item.potong)
+                        } else {
+                          // In Finalized, saldoHutang is the snapshot BEFORE finalization
+                          saldoBefore = snapshotSaldo
+                          sisaAfter = Math.max(0, snapshotSaldo + item.hutangBaru - item.potong)
+                        }
+                      }
+
                       return (
                         <tr key={`potongan-hutang-${item.id}`} className="border border-black">
                           <td className="border border-black p-2 align-middle">{index + 1}</td>
                           <td className="border border-black p-2 align-middle">{item.name}</td>
-                          <td className="border border-black p-2 align-middle">{saldoBefore === null ? '-' : formatNumber(saldoBefore)}</td>
-                          <td className="border border-black p-2 align-middle">{item.hutangBaru > 0 ? formatNumber(item.hutangBaru) : '-'}</td>
-                          <td className="border border-black p-2 align-middle">{formatNumber(item.potong)}</td>
-                          <td className="border border-black p-2 align-middle">{sisaAfter === null ? '-' : formatNumber(sisaAfter)}</td>
+                          <td className="border border-black p-2 align-middle">{saldoBefore === null ? '-' : formatNumber(Math.round(saldoBefore))}</td>
+                          <td className="border border-black p-2 align-middle">{item.hutangBaru > 0 ? formatNumber(Math.round(item.hutangBaru)) : '-'}</td>
+                          <td className="border border-black p-2 align-middle">{formatNumber(Math.round(item.potong))}</td>
+                          <td className="border border-black p-2 align-middle">{sisaAfter === null ? '-' : formatNumber(Math.round(sisaAfter))}</td>
                           <td className="border border-black p-2 align-middle">{item.keterangan || ''}</td>
                         </tr>
                       )

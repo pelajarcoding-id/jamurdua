@@ -72,6 +72,7 @@ interface BiayaLain {
   hargaSatuan: number;
   total?: number;
   keterangan?: string;
+  isAutoKg?: boolean;
 }
 
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
@@ -315,8 +316,24 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const [tambahHutangDeskripsi, setTambahHutangDeskripsi] = useState('Hutang Karyawan')
   const [tambahHutangSubmitting, setTambahHutangSubmitting] = useState(false)
   const [hutangTambahanMap, setHutangTambahanMap] = useState<Record<number, { jumlah: number; date: string; deskripsi: string }>>({})
+  const [kebunDefaultBiaya, setKebunDefaultBiaya] = useState<any[]>([])
 
   const BIAYA_MUAT_DESC = 'Biaya Muat'
+  const isPotonganHutangDesc = (value: any) => /potongan\s*hutang/i.test(String(value || ''))
+  const manualPotonganRows = useMemo(() => savedPotongan.filter((p) => !isPotonganHutangDesc(p?.deskripsi)), [savedPotongan])
+
+  useEffect(() => {
+    if (kebunId) {
+      fetch(`/api/kebun/${kebunId}/default-biaya`)
+        .then(res => res.json())
+        .then(json => {
+          setKebunDefaultBiaya(Array.isArray(json.data) ? json.data : [])
+        })
+        .catch(err => console.error('Failed to fetch default biaya:', err))
+    } else {
+      setKebunDefaultBiaya([])
+    }
+  }, [kebunId])
 
   const handleResetForm = () => {
     setEditingGajianId(null);
@@ -379,7 +396,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   // --- LOGIC FOR UNSAVED CHANGES WARNING --- //
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const hasUnsavedChanges = notasToProcess.length > 0 || biayaLain.length > 0 || savedBiaya.length > 0 || potongan.length > 0 || savedPotongan.length > 0 || keterangan.length > 0;
+      const hasUnsavedChanges =
+        notasToProcess.length > 0 ||
+        biayaLain.length > 0 ||
+        savedBiaya.length > 0 ||
+        savedPotongan.length > 0 ||
+        detailKaryawan.length > 0 ||
+        Object.keys(hutangTambahanMap).length > 0 ||
+        keterangan.length > 0;
       if (hasUnsavedChanges) {
         e.preventDefault();
         e.returnValue = ''; // Chrome requires returnValue to be set
@@ -388,7 +412,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [notasToProcess, biayaLain, savedBiaya, potongan, savedPotongan, keterangan]);
+  }, [notasToProcess, biayaLain, savedBiaya, savedPotongan, detailKaryawan, hutangTambahanMap, keterangan]);
 
   // --- LOGIC FOR HISTORY --- //
   const fetchAllHistory = async (filters?: { kebunId?: string; startDate?: Date; endDate?: Date }) => {
@@ -438,7 +462,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       toast.error('Data gajian belum lengkap (Kebun/Periode).');
       return;
     }
-    if (notasToProcess.length === 0 && savedBiaya.length === 0 && savedPotongan.length === 0 && potongan.length === 0 && detailKaryawan.length === 0) {
+    if (notasToProcess.length === 0 && savedBiaya.length === 0 && manualPotonganRows.length === 0 && detailKaryawan.length === 0) {
       toast.error('Belum ada data nota, biaya, atau potongan untuk disimpan.');
       return;
     }
@@ -446,7 +470,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     const totalBerat = notasToProcess.reduce((sum, nota) => sum + nota.beratAkhir, 0);
     const totalNota = notasToProcess.length;
     const totalBiayaLain = savedBiaya.reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalPotonganManual = [...savedPotongan, ...potongan].reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const totalPotonganManual = manualPotonganRows.reduce((sum, item) => sum + Number(item.total || 0), 0);
     const totalPotonganHutang = detailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.potongan || 0), 0)
     const totalPotongan = totalPotonganManual + totalPotonganHutang;
     const totalGaji = totalBiayaLain - totalPotongan;
@@ -502,7 +526,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             createdAt: new Date(),
             updatedAt: new Date()
         })),
-        potongan: [...savedPotongan, ...potongan].map(p => ({
+        potongan: manualPotonganRows.map(p => ({
             id: 0,
             gajianId: 0,
             deskripsi: p.deskripsi,
@@ -838,15 +862,32 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
     const totalBerat = selectedNotas.reduce((sum, nota) => sum + nota.beratAkhir, 0);
 
-    const biayaMuat = {
-      id: `biaya-muat-${Date.now()}`,
-      deskripsi: 'Biaya Muat',
-      jumlah: totalBerat,
-      satuan: 'Kg',
-      hargaSatuan: 50,
-    };
+    // Map default biaya from database for this kebun
+    const mappedDefaultBiaya = kebunDefaultBiaya.map((db, idx) => ({
+      id: `default-${db.id}-${Date.now()}-${idx}`,
+      deskripsi: db.deskripsi,
+      jumlah: db.isAutoKg ? totalBerat : 0,
+      satuan: db.satuan || 'Kg',
+      hargaSatuan: db.hargaSatuan || 0,
+      total: db.isAutoKg ? (totalBerat * (db.hargaSatuan || 0)) : 0,
+      isAutoKg: !!db.isAutoKg
+    }))
 
-    setBiayaLain(prev => [biayaMuat]);
+    // If no default biaya configured, fallback to legacy "Biaya Muat"
+    const initialBiayaList = mappedDefaultBiaya.length > 0 
+      ? mappedDefaultBiaya 
+      : [{
+          id: `auto-biaya-muat-${Date.now()}`,
+          deskripsi: BIAYA_MUAT_DESC,
+          jumlah: totalBerat,
+          satuan: 'Kg',
+          hargaSatuan: 50,
+          total: totalBerat * 50,
+          isAutoKg: true
+        }];
+
+    setSavedBiaya(prev => [...prev, ...initialBiayaList]);
+    setBiayaLain([]);
     // Create new objects to avoid reference sharing issues
     setNotasToProcess(prev => [...prev, ...selectedNotas.map(n => ({ ...n }))]);
     setNotas(prev => prev.filter(nota => !selectedNotas.map(n => n.id).includes(nota.id)));
@@ -1101,7 +1142,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const removeSavedBiaya = (id: string) => {
     setSavedBiaya(prev => {
       const target = prev.find((x) => x.id === id)
-      if (String(target?.deskripsi || '') === BIAYA_MUAT_DESC) {
+      if (String(target?.id || '').startsWith('auto-biaya-muat-')) {
         setBiayaMuatAutoEnabled(false)
       }
       return prev.filter(item => item.id !== id)
@@ -1143,7 +1184,8 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         deskripsi: String(item.deskripsi || '').trim(),
         total: Number(item.total || 0),
       }))
-      .filter(item => item.deskripsi && item.total > 0);
+      .filter(item => item.deskripsi && item.total > 0)
+      .filter(item => !isPotonganHutangDesc(item.deskripsi));
 
     if (valid.length === 0) {
       toast.error('Lengkapi deskripsi dan total sebelum simpan.');
@@ -1194,7 +1236,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       toast.error('Masih ada baris biaya gaji yang belum lengkap. Lengkapi deskripsi, jumlah, dan harga satuan.')
       return
     }
-    const invalidPotongan = savedPotongan.filter((p) => !String(p.deskripsi || '').trim() || Number(p.total || 0) <= 0)
+    const invalidPotongan = manualPotonganRows.filter((p) => !String(p.deskripsi || '').trim() || Number(p.total || 0) <= 0)
     if (invalidPotongan.length > 0) {
       toast.error('Masih ada baris potongan yang belum lengkap. Lengkapi deskripsi dan total.')
       return
@@ -1222,7 +1264,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           total: b.total || (b.jumlah * b.hargaSatuan),
           keterangan: b.keterangan
         })),
-        potongan: savedPotongan.map(p => ({
+        potongan: manualPotonganRows.map(p => ({
           deskripsi: p.deskripsi,
           total: p.total,
           keterangan: p.keterangan
@@ -1678,19 +1720,21 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   const totalGajian = useMemo(() => {
     const totalBiayaLain = savedBiaya.reduce((sum, item) => sum + (Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0);
-    const totalPotongan = [...savedPotongan, ...potongan].reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const potonganManual = manualPotonganRows.reduce((sum, item) => sum + Number(item.total || 0), 0)
+    const potonganHutang = detailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.potongan || 0), 0)
+    const totalPotongan = potonganManual + potonganHutang
     return totalBiayaLain - totalPotongan;
-  }, [savedBiaya, savedPotongan, potongan]);
+  }, [savedBiaya, manualPotonganRows, detailKaryawan]);
 
   const totalBiayaGaji = useMemo(() => {
     return savedBiaya.reduce((sum, item) => sum + (Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0)
   }, [savedBiaya])
 
   const totalPotonganAll = useMemo(() => {
-    const potonganManual = [...savedPotongan, ...potongan].reduce((sum, item) => sum + Number(item.total || 0), 0)
+    const potonganManual = manualPotonganRows.reduce((sum, item) => sum + Number(item.total || 0), 0)
     const potonganHutang = detailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.potongan || 0), 0)
     return potonganManual + potonganHutang
-  }, [detailKaryawan, savedPotongan, potongan])
+  }, [detailKaryawan, manualPotonganRows])
 
   const summaryData = useMemo(() => {
     const initial = {
@@ -1721,33 +1765,40 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     const totalKg = notasToProcess.reduce((sum, nota) => sum + (Number(nota.beratAkhir) || 0), 0)
     let createdId: string | null = null
     setSavedBiaya((prev) => {
-      const idx = prev.findIndex((b) => String(b.deskripsi || '') === BIAYA_MUAT_DESC)
-      if (idx === -1) {
-        if (!biayaMuatAutoEnabled || totalKg <= 0) return prev
-        createdId = `auto-biaya-muat-${Date.now()}`
-        return [
-          ...prev,
-          {
-            id: createdId,
-            deskripsi: BIAYA_MUAT_DESC,
-            jumlah: totalKg,
-            satuan: 'Kg',
-            hargaSatuan: 0,
-            total: 0,
-            keterangan: '',
-          } as any,
-        ]
+      let next = [...prev];
+      let hasChanges = false;
+
+      // 1. Sync existing auto-kg items
+      next = next.map(item => {
+        if (item.isAutoKg) {
+          const nextTotal = Math.round((Number(totalKg) || 0) * (Number(item.hargaSatuan) || 0));
+          if (item.jumlah !== totalKg || item.total !== nextTotal) {
+            hasChanges = true;
+            return { ...item, jumlah: totalKg, total: nextTotal };
+          }
+        }
+        return item;
+      });
+
+      // 2. Handle auto-creation of default "Biaya Muat" if enabled and not already there
+      const hasAutoMuat = next.some(b => String(b.id || '').startsWith('auto-biaya-muat-') || (b.isAutoKg && b.deskripsi === BIAYA_MUAT_DESC));
+      
+      if (!hasAutoMuat && biayaMuatAutoEnabled && totalKg > 0) {
+        createdId = `auto-biaya-muat-${Date.now()}`;
+        next.push({
+          id: createdId,
+          deskripsi: BIAYA_MUAT_DESC,
+          jumlah: totalKg,
+          satuan: 'Kg',
+          hargaSatuan: 50,
+          total: totalKg * 50,
+          isAutoKg: true,
+          keterangan: '',
+        });
+        hasChanges = true;
       }
-      const current = prev[idx] as any
-      const nextItem = {
-        ...current,
-        jumlah: totalKg,
-        satuan: 'Kg',
-        total: Math.round((Number(totalKg) || 0) * (Number(current?.hargaSatuan) || 0)),
-      }
-      const next = [...prev]
-      next[idx] = nextItem
-      return next
+
+      return hasChanges ? next : prev;
     })
     if (createdId) {
       setEditingBiayaId((curr) => curr || createdId)
@@ -1804,7 +1855,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   const canSearchNota = !!kebunId && !!startDate && !!endDate && !loading
   const canProcessNota = selectedNotas.length > 0 && !loading
-  const canSaveGajian = !!kebunId && !!startDate && !!endDate && !loading && (notasToProcess.length > 0 || savedBiaya.length > 0 || savedPotongan.length > 0 || potongan.length > 0 || detailKaryawan.length > 0)
+  const canSaveGajian = !!kebunId && !!startDate && !!endDate && !loading && (notasToProcess.length > 0 || savedBiaya.length > 0 || manualPotonganRows.length > 0 || detailKaryawan.length > 0)
 
   return (
     <div className="space-y-8">
@@ -2022,7 +2073,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
               </Button>
             </div>
 
-            {notasToProcess.length === 0 && detailKaryawan.length === 0 && savedBiaya.length === 0 && potongan.length === 0 && (
+            {notasToProcess.length === 0 && detailKaryawan.length === 0 && savedBiaya.length === 0 && manualPotonganRows.length === 0 && (
               <div className="mt-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-600">
                 Rincian gajian akan muncul setelah nota dipilih dan diproses.
               </div>
@@ -2032,7 +2083,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       </div>
 
       {/* Section for Processing Gajian */}
-      {(notasToProcess.length > 0 || detailKaryawan.length > 0 || savedBiaya.length > 0 || potongan.length > 0) && (
+      {(notasToProcess.length > 0 || detailKaryawan.length > 0 || savedBiaya.length > 0 || manualPotonganRows.length > 0) && (
         <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
           <h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center gap-2">
             <BanknotesIcon className="h-5 w-5 text-emerald-600" />
@@ -2177,7 +2228,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                         placeholder="Deskripsi"
                         value={item.deskripsi}
                         onChange={(e) => handleBiayaLainChange(item.id, 'deskripsi', e.target.value)}
-                        readOnly={String(item.deskripsi || '') === BIAYA_MUAT_DESC}
                         data-biaya-id={item.id}
                         data-biaya-field="deskripsi"
                         className={cn(
@@ -2202,7 +2252,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             const numericValue = digits ? Number(digits) : 0
                             handleBiayaLainChange(item.id, 'jumlah', numericValue)
                           }}
-                          readOnly={String(item.deskripsi || '') === BIAYA_MUAT_DESC}
+                          readOnly={String(item.id || '').startsWith('auto-biaya-muat-')}
                           data-biaya-id={item.id}
                           data-biaya-field="jumlah"
                           className={cn(
@@ -2214,7 +2264,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                           placeholder="Satuan"
                           value={item.satuan}
                           onChange={(e) => handleBiayaLainChange(item.id, 'satuan', e.target.value)}
-                          readOnly={String(item.deskripsi || '') === BIAYA_MUAT_DESC}
                           className="h-10 rounded-full"
                         />
                         <Input
@@ -2235,7 +2284,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                           )}
                         />
                       </div>
-                      {String(item.deskripsi || '') === BIAYA_MUAT_DESC ? (
+                      {String(item.id || '').startsWith('auto-biaya-muat-') ? (
                         <div className="text-xs text-gray-500">
                           Jumlah otomatis mengikuti total berat akhir nota.
                         </div>
@@ -2296,7 +2345,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                         <span className="text-gray-500">Total</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
                       </div>
-                      {String(item.deskripsi || '') === BIAYA_MUAT_DESC ? (
+                      {String(item.id || '').startsWith('auto-biaya-muat-') ? (
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-gray-500">Jumlah berat akhir</span>
                           <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0))} Kg</span>
@@ -2351,12 +2400,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
               </div>
             </div>
             <div className="space-y-4">
-              {savedPotongan.length === 0 && (
+              {manualPotonganRows.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-500">
                   Tambahkan potongan lain (di luar potongan hutang) untuk mengurangi total gaji.
                 </div>
               )}
-              {savedPotongan.map((item) => (
+              {manualPotonganRows.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
                   {editingPotonganId === item.id ? (
                     <>
@@ -2441,11 +2490,11 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                 </div>
               ))}
             </div>
-            {savedPotongan.length > 0 ? (
+            {manualPotonganRows.length > 0 ? (
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 mt-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-gray-700">Total Potongan</span>
-                  <span className="text-lg font-extrabold text-red-600">-{formatCurrency(savedPotongan.reduce((sum, p) => sum + (Number(p.total) || 0), 0))}</span>
+                  <span className="text-lg font-extrabold text-red-600">-{formatCurrency(manualPotonganRows.reduce((sum, p) => sum + (Number(p.total) || 0), 0))}</span>
                 </div>
               </div>
             ) : null}

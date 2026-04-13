@@ -14,7 +14,9 @@ import PermintaanTab from '../PermintaanTab'
 import AbsensiTab from '../AbsensiTab'
 import PanenTab from '../PanenTab'
 import InventoryTab from '../InventoryTab'
-import { ArrowLeftIcon, BanknotesIcon, CalendarIcon, ClipboardDocumentListIcon, CubeIcon, MapPinIcon, ShoppingCartIcon, TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import DefaultBiayaTab from '../DefaultBiayaTab'
+import RoleGate from '@/components/RoleGate'
+import { ArrowLeftIcon, BanknotesIcon, CalendarIcon, ClipboardDocumentListIcon, CubeIcon, MapPinIcon, ShoppingCartIcon, TrashIcon, PencilSquareIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { format } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -167,19 +169,24 @@ function GajianTab({ kebunId }: { kebunId: number }) {
   const fetchPreview = useCallback(async () => {
     setPreviewLoading(true)
     try {
-      const [unpaidRes, actRes, notaRes, potonganRes] = await Promise.all([
+      const [unpaidRes, actRes, notaRes, potonganRes, defaultBiayaRes] = await Promise.all([
         fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`),
         fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?startDate=${startDate}&endDate=${endDate}`, { cache: 'no-store' }),
+        fetch(`/api/kebun/${kebunId}/default-biaya`),
       ])
 
-      if (unpaidRes.ok) {
-        const json = await unpaidRes.json()
-        setUnpaidList(Array.isArray(json.data) ? json.data : [])
+      let totalKg = 0
+      if (notaRes.ok) {
+        const json = await notaRes.json().catch(() => ({} as any))
+        setNotaSawitCount(Number(json?.count || 0))
+        totalKg = Number(json?.totalBerat || 0)
       } else {
-        setUnpaidList([])
+        setNotaSawitCount(0)
       }
+
+      const mappedBiaya: BiayaLainItem[] = []
 
       if (actRes.ok) {
         const activities = await actRes.json()
@@ -190,22 +197,41 @@ function GajianTab({ kebunId }: { kebunId: number }) {
           acc[type] += curr.biaya
           return acc
         }, {})
-        const mapped: BiayaLainItem[] = Object.entries(groupedActivities)
-          .map(([deskripsi, total]) => ({
+        
+        Object.entries(groupedActivities).forEach(([deskripsi, total]) => {
+          mappedBiaya.push({
             deskripsi: `Upah Borongan - ${deskripsi}`,
             total: Number(total) || 0,
-          }))
-          .filter(item => item.total > 0)
-        setBiayaLain(mapped)
-      } else {
-        setBiayaLain([])
+          })
+        })
       }
 
-      if (notaRes.ok) {
-        const json = await notaRes.json().catch(() => ({} as any))
-        setNotaSawitCount(Number(json?.count || 0))
+      if (defaultBiayaRes.ok) {
+        const json = await defaultBiayaRes.json()
+        const defaults = Array.isArray(json.data) ? json.data : []
+        defaults.forEach((db: any) => {
+          if (db.isAutoKg) {
+            mappedBiaya.push({
+              deskripsi: db.deskripsi,
+              total: Math.round(totalKg * (db.hargaSatuan || 0))
+            })
+          } else {
+            mappedBiaya.push({
+              deskripsi: db.deskripsi,
+              total: 0 // Will be 0 since it's not auto KG, user can edit in next steps if needed, 
+                       // but for now we just show it as a baseline or maybe user wants it to be added as 0
+            })
+          }
+        })
+      }
+
+      setBiayaLain(mappedBiaya.filter(item => item.total > 0 || (item.deskripsi && !item.deskripsi.startsWith('Upah Borongan'))))
+
+      if (unpaidRes.ok) {
+        const json = await unpaidRes.json()
+        setUnpaidList(Array.isArray(json.data) ? json.data : [])
       } else {
-        setNotaSawitCount(0)
+        setUnpaidList([])
       }
 
       if (potonganRes.ok) {
@@ -850,6 +876,12 @@ export default function KebunDetailPage() {
                   <BanknotesIcon className="h-4 w-4 mr-2" />
                   Pengajuan Gajian
                 </TabsTrigger>
+                <RoleGate allow={['ADMIN', 'PEMILIK']}>
+                  <TabsTrigger value="default-biaya" className="rounded-xl px-4 h-10 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    <Cog6ToothIcon className="h-4 w-4 mr-2" />
+                    Biaya Default
+                  </TabsTrigger>
+                </RoleGate>
               </TabsList>
             </div>
             
@@ -876,6 +908,12 @@ export default function KebunDetailPage() {
             <TabsContent value="gajian" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <GajianTab kebunId={kebunId} />
             </TabsContent>
+
+            <RoleGate allow={['ADMIN', 'PEMILIK']}>
+              <TabsContent value="default-biaya" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <DefaultBiayaTab kebunId={kebunId} />
+              </TabsContent>
+            </RoleGate>
         </Tabs>
       </div>
     </div>

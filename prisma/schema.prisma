@@ -360,6 +360,18 @@ model KebunInventoryItem {
   @@index([kebunId])
 }
 
+model KasKategori {
+  code      String   @id
+  label     String
+  tipe      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tipe])
+  @@index([isActive])
+}
+
 model KebunInventoryTransaction {
   id        Int           @id @default(autoincrement())
   kebunId   Int
@@ -396,6 +408,21 @@ model Kebun {
   assignedUsers User[]            @relation("UserKebuns")
   workLocation  WorkLocation?
   potonganDrafts KebunGajianPotonganDraft[]
+  defaultBiaya  KebunDefaultBiaya[]
+}
+
+model KebunDefaultBiaya {
+  id           Int      @id @default(autoincrement())
+  kebunId      Int
+  kebun        Kebun    @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+  deskripsi    String
+  hargaSatuan  Float    @default(0)
+  satuan       String   @default("Kg")
+  isAutoKg     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([kebunId])
 }
 
 model KebunGajianPotonganDraft {
@@ -599,6 +626,7 @@ model DetailGajianKaryawan {
   bonus       Float    @default(0)
   lembur      Float    @default(0)
   potongan    Float    @default(0)
+  saldoHutang Float    @default(0)
   total       Float    @default(0)
   keterangan  String?
   createdAt   DateTime @default(now())
