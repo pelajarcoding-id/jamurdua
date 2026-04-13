@@ -660,6 +660,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     const isManual = !formData.timbanganId && !useTimbanganKebunInput;
     finalData.isManual = isManual;
     finalData.useTimbanganKebun = useTimbanganKebunInput;
+    finalData.disconnectTimbangan = !!nota?.timbanganId && isManual && !formData.timbanganId
     
     // Ensure numeric values are correct
     if (!nota && !isManual && selectedTimbangan) {

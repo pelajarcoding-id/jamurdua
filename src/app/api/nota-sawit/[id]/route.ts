@@ -16,12 +16,34 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
   }
   try {
+    const nota = await prisma.notaSawit.findUnique({
+      where: { id },
+      include: {
+        timbangan: {
+          include: {
+            kebun: true,
+            supir: true,
+            kendaraan: true,
+          },
+        },
+        kebun: true,
+        supir: true,
+        kendaraan: true,
+        pabrikSawit: true,
+      },
+    })
+
+    if (!nota || (nota as any).deletedAt) {
+      return NextResponse.json({ error: 'Nota Sawit not found' }, { status: 404 })
+    }
+
     const audit = await prisma.auditLog.findFirst({
       where: { entity: 'NotaSawit', entityId: String(id), action: 'CREATE' },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'asc' }
     });
     return NextResponse.json({
+      nota,
       createdBy: audit?.user ? { id: audit.user.id, name: audit.user.name } : null,
       createdAt: audit?.createdAt || null
     });

@@ -64,7 +64,7 @@ export default function NotaSawitPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalNotas, setTotalNotas] = useState(0);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(50);
   const [refreshToggle, setRefreshToggle] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -84,7 +84,7 @@ export default function NotaSawitPage() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [rowSelection, setRowSelection] = useState({});
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
   const [cursorId, setCursorId] = useState<number | null>(null);
   const [cursorStack, setCursorStack] = useState<number[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -490,15 +490,10 @@ export default function NotaSawitPage() {
     if (!id) return
     const toastId = toast.loading('Memuat detail nota...')
     try {
-      const params = new URLSearchParams({
-        page: '1',
-        limit: '1',
-        search: String(id),
-      })
-      const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' })
+      const res = await fetch(`/api/nota-sawit/${id}`, { cache: 'no-store' })
       if (!res.ok) throw new Error('Gagal memuat detail nota')
       const json = await res.json()
-      const nota = Array.isArray(json?.data) ? json.data[0] : null
+      const nota = json?.nota || null
       if (!nota) throw new Error('Nota tidak ditemukan')
 
       setDuplicateWarningOpen(false)
@@ -1108,7 +1103,7 @@ export default function NotaSawitPage() {
             <p className="text-gray-500 mt-2 md:mt-0">Kelola data nota sawit Anda di sini.</p>
         </div>
 
-        {loading ? (
+        {loading && data.length === 0 ? (
           <div className="mb-8">
             <div className="card-style p-4 rounded-2xl space-y-4">
               <div className="flex items-center gap-3">
@@ -1330,7 +1325,7 @@ export default function NotaSawitPage() {
           )}
 
           <div className="md:hidden space-y-3">
-            {loading ? (
+            {loading && data.length === 0 ? (
               [...Array(3)].map((_, i) => (
                 <div key={i} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
                   <Skeleton className="h-4 w-32" />
@@ -1349,6 +1344,7 @@ export default function NotaSawitPage() {
                 const bruto = nota.bruto || nota.timbangan?.grossKg || 0
                 const tara = nota.tara || nota.timbangan?.tareKg || 0
                 const netto = nota.netto || nota.timbangan?.netKg || 0
+                const beratAkhir = Math.max(0, Math.round(Number((nota as any)?.beratAkhir ?? (Number(netto || 0) - Number((nota as any)?.potongan || 0)))))
                 const statusClass = nota.statusPembayaran === 'LUNAS' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                 const showFinance = role !== 'SUPIR'
                 const imageUrl = nota.gambarNotaUrl || null
@@ -1407,6 +1403,10 @@ export default function NotaSawitPage() {
                         <div className="text-gray-400">Tara</div>
                         <div className="font-medium text-gray-800">{formatNumber(tara)} Kg</div>
                       </div>
+                    </div>
+                    <div className="rounded-xl bg-amber-50/70 px-3 py-2">
+                      <div className="text-xs text-amber-700">Berat Akhir</div>
+                      <div className="text-lg font-extrabold text-gray-900">{formatNumber(beratAkhir)} Kg</div>
                     </div>
 
                     {showFinance && (
