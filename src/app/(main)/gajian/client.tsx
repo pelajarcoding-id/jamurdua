@@ -535,7 +535,9 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             createdAt: new Date(),
             updatedAt: new Date()
         })),
-        detailKaryawan: detailKaryawan.map((d: any) => ({
+        detailKaryawan: detailKaryawan.map((d: any) => {
+          const baseSaldo = Math.max(0, Math.round(Number(hutangSaldoMap[Number(d.userId)] || 0)))
+          return {
           id: 0,
           gajianId: 0,
           userId: d.userId,
@@ -544,12 +546,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           bonus: 0,
           lembur: 0,
           potongan: d.potongan || 0,
+          saldoHutang: baseSaldo,
           total: d.total || 0,
           keterangan: d.keterangan || null,
           createdAt: new Date(),
           updatedAt: new Date(),
           user: d.user,
-        })),
+          }
+        }),
         hutangTambahan: Object.entries(hutangTambahanMap).map(([userId, v]) => ({
           userId: Number(userId),
           jumlah: Math.round(Number((v as any)?.jumlah || 0)),
