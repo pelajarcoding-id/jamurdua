@@ -433,34 +433,40 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         doc.setFontSize(12)
         doc.text('DAFTAR HUTANG KARYAWAN', 20, topContentY)
 
-        const hutangRowsPdf = hutangList.map((h, idx) => {
-          const saldoAfter = typeof (saldoMap as any)[h.userId] === 'number' ? Number((saldoMap as any)[h.userId]) : null
-          const saldoBefore = saldoAfter === null ? null : Math.max(0, Math.round(saldoAfter - h.hutangBaru + h.potong))
-          const sisaAfter = saldoAfter === null ? null : Math.max(0, Math.round(saldoAfter))
+        const computedHutangList = hutangList
+          .map((h) => {
+            const currentSaldo = typeof (saldoMap as any)[h.userId] === 'number' ? Number((saldoMap as any)[h.userId]) : null
+            const snapshotSaldo = h.saldoHutang ?? currentSaldo ?? 0
+            const saldoBefore = Math.max(0, Math.round(Number(snapshotSaldo) || 0))
+            const sisaAfter = Math.max(0, Math.round(saldoBefore + (Number(h.hutangBaru) || 0) - (Number(h.potong) || 0)))
+            return { ...h, saldoBefore, sisaAfter }
+          })
+          .sort((a: any, b: any) => {
+            const aNoPotong = (Number(a?.potong || 0) || 0) <= 0
+            const bNoPotong = (Number(b?.potong || 0) || 0) <= 0
+            if (aNoPotong !== bNoPotong) return aNoPotong ? -1 : 1
+            const saldoDiff = Number(b?.saldoBefore || 0) - Number(a?.saldoBefore || 0)
+            if (saldoDiff !== 0) return saldoDiff
+            return String(a?.name || '').localeCompare(String(b?.name || ''), 'id-ID')
+          })
+
+        const hutangRowsPdf = computedHutangList.map((h: any, idx: number) => {
           return [
             idx + 1,
             h.name,
-            saldoBefore === null ? '-' : formatNumber(saldoBefore),
+            formatNumber(h.saldoBefore),
             h.hutangBaru > 0 ? formatNumber(h.hutangBaru) : '-',
             formatNumber(h.potong),
-            sisaAfter === null ? '-' : formatNumber(sisaAfter),
+            formatNumber(h.sisaAfter),
             h.keterangan || '',
           ]
         })
 
-        const totalSaldoBefore = hutangList.reduce((sum, h) => {
-          const saldoAfter = typeof (saldoMap as any)[h.userId] === 'number' ? Number((saldoMap as any)[h.userId]) : null
-          if (saldoAfter === null) return sum
-          return sum + Math.max(0, Math.round(saldoAfter - h.hutangBaru + h.potong))
-        }, 0)
-        const totalHutangBaru = hutangList.reduce((sum, h) => sum + (h.hutangBaru || 0), 0)
-        const totalPotong = hutangList.reduce((sum, h) => sum + h.potong, 0)
-        const totalSisaAfter = hutangList.reduce((sum, h) => {
-          const saldoAfter = typeof (saldoMap as any)[h.userId] === 'number' ? Number((saldoMap as any)[h.userId]) : null
-          if (saldoAfter === null) return sum
-          return sum + Math.max(0, Math.round(saldoAfter))
-        }, 0)
-        const hasSaldoData = hutangList.some((h) => typeof (saldoMap as any)[h.userId] === 'number')
+        const totalSaldoBefore = computedHutangList.reduce((sum: number, h: any) => sum + (Number(h?.saldoBefore) || 0), 0)
+        const totalHutangBaru = computedHutangList.reduce((sum: number, h: any) => sum + (Number(h?.hutangBaru) || 0), 0)
+        const totalPotong = computedHutangList.reduce((sum: number, h: any) => sum + (Number(h?.potong) || 0), 0)
+        const totalSisaAfter = computedHutangList.reduce((sum: number, h: any) => sum + (Number(h?.sisaAfter) || 0), 0)
+        const hasSaldoData = computedHutangList.length > 0
 
         autoTable(doc, {
           startY: topContentY + 16,
@@ -701,6 +707,22 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
   const totalSaldoBeforeHutang = hutangCalculations.reduce((sum, v) => sum + (v?.saldoBefore || 0), 0)
   const totalSisaAfterHutang = hutangCalculations.reduce((sum, v) => sum + (v?.sisaAfter || 0), 0)
   const hasSaldoHutangData = hutangCalculations.some(v => v !== null)
+  const sortedHutangRows = hutangRows
+    .map((r) => {
+      const d = (gajian.detailKaryawan || []).find(x => x.userId === r.userId)
+      const currentSaldo = typeof hutangSaldoByUserId[r.userId] === 'number' ? Number(hutangSaldoByUserId[r.userId]) : null
+      const snapshotSaldo = d?.saldoHutang ?? currentSaldo ?? 0
+      const saldoBefore = Math.max(0, Math.round(Number(snapshotSaldo) || 0))
+      return { ...r, saldoBefore }
+    })
+    .sort((a: any, b: any) => {
+      const aNoPotong = (Number(a?.potong || 0) || 0) <= 0
+      const bNoPotong = (Number(b?.potong || 0) || 0) <= 0
+      if (aNoPotong !== bNoPotong) return aNoPotong ? -1 : 1
+      const saldoDiff = Number(b?.saldoBefore || 0) - Number(a?.saldoBefore || 0)
+      if (saldoDiff !== 0) return saldoDiff
+      return String(a?.name || '').localeCompare(String(b?.name || ''), 'id-ID')
+    })
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -844,7 +866,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                     </tr>
                   </thead>
                   <tbody>
-                    {hutangRows.map((item, index) => {
+                    {sortedHutangRows.map((item: any, index: number) => {
                       const d = (gajian.detailKaryawan || []).find(x => x.userId === item.userId)
                       const currentSaldo = typeof hutangSaldoByUserId[item.userId] === 'number' ? Number(hutangSaldoByUserId[item.userId]) : null
                       

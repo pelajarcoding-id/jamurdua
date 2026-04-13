@@ -1137,6 +1137,29 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     }
   }, [endDate, kebunId, startDate])
 
+  const fetchHutangSaldoForPeriod = useCallback(async () => {
+    if (!kebunId || !startDate || !endDate) return {} as Record<number, number>
+    const params = new URLSearchParams({
+      kebunId,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    })
+    const res = await fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' })
+    if (!res.ok) throw new Error('Gagal mengambil data hutang')
+    const json = await res.json()
+    const list = Array.isArray(json.data) ? json.data : []
+    const nextMap: Record<number, number> = {}
+    list.forEach((r: any) => {
+      const id = Number(r?.karyawan?.id)
+      const saldo = Math.max(0, Math.round(Number(r?.hutangSaldo || 0)))
+      if (Number.isFinite(id) && id > 0) nextMap[id] = saldo
+    })
+    setHutangSaldoMap(nextMap)
+    const key = `${kebunId}|${startDate.toISOString()}|${endDate.toISOString()}`
+    setHutangSaldoKey(key)
+    return nextMap
+  }, [kebunId, startDate, endDate])
+
   const handleRefreshDraftData = useCallback(async () => {
     if (!editingGajianId) return
     setRefreshingData(true)
@@ -1146,13 +1169,27 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         refreshGajiKaryawanDraft(),
         importUpahBorongan(),
       ])
+      const map = await fetchHutangSaldoForPeriod()
+      setDetailKaryawan((prev) => {
+        const next = (prev || []).map((dk: any) => {
+          const userId = Number(dk?.userId)
+          const baseSaldo = Math.max(0, Math.round(Number((map as any)?.[userId] || 0)))
+          const tambahan = Math.max(0, Math.round(Number(hutangTambahanMap?.[userId]?.jumlah || 0)))
+          const saldo = baseSaldo + tambahan
+          const gajiPokok = Math.round(Number(dk?.gajiPokok || 0))
+          const potongPrev = Math.max(0, Math.round(Number(dk?.potongan || 0)))
+          const potong = saldo <= 0 ? 0 : Math.min(potongPrev, saldo)
+          return { ...dk, potongan: potong, total: gajiPokok - potong }
+        })
+        return next as any
+      })
       toast.success('Data draft berhasil diperbarui')
     } catch (e: any) {
       toast.error(e?.message || 'Gagal memperbarui data draft')
     } finally {
       setRefreshingData(false)
     }
-  }, [editingGajianId, importUpahBorongan, refreshGajiKaryawanDraft, refreshNotaSawitDraft])
+  }, [editingGajianId, fetchHutangSaldoForPeriod, hutangTambahanMap, importUpahBorongan, refreshGajiKaryawanDraft, refreshNotaSawitDraft])
 
   const removeBiayaLain = (id: string) => {
     setBiayaLain(prev => prev.filter(item => item.id !== id));
@@ -1413,29 +1450,6 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     }))
     toast.success('Hutang baru dihapus dari proses gajian')
   }, [hutangSaldoMap])
-
-  const fetchHutangSaldoForPeriod = useCallback(async () => {
-    if (!kebunId || !startDate || !endDate) return {} as Record<number, number>
-    const params = new URLSearchParams({
-      kebunId,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-    })
-    const res = await fetch(`/api/karyawan-kebun?${params.toString()}`, { cache: 'no-store' })
-    if (!res.ok) throw new Error('Gagal mengambil data hutang')
-    const json = await res.json()
-    const list = Array.isArray(json.data) ? json.data : []
-    const nextMap: Record<number, number> = {}
-    list.forEach((r: any) => {
-      const id = Number(r?.karyawan?.id)
-      const saldo = Math.max(0, Math.round(Number(r?.hutangSaldo || 0)))
-      if (Number.isFinite(id) && id > 0) nextMap[id] = saldo
-    })
-    setHutangSaldoMap(nextMap)
-    const key = `${kebunId}|${startDate.toISOString()}|${endDate.toISOString()}`
-    setHutangSaldoKey(key)
-    return nextMap
-  }, [kebunId, startDate, endDate])
 
   const handleOpenTambahHutang = useCallback((userId?: number) => {
     const id = typeof userId === 'number' ? String(userId) : (detailKaryawan?.[0]?.userId ? String(detailKaryawan[0].userId) : '')

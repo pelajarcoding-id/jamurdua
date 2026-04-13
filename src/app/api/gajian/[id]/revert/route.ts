@@ -36,6 +36,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
         throw new Error('Hanya gajian yang sudah FINALIZED yang dapat dibatalkan');
       }
 
+      const newerFinalized = await tx.gajian.findFirst({
+        where: {
+          kebunId: gajian.kebunId,
+          status: 'FINALIZED',
+          tanggalSelesai: { gt: gajian.tanggalSelesai },
+        },
+        select: { id: true, tanggalMulai: true, tanggalSelesai: true },
+        orderBy: { tanggalSelesai: 'desc' },
+      })
+      if (newerFinalized) {
+        const fmt = (d: Date) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)
+        throw new Error(
+          `Tidak bisa membatalkan finalisasi gajian ini karena ada gajian FINAL yang lebih baru pada kebun yang sama (ID ${newerFinalized.id}, periode ${fmt(new Date(newerFinalized.tanggalMulai))} - ${fmt(new Date(newerFinalized.tanggalSelesai))}). Batalkan yang paling baru terlebih dahulu.`
+        )
+      }
+
       // Check if already paid in Kasir (category GAJI)
       const isPaid = await tx.kasTransaksi.findFirst({
         where: {
