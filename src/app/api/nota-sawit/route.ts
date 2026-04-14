@@ -475,10 +475,10 @@ export async function POST(request: Request) {
     const computedPembayaranSetelahPph = Math.round(totalPembayaran - computedPph - pph25)
 
     const createData: any = { 
-        timbanganId, 
-        kebunId,
-        supirId, 
-        pabrikSawitId,
+        ...(timbanganId ? { timbangan: { connect: { id: timbanganId } } } : {}),
+        ...(kebunId ? { kebun: { connect: { id: kebunId } } } : {}),
+        ...(supirId ? { supir: { connect: { id: supirId } } } : {}),
+        ...(pabrikSawitId ? { pabrikSawit: { connect: { id: pabrikSawitId } } } : {}),
         ...(perusahaanId ? { perusahaan: { connect: { id: perusahaanId } } } : {}),
         tanggalBongkar,
         keterangan: keteranganRaw || null,
