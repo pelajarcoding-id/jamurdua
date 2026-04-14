@@ -521,6 +521,7 @@ model PabrikSawit {
   updatedAt    DateTime     @updatedAt
   invoices     InvoiceTbs[]
   notasSawit   NotaSawit[]
+  notaSawitPembayaranBatches NotaSawitPembayaranBatch[]
   perusahaan   Perusahaan?  @relation(fields: [perusahaanId], references: [id])
 }
 
@@ -563,11 +564,50 @@ model NotaSawit {
   timbangan            Timbangan?       @relation(fields: [timbanganId], references: [id])
   perusahaan           Perusahaan?      @relation(fields: [perusahaanId], references: [id])
   kasTransaksi         KasTransaksi[]
+  pembayaranBatchItems NotaSawitPembayaranBatchItem[]
 
   @@index([tanggalBongkar])
   @@index([supirId])
   @@index([kendaraanPlatNomor])
   @@index([pabrikSawitId])
+}
+
+model NotaSawitPembayaranBatch {
+  id            Int      @id @default(autoincrement())
+  pabrikSawitId Int
+  tanggal       DateTime @default(now())
+  jumlahMasuk   Float    @default(0)
+  adminBank     Float    @default(0)
+  metodeAlokasi String   @default("PROPORSIONAL")
+  bebankanNotaId Int?
+  keterangan    String?
+  gambarUrl     String?
+  createdById   Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  pabrikSawit   PabrikSawit                 @relation(fields: [pabrikSawitId], references: [id], onDelete: Cascade)
+  items         NotaSawitPembayaranBatchItem[]
+  kasTransaksi  KasTransaksi[]
+
+  @@index([pabrikSawitId])
+  @@index([tanggal])
+}
+
+model NotaSawitPembayaranBatchItem {
+  id               Int      @id @default(autoincrement())
+  batchId          Int
+  notaSawitId      Int
+  tagihanNet       Float    @default(0)
+  adminAllocated   Float    @default(0)
+  pembayaranAktual Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  batch            NotaSawitPembayaranBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  notaSawit        NotaSawit                @relation(fields: [notaSawitId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, notaSawitId])
+  @@index([notaSawitId])
 }
 
 model Timbangan {
@@ -730,6 +770,7 @@ model KasTransaksi {
   hutangBankId       Int?
   gajianId           Int?
   notaSawitId        Int?
+  notaSawitPembayaranBatchId Int?
   deletedAt          DateTime?
   deletedById        Int?
   deletedBy          User?      @relation("DeleterRelation", fields: [deletedById], references: [id])
@@ -740,9 +781,11 @@ model KasTransaksi {
   hutangBank         HutangBank? @relation(fields: [hutangBankId], references: [id])
   gajian             Gajian?    @relation(fields: [gajianId], references: [id], onDelete: SetNull)
   notaSawit          NotaSawit? @relation(fields: [notaSawitId], references: [id], onDelete: SetNull)
+  notaSawitPembayaranBatch NotaSawitPembayaranBatch? @relation(fields: [notaSawitPembayaranBatchId], references: [id], onDelete: SetNull)
 
   @@index([gajianId])
   @@index([notaSawitId])
+  @@index([notaSawitPembayaranBatchId])
 }
 
 model HutangBank {

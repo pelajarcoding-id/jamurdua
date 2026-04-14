@@ -38,6 +38,14 @@ export async function POST(request: Request) {
         });
 
         for (const item of itemsToProcess) {
+            const hasBatch = await (prisma as any).notaSawitPembayaranBatchItem.findFirst({
+                where: { notaSawitId: item.id },
+                select: { id: true },
+            })
+            if (hasBatch) {
+                continue
+            }
+
             const pabrikName = item.pabrikSawit?.name || 'Unknown Pabrik';
             const supirName = item.supir?.name || 'Unknown Supir';
             const tglBongkar = item.tanggalBongkar 
@@ -97,6 +105,7 @@ export async function POST(request: Request) {
       },
       data: {
         statusPembayaran: status,
+        ...(status === 'LUNAS' ? { pembayaranAktual: null } : {}),
       },
     })
 

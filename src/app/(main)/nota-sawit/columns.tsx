@@ -35,6 +35,7 @@ export type NotaSawitData = NotaSawit & {
   tanggalBongkar?: Date | null;
   pembayaranAktual?: number | null;
   pph25?: number | null;
+  pembayaranBatchItems?: Array<{ batch?: { id?: number; tanggal?: Date } }>;
 };
 
 export const columns: ColumnDef<NotaSawitData>[] = [
@@ -192,15 +193,11 @@ export const columns: ColumnDef<NotaSawitData>[] = [
     },
   },
   {
-    accessorKey: 'pembayaranAktual',
-    header: () => <div className="text-right">Pembayaran Aktual</div>,
+    id: 'tanggalDibayar',
+    header: () => <div className="text-right">Tanggal Dibayar</div>,
     cell: ({ row }) => {
-      const val = row.original.pembayaranAktual;
-      return <div className="text-right font-bold text-blue-700">{val !== null && val !== undefined ? formatCurrency(val) : '-'}</div>;
-    },
-    footer: ({ table }) => {
-      const total = table.getRowModel().rows.reduce((sum, row) => sum + (row.original.pembayaranAktual || 0), 0);
-      return <div className="text-right font-bold text-blue-700">{formatCurrency(total)}</div>;
+      const tanggal = (row.original as any)?.pembayaranBatchItems?.[0]?.batch?.tanggal
+      return <div className="text-right font-semibold text-gray-900">{tanggal ? new Date(tanggal).toLocaleDateString('id-ID') : '-'}</div>;
     },
   },
   {

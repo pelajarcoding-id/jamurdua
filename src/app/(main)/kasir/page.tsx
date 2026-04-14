@@ -495,12 +495,15 @@ const KasirPage = () => {
 
     try {
         const res = await fetch(`/api/kasir?id=${deleteId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Gagal menghapus');
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({} as any))
+          throw new Error((errJson as any)?.error || 'Gagal menghapus')
+        }
         toast.success('Transaksi dihapus');
         fetchData();
     } catch (err) {
         console.error(err);
-        toast.error('Gagal menghapus transaksi');
+        toast.error(err instanceof Error ? err.message : 'Gagal menghapus transaksi');
         setData(previousData);
     } finally {
         setOpenDelete(false);
@@ -1132,7 +1135,7 @@ const KasirPage = () => {
             <DataTable<KasTransaksiUI, any>
               columns={columns(handleDelete, handleEdit, handleDetail, setViewImageUrl, formatKeterangan)}    
               data={data?.transactions ?? []}
-              meta={{ onRowClick: handleDetail }}
+              meta={{ onRowClick: handleDetail, page, limit }}
               isLoading={isLoading}
               virtualize={{ enabled: false, rowHeight: 56 }}
             />

@@ -170,7 +170,7 @@ export async function GET(request: Request) {
 
     // If for report (no pagination params), return all data
     if (!pageParam && !limitParam) {
-      const notaSawit = await prisma.notaSawit.findMany({
+      const notaSawit = await (prisma as any).notaSawit.findMany({
         where,
         include: {
           timbangan: {
@@ -184,6 +184,11 @@ export async function GET(request: Request) {
           supir: { select: { id: true, name: true } },
           kendaraan: true,
           pabrikSawit: true,
+          pembayaranBatchItems: {
+            include: { batch: { select: { id: true, tanggal: true } } },
+            orderBy: { id: 'desc' },
+            take: 1,
+          },
         },
         orderBy: [
           { tanggalBongkar: 'desc' },
@@ -199,7 +204,7 @@ export async function GET(request: Request) {
 
     let notaSawit;
     if (cursorParam) {
-      notaSawit = await prisma.notaSawit.findMany({
+      notaSawit = await (prisma as any).notaSawit.findMany({
         where,
         include: {
           timbangan: {
@@ -213,6 +218,11 @@ export async function GET(request: Request) {
           supir: { select: { id: true, name: true } },
           kendaraan: true,
           pabrikSawit: true,
+          pembayaranBatchItems: {
+            include: { batch: { select: { id: true, tanggal: true } } },
+            orderBy: { id: 'desc' },
+            take: 1,
+          },
         },
         orderBy: [
           { tanggalBongkar: 'desc' },
@@ -224,7 +234,7 @@ export async function GET(request: Request) {
       });
     } else {
       const skip = (page - 1) * limit;
-      notaSawit = await prisma.notaSawit.findMany({
+      notaSawit = await (prisma as any).notaSawit.findMany({
         where,
         skip,
         take: limit,
@@ -240,6 +250,11 @@ export async function GET(request: Request) {
           supir: { select: { id: true, name: true } },
           kendaraan: true,
           pabrikSawit: true,
+          pembayaranBatchItems: {
+            include: { batch: { select: { id: true, tanggal: true } } },
+            orderBy: { id: 'desc' },
+            take: 1,
+          },
         },
         orderBy: [
           { tanggalBongkar: 'desc' },

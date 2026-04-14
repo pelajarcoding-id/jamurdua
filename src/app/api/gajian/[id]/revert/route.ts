@@ -52,17 +52,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
         )
       }
 
-      // Check if already paid in Kasir (category GAJI)
-      const isPaid = await tx.kasTransaksi.findFirst({
+      const gajiTrxRows = await tx.kasTransaksi.findMany({
         where: {
           gajianId: gajianId,
           kategori: 'GAJI',
           deletedAt: null,
         },
+        select: { id: true, karyawanId: true, deskripsi: true },
       });
 
-      if (isPaid) {
-        throw new Error('Gajian sudah dibayar di Kasir. Batalkan pembayaran gaji di Kasir terlebih dahulu.');
+      const autoPrefix = `Pembayaran Gaji via Proses Gaji #${gajianId}`
+      const autoGajiTrxIds = gajiTrxRows
+        .filter((t) => t.karyawanId === null && String(t.deskripsi || '').startsWith(autoPrefix))
+        .map((t) => t.id)
+      const manualOrOther = gajiTrxRows.filter((t) => !autoGajiTrxIds.includes(t.id))
+      if (manualOrOther.length > 0) {
+        throw new Error('Gajian sudah dibayar di Kasir. Batalkan pembayaran gaji di Kasir terlebih dahulu.')
       }
 
       // 1. Revert NotaSawit status
@@ -77,7 +82,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         });
       }
 
-      // 2. Delete linked KasTransaksi (PEMBAYARAN_HUTANG and HUTANG_KARYAWAN)
+      // 2. Delete linked KasTransaksi (auto-generated during finalization)
       // We don't use soft delete here because these are auto-generated during finalization
       await (tx as any).kasTransaksi.deleteMany({
         where: {
@@ -85,6 +90,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
           kategori: { in: ['PEMBAYARAN_HUTANG', 'HUTANG_KARYAWAN'] },
         },
       });
+      if (autoGajiTrxIds.length > 0) {
+        await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: { in: autoGajiTrxIds } } })
+        await (tx as any).kasTransaksi.deleteMany({ where: { id: { in: autoGajiTrxIds } } })
+      }
 
       // 3. Delete GajianHutangTambahan
       // Note: If the table doesn't exist in some environments, we use executeRaw

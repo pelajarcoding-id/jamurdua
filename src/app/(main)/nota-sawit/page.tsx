@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DataTable } from '@/components/data-table'
 import { columns, NotaSawitData } from './columns'
+import type { ColumnDef } from '@tanstack/react-table'
 import ModalUbah from './modal'
 import ModalDetail from './detail-modal';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
@@ -13,7 +14,9 @@ import { UbahStatusModal } from './ubah-status-modal'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { ArrowDownTrayIcon, XMarkIcon, CalendarIcon, PlusIcon, ArrowPathIcon, ClipboardDocumentListIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import ImageUpload from '@/components/ui/ImageUpload'
+import { ArrowDownTrayIcon, XMarkIcon, CalendarIcon, PlusIcon, ArrowPathIcon, ClipboardDocumentListIcon, DocumentTextIcon, PencilSquareIcon, TrashIcon, BanknotesIcon, PhotoIcon } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -52,6 +55,7 @@ interface SummaryData {
   totalPembayaranLunas: number;
   belumLunasCount: number;
   totalPembayaranBelumLunas: number;
+  tonaseByKebun?: Array<{ kebunId: number; name: string; totalBerat: number }>;
 }
 
 import { useAuth } from '@/components/AuthProvider';
@@ -60,6 +64,7 @@ export default function NotaSawitPage() {
   const { role, id: userId } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'nota' | 'pembayaran'>('nota')
   const [data, setData] = useState<NotaSawitData[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -71,10 +76,57 @@ export default function NotaSawitPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
-  const [isBulkUbahStatusOpen, setIsBulkUbahStatusOpen] = useState(false);
   const [isBulkHargaOpen, setIsBulkHargaOpen] = useState(false)
   const [bulkHargaValue, setBulkHargaValue] = useState('')
   const [bulkHargaSubmitting, setBulkHargaSubmitting] = useState(false)
+  const [isBulkReconcileOpen, setIsBulkReconcileOpen] = useState(false)
+  const [reconcileSubmitting, setReconcileSubmitting] = useState(false)
+  const [reconcileTanggal, setReconcileTanggal] = useState('')
+  const [reconcileJumlahMasuk, setReconcileJumlahMasuk] = useState('')
+  const [reconcileAdminBank, setReconcileAdminBank] = useState('')
+  const [reconcileMetode, setReconcileMetode] = useState<'PROPORSIONAL' | 'RATA' | 'SATU_NOTA'>('PROPORSIONAL')
+  const [reconcileBebankanNotaId, setReconcileBebankanNotaId] = useState<string>('')
+  const [reconcileSetLunas, setReconcileSetLunas] = useState(true)
+  const [reconcileKeterangan, setReconcileKeterangan] = useState('')
+  const [reconcilePabrikId, setReconcilePabrikId] = useState<string>('')
+  const [reconcileNotas, setReconcileNotas] = useState<NotaSawitData[]>([])
+  const [reconcileGambarFile, setReconcileGambarFile] = useState<File | null>(null)
+  const [reconcileGambarPreview, setReconcileGambarPreview] = useState<string | null>(null)
+  const [reconcileRangeStart, setReconcileRangeStart] = useState<string>('')
+  const [reconcileRangeEnd, setReconcileRangeEnd] = useState<string>('')
+  const [reconcileRangeLoading, setReconcileRangeLoading] = useState(false)
+  const [reconcileRangeCandidates, setReconcileRangeCandidates] = useState<NotaSawitData[]>([])
+  const [reconcileHistoryLoading, setReconcileHistoryLoading] = useState(false)
+  const [reconcileHistorySoftLoading, setReconcileHistorySoftLoading] = useState(false)
+  const [reconcileHistory, setReconcileHistory] = useState<any[]>([])
+  const [reconcileHistoryPage, setReconcileHistoryPage] = useState(1)
+  const [reconcileHistoryLimit, setReconcileHistoryLimit] = useState(20)
+  const [reconcileHistoryTotal, setReconcileHistoryTotal] = useState(0)
+  const [isReconcileDetailOpen, setIsReconcileDetailOpen] = useState(false)
+  const [reconcileDetail, setReconcileDetail] = useState<any | null>(null)
+  const [isBuktiTransferOpen, setIsBuktiTransferOpen] = useState(false)
+  const [buktiTransferUrl, setBuktiTransferUrl] = useState<string | null>(null)
+  const [isReconcileEditOpen, setIsReconcileEditOpen] = useState(false)
+  const [reconcileEditSubmitting, setReconcileEditSubmitting] = useState(false)
+  const [reconcileEditingBatchId, setReconcileEditingBatchId] = useState<number | null>(null)
+  const [reconcileEditTanggal, setReconcileEditTanggal] = useState('')
+  const [reconcileEditJumlahMasuk, setReconcileEditJumlahMasuk] = useState('')
+  const [reconcileEditAdminBank, setReconcileEditAdminBank] = useState('')
+  const [reconcileEditKeterangan, setReconcileEditKeterangan] = useState('')
+  const [reconcileEditSetLunas, setReconcileEditSetLunas] = useState(true)
+  const [reconcileEditPabrikId, setReconcileEditPabrikId] = useState<string>('')
+  const [reconcileEditNotas, setReconcileEditNotas] = useState<any[]>([])
+  const [reconcileEditRangeStart, setReconcileEditRangeStart] = useState<string>('')
+  const [reconcileEditRangeEnd, setReconcileEditRangeEnd] = useState<string>('')
+  const [reconcileEditRangeLoading, setReconcileEditRangeLoading] = useState(false)
+  const [reconcileEditRangeCandidates, setReconcileEditRangeCandidates] = useState<any[]>([])
+  const [reconcileEditingBatch, setReconcileEditingBatch] = useState<any | null>(null)
+  const [reconcileEditGambarFile, setReconcileEditGambarFile] = useState<File | null>(null)
+  const [reconcileEditGambarPreview, setReconcileEditGambarPreview] = useState<string | null>(null)
+  const [reconcileEditGambarExistingUrl, setReconcileEditGambarExistingUrl] = useState<string | null>(null)
+  const [isReconcileDeleteConfirmOpen, setIsReconcileDeleteConfirmOpen] = useState(false)
+  const [reconcileDeletingBatchId, setReconcileDeletingBatchId] = useState<number | null>(null)
+  const [reconcileDeleteSubmitting, setReconcileDeleteSubmitting] = useState(false)
   const [duplicateWarningOpen, setDuplicateWarningOpen] = useState(false)
   const [duplicateCandidates, setDuplicateCandidates] = useState<any[]>([])
   const [pendingDuplicatePayload, setPendingDuplicatePayload] = useState<any | null>(null)
@@ -85,6 +137,7 @@ export default function NotaSawitPage() {
   const [rowSelection, setRowSelection] = useState({});
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const debouncedSearchQuery = useDebounce(searchQuery, 250);
+  const [notaSoftLoading, setNotaSoftLoading] = useState(false)
   const [cursorId, setCursorId] = useState<number | null>(null);
   const [cursorStack, setCursorStack] = useState<number[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -107,6 +160,9 @@ export default function NotaSawitPage() {
     setStartDate(start)
     setEndDate(end)
     setQuickRange('this_year')
+    setPembayaranStartDate(start)
+    setPembayaranEndDate(end)
+    setPembayaranQuickRange('this_year')
   }, []);
 
   const [kebunList, setKebunList] = useState<{ id: number; name: string }[]>([]);
@@ -114,16 +170,25 @@ export default function NotaSawitPage() {
   const [pabrikList, setPabrikList] = useState<{ id: number; name: string }[]>([]);
   const [selectedPabrik, setSelectedPabrik] = useState<string>(searchParams.get('pabrikId') || '');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
+  const [pembayaranSearch, setPembayaranSearch] = useState('')
+  const debouncedPembayaranSearch = useDebounce(pembayaranSearch, 250)
+  const [pembayaranPabrikId, setPembayaranPabrikId] = useState<string>('')
+  const [pembayaranKebunId, setPembayaranKebunId] = useState<string>('')
+  const [pembayaranStartDate, setPembayaranStartDate] = useState<Date | undefined>(undefined)
+  const [pembayaranEndDate, setPembayaranEndDate] = useState<Date | undefined>(undefined)
+  const [pembayaranQuickRange, setPembayaranQuickRange] = useState('this_year')
   const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
   const [viewImageError, setViewImageError] = useState(false);
+  const notaHasLoadedRef = useRef(false)
+  const notaAbortRef = useRef<AbortController | null>(null)
+  const reconcileHistoryHasLoadedRef = useRef(false)
+  const reconcileHistoryAbortRef = useRef<AbortController | null>(null)
 
 
   useEffect(() => {
     const paramsSearch = searchParams.get('search') || '';
-    if (paramsSearch !== searchQuery) {
-      setSearchQuery(paramsSearch);
-    }
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev: string) => (prev === paramsSearch ? prev : paramsSearch))
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchKebun = async () => {
@@ -156,14 +221,34 @@ export default function NotaSawitPage() {
     setCursorId(null);
     setCursorStack([]);
     setNextCursor(null);
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set('search', value);
-    } else {
-      params.delete('search');
-    }
-    router.replace(`?${params.toString()}`);
   };
+
+  useEffect(() => {
+    const current = (searchParams.get('search') || '').trim()
+    const next = (debouncedSearchQuery || '').trim()
+    if (current === next) return
+    const params = new URLSearchParams(searchParams.toString())
+    if (next) params.set('search', next)
+    else params.delete('search')
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }, [debouncedSearchQuery, router, searchParams])
+
+  const selectedNotasForBulk = useMemo(() => {
+    const ids = Object.keys(rowSelection)
+    return ids
+      .map((index) => data[parseInt(index, 10)])
+      .filter(Boolean) as NotaSawitData[]
+  }, [data, rowSelection])
+
+  const reconcileNotaIds = useMemo(() => {
+    const ids = reconcileNotas.map((n: any) => Number(n?.id)).filter((n) => Number.isFinite(n) && n > 0)
+    return Array.from(new Set(ids))
+  }, [reconcileNotas])
+
+  const reconcileEditNotaIds = useMemo(() => {
+    const ids = reconcileEditNotas.map((n: any) => Number(n?.id)).filter((n: number) => Number.isFinite(n) && n > 0)
+    return Array.from(new Set(ids))
+  }, [reconcileEditNotas])
 
   const refreshData = useCallback(() => setRefreshToggle(prev => !prev), []);
   const handleRefresh = useCallback(() => {
@@ -196,10 +281,20 @@ export default function NotaSawitPage() {
     setIsConfirmOpen(false);
   }, []);
 
-  const handleDetail = useCallback((nota: NotaSawitData) => {
-    setSelectedNota(nota);
-    setIsDetailModalOpen(true);
-  }, []);
+  const handleDetail = useCallback(async (nota: NotaSawitData) => {
+    setSelectedNota(nota)
+    setIsDetailModalOpen(true)
+    try {
+      const id = Number((nota as any)?.id)
+      if (!Number.isFinite(id) || id <= 0) return
+      const res = await fetch(`/api/nota-sawit/${id}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json().catch(() => ({}))
+      if (json?.nota) setSelectedNota(json.nota)
+    } catch {
+      return
+    }
+  }, [])
 
   const handleCloseDetailModal = useCallback(() => {
     setSelectedNota(null);
@@ -257,6 +352,25 @@ export default function NotaSawitPage() {
     }
     return 'Pilih Rentang Waktu';
   }, [quickRange, startDate, endDate]);
+
+  const pembayaranDateDisplay = useMemo(() => {
+    if (pembayaranQuickRange && pembayaranQuickRange !== 'custom') {
+      switch (pembayaranQuickRange) {
+        case 'all': return 'Semua'
+        case 'today': return 'Hari Ini'
+        case 'this_week': return 'Minggu Ini'
+        case 'this_month': return 'Bulan Ini'
+        case 'this_year': return 'Tahun Ini'
+        default: return 'Pilih Rentang Waktu'
+      }
+    }
+    if (pembayaranStartDate && pembayaranEndDate) {
+      const s = new Date(pembayaranStartDate).toLocaleDateString('id-ID')
+      const e = new Date(pembayaranEndDate).toLocaleDateString('id-ID')
+      return `${s} - ${e}`
+    }
+    return 'Pilih Rentang Waktu'
+  }, [pembayaranEndDate, pembayaranQuickRange, pembayaranStartDate])
 
   const toWibYmd = useCallback((dt?: Date) => {
     if (!dt) return ''
@@ -318,6 +432,55 @@ export default function NotaSawitPage() {
       setEndDate(todayEnd);
     }
   }, [toWibYmd, wibEndFromYmd, wibStartFromYmd]);
+
+  const applyPembayaranQuickRange = useCallback((val: string) => {
+    const shiftDays = (dt: Date, days: number) => new Date(dt.getTime() + days * 24 * 60 * 60 * 1000)
+    const todayYmd = toWibYmd(new Date())
+    const todayStart = wibStartFromYmd(todayYmd)
+    const todayEnd = wibEndFromYmd(todayYmd)
+    setPembayaranQuickRange(val)
+
+    if (val === 'all') {
+      setPembayaranStartDate(undefined)
+      setPembayaranEndDate(undefined)
+      return
+    }
+
+    if (val === 'today') {
+      setPembayaranStartDate(todayStart)
+      setPembayaranEndDate(todayEnd)
+      return
+    }
+
+    if (val === 'this_week') {
+      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
+      const day = wibToday.getUTCDay() // 0=Sun
+      const diffToMon = day === 0 ? 6 : day - 1
+      const monStart = shiftDays(todayStart, -diffToMon)
+      setPembayaranStartDate(monStart)
+      setPembayaranEndDate(todayEnd)
+      return
+    }
+
+    if (val === 'this_month') {
+      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
+      const y = wibToday.getUTCFullYear()
+      const m = String(wibToday.getUTCMonth() + 1).padStart(2, '0')
+      const startYmd = `${y}-${m}-01`
+      setPembayaranStartDate(wibStartFromYmd(startYmd))
+      setPembayaranEndDate(todayEnd)
+      return
+    }
+
+    if (val === 'this_year') {
+      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
+      const y = wibToday.getUTCFullYear()
+      const startYmd = `${y}-01-01`
+      setPembayaranStartDate(wibStartFromYmd(startYmd))
+      setPembayaranEndDate(todayEnd)
+      return
+    }
+  }, [toWibYmd, wibEndFromYmd, wibStartFromYmd])
 
   const handleSaveStatus = useCallback(async (id: number, status: 'LUNAS' | 'BELUM_LUNAS') => {
     const previousData = [...data];
@@ -392,7 +555,6 @@ export default function NotaSawitPage() {
         potongan: Number(formDataRaw.potongan),
         hargaPerKg: Number(formDataRaw.hargaPerKg || 0),
         statusPembayaran: formDataRaw.statusPembayaran || 'BELUM_LUNAS',
-        pembayaranAktual: (formDataRaw.pembayaranAktual !== undefined && formDataRaw.pembayaranAktual !== null) ? Number(formDataRaw.pembayaranAktual) : null,
         tanggalBongkar: formDataRaw.tanggalBongkar || undefined,
         keterangan: formDataRaw.keterangan ? String(formDataRaw.keterangan).trim() : null,
         bruto: formDataRaw.bruto !== undefined ? Number(formDataRaw.bruto) : undefined,
@@ -573,49 +735,6 @@ export default function NotaSawitPage() {
     }
   }, [rowSelection, data, refreshData]);
 
-  const handleBulkUbahStatus = useCallback(async (status: 'LUNAS' | 'BELUM_LUNAS') => {
-    const selectedIds = Object.keys(rowSelection).map(index => data[parseInt(index, 10)].id);
-    if (selectedIds.length === 0) return;
-
-    // Validation for LUNAS
-    if (status === 'LUNAS') {
-        const selectedNotas = Object.keys(rowSelection).map(index => data[parseInt(index, 10)]);
-        const invalidNotas = selectedNotas.filter(nota => !nota.hargaPerKg || nota.hargaPerKg <= 0);
-        
-        if (invalidNotas.length > 0) {
-            toast.error(`Gagal: ${invalidNotas.length} nota terpilih belum memiliki harga. Harap isi harga terlebih dahulu.`);
-            return;
-        }
-    }
-
-    const previousData = [...data];
-    const updatedData = data.map(item => 
-      selectedIds.includes(item.id) ? { ...item, statusPembayaran: status } : item
-    );
-    setData(updatedData);
-    setIsBulkUbahStatusOpen(false);
-
-    const toastId = toast.loading('Mengubah status nota terpilih...')
-    try {
-      const response = await fetch('/api/nota-sawit/bulk-ubah-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selectedIds, status }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal mengubah status nota');
-      }
-
-      refreshData();
-      toast.success('Status nota terpilih berhasil diubah', { id: toastId })
-    } catch (error) {
-      setData(previousData);
-      toast.error('Gagal mengubah status nota, mengembalikan perubahan.', { id: toastId });
-      console.error(error);
-    }
-  }, [rowSelection, data, refreshData]);
-
   const handleBulkUpdateHarga = useCallback(async () => {
     const selectedIds = Object.keys(rowSelection).map(index => data[parseInt(index, 10)].id);
     if (selectedIds.length === 0) return;
@@ -661,6 +780,573 @@ export default function NotaSawitPage() {
       setBulkHargaSubmitting(false)
     }
   }, [bulkHargaValue, data, refreshData, rowSelection])
+
+  const handleOpenBulkReconcileFromSelection = useCallback(() => {
+    if (selectedNotasForBulk.length === 0) {
+      toast.error('Tidak ada nota yang dipilih.')
+      return
+    }
+    const pabrikId = Number((selectedNotasForBulk[0] as any)?.pabrikSawitId)
+    if (!Number.isFinite(pabrikId) || pabrikId <= 0) {
+      toast.error('Pabrik nota tidak valid.')
+      return
+    }
+    const mismatch = selectedNotasForBulk.some((n: any) => Number(n?.pabrikSawitId) !== pabrikId)
+    if (mismatch) {
+      toast.error('Rekonsiliasi hanya bisa untuk nota dari pabrik yang sama.')
+      return
+    }
+    const totalTagihan = selectedNotasForBulk.reduce((sum, n: any) => {
+      const val = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
+      return sum + (Number.isFinite(val) ? val : 0)
+    }, 0)
+    setReconcileTanggal(toWibYmd(new Date()))
+    setReconcileAdminBank('')
+    setReconcileJumlahMasuk(String(Math.max(0, totalTagihan)))
+    setReconcileMetode('PROPORSIONAL')
+    setReconcileBebankanNotaId(String((selectedNotasForBulk[0] as any)?.id || ''))
+    setReconcileSetLunas(true)
+    setReconcileKeterangan('')
+    setReconcilePabrikId(String(pabrikId))
+    setReconcileGambarFile(null)
+    setReconcileGambarPreview(null)
+    setReconcileNotas(selectedNotasForBulk)
+    setReconcileRangeStart('')
+    setReconcileRangeEnd('')
+    setReconcileRangeCandidates([])
+    setIsBulkReconcileOpen(true)
+  }, [selectedNotasForBulk, toWibYmd])
+
+  const handleOpenBulkReconcileEmpty = useCallback(() => {
+    setReconcileTanggal(toWibYmd(new Date()))
+    setReconcileAdminBank('')
+    setReconcileJumlahMasuk('')
+    setReconcileMetode('PROPORSIONAL')
+    setReconcileBebankanNotaId('')
+    setReconcileSetLunas(true)
+    setReconcileKeterangan('')
+    setReconcilePabrikId(String(selectedPabrik || ''))
+    setReconcileGambarFile(null)
+    setReconcileGambarPreview(null)
+    setReconcileNotas([])
+    setReconcileRangeStart(startDate ? toWibYmd(startDate) : '')
+    setReconcileRangeEnd(endDate ? toWibYmd(endDate) : '')
+    setReconcileRangeCandidates([])
+    setIsBulkReconcileOpen(true)
+  }, [endDate, selectedPabrik, startDate, toWibYmd])
+
+  const fetchReconcileHistory = useCallback(async (opts?: { soft?: boolean }) => {
+    const shouldSoft = !!opts?.soft && reconcileHistoryHasLoadedRef.current
+    if (shouldSoft) {
+      setReconcileHistorySoftLoading(true)
+    } else {
+      setReconcileHistoryLoading(true)
+    }
+    try {
+      reconcileHistoryAbortRef.current?.abort()
+      const controller = new AbortController()
+      reconcileHistoryAbortRef.current = controller
+      const pabrikId = pembayaranPabrikId ? String(pembayaranPabrikId) : ''
+      const kebunId = pembayaranKebunId ? String(pembayaranKebunId) : ''
+      const params = new URLSearchParams({ page: String(reconcileHistoryPage), limit: String(reconcileHistoryLimit) })
+      if (pabrikId) params.append('pabrikId', pabrikId)
+      if (kebunId) params.append('kebunId', kebunId)
+      if (debouncedPembayaranSearch.trim()) params.append('search', debouncedPembayaranSearch.trim())
+      if (pembayaranStartDate) params.append('startDate', pembayaranStartDate.toISOString())
+      if (pembayaranEndDate) params.append('endDate', pembayaranEndDate.toISOString())
+      const res = await fetch(`/api/nota-sawit/pembayaran-batch?${params.toString()}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat riwayat rekonsiliasi')
+      setReconcileHistory(Array.isArray(json?.data) ? json.data : [])
+      setReconcileHistoryTotal(Math.max(0, Number(json?.total || 0)))
+    } catch (e: any) {
+      if (String(e?.name) === 'AbortError') return
+      toast.error(e?.message || 'Gagal memuat riwayat rekonsiliasi')
+      setReconcileHistory([])
+      setReconcileHistoryTotal(0)
+    } finally {
+      reconcileHistoryHasLoadedRef.current = true
+      if (shouldSoft) {
+        setReconcileHistorySoftLoading(false)
+      } else {
+        setReconcileHistoryLoading(false)
+      }
+    }
+  }, [debouncedPembayaranSearch, pembayaranEndDate, pembayaranKebunId, pembayaranPabrikId, pembayaranStartDate, reconcileHistoryLimit, reconcileHistoryPage])
+
+  useEffect(() => {
+    if (activeTab !== 'pembayaran') return
+    if (role === 'SUPIR') return
+    fetchReconcileHistory({ soft: true })
+  }, [activeTab, fetchReconcileHistory, role])
+
+  const handleOpenEditReconcileBatch = useCallback((b: any) => {
+    const id = Number(b?.id)
+    if (!Number.isFinite(id) || id <= 0) return
+    setReconcileEditingBatchId(id)
+    setReconcileEditingBatch(b)
+    setReconcileEditTanggal(toWibYmd(b?.tanggal ? new Date(b.tanggal) : new Date()))
+    setReconcileEditJumlahMasuk(String(Math.max(0, Math.round(Number(b?.jumlahMasuk || 0)))))
+    setReconcileEditKeterangan(String(b?.keterangan || ''))
+    setReconcileEditSetLunas(true)
+    setReconcileEditPabrikId(b?.pabrikSawit?.id ? String(b.pabrikSawit.id) : '')
+    setReconcileEditNotas(
+      (Array.isArray(b?.items) ? b.items : []).map((i: any) => ({
+        id: Number(i?.notaSawitId),
+        tanggalBongkar: i?.nota?.tanggalBongkar || null,
+        beratAkhir: i?.nota?.beratAkhir ?? null,
+        hargaPerKg: i?.nota?.hargaPerKg ?? null,
+        kendaraanPlatNomor: (i as any)?.nota?.kendaraanPlatNomor || null,
+        supir: (i as any)?.nota?.supir || null,
+        tagihanNet: Number(i?.tagihanNet || 0),
+        kebun: (i as any)?.nota?.kebun || null,
+      })),
+    )
+    setReconcileEditRangeStart('')
+    setReconcileEditRangeEnd('')
+    setReconcileEditRangeCandidates([])
+    setReconcileEditGambarFile(null)
+    setReconcileEditGambarExistingUrl(b?.gambarUrl ? String(b.gambarUrl) : null)
+    setReconcileEditGambarPreview(b?.gambarUrl ? String(b.gambarUrl) : null)
+    setIsReconcileEditOpen(true)
+  }, [toWibYmd])
+
+  const handleSubmitEditReconcileBatch = useCallback(async () => {
+    if (!reconcileEditingBatchId) return
+    const batchId = reconcileEditingBatchId
+    const parseMoney = (v: string) => Math.round(Number(String(v || '').replace(/[^\d.-]/g, '')) || 0)
+    const jumlahMasuk = parseMoney(reconcileEditJumlahMasuk)
+    setReconcileEditSubmitting(true)
+    const toastId = toast.loading('Menyimpan perubahan...')
+    try {
+      let finalGambarUrl: string | null | undefined = reconcileEditGambarExistingUrl
+      if (reconcileEditGambarFile) {
+        const uploadFormData = new FormData()
+        uploadFormData.append('file', reconcileEditGambarFile)
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: uploadFormData })
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json().catch(() => ({}))
+          if (uploadData?.success && uploadData?.url) {
+            finalGambarUrl = String(uploadData.url)
+          } else {
+            throw new Error(uploadData?.error || 'Gagal upload gambar')
+          }
+        } else {
+          throw new Error('Gagal upload gambar: Server Error')
+        }
+      }
+
+      const res = await fetch(`/api/nota-sawit/pembayaran-batch/${batchId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tanggal: reconcileEditTanggal,
+          jumlahMasuk,
+          ids: reconcileEditNotaIds,
+          setLunas: reconcileEditSetLunas,
+          keterangan: reconcileEditKeterangan,
+          gambarUrl: finalGambarUrl,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan')
+      setIsReconcileEditOpen(false)
+      setReconcileEditingBatch(null)
+      setIsReconcileDetailOpen(false)
+      setReconcileDetail(null)
+      await fetchReconcileHistory({ soft: true })
+      refreshData()
+      toast.success('Perubahan tersimpan', { id: toastId })
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menyimpan perubahan', { id: toastId })
+    } finally {
+      setReconcileEditSubmitting(false)
+    }
+  }, [fetchReconcileHistory, reconcileEditGambarExistingUrl, reconcileEditGambarFile, reconcileEditKeterangan, reconcileEditJumlahMasuk, reconcileEditNotaIds, reconcileEditSetLunas, reconcileEditTanggal, reconcileEditingBatchId, refreshData])
+
+  const handleOpenDeleteReconcileBatch = useCallback((batchId: number) => {
+    const id = Number(batchId)
+    if (!Number.isFinite(id) || id <= 0) return
+    setReconcileDeletingBatchId(id)
+    setIsReconcileDeleteConfirmOpen(true)
+  }, [])
+
+  const handleConfirmDeleteReconcileBatch = useCallback(async () => {
+    if (!reconcileDeletingBatchId) return
+    const batchId = reconcileDeletingBatchId
+    setReconcileDeleteSubmitting(true)
+    const toastId = toast.loading('Menghapus batch...')
+    try {
+      const res = await fetch(`/api/nota-sawit/pembayaran-batch/${batchId}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menghapus batch')
+      setIsReconcileDeleteConfirmOpen(false)
+      setReconcileDeletingBatchId(null)
+      setIsReconcileDetailOpen(false)
+      setReconcileDetail(null)
+      await fetchReconcileHistory({ soft: true })
+      refreshData()
+      toast.success('Batch dihapus', { id: toastId })
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menghapus batch', { id: toastId })
+    } finally {
+      setReconcileDeleteSubmitting(false)
+    }
+  }, [fetchReconcileHistory, reconcileDeletingBatchId, refreshData])
+
+  const handleReconcileFetchByRange = useCallback(async () => {
+    if (!reconcilePabrikId) {
+      toast.error('Pilih pabrik terlebih dahulu.')
+      return
+    }
+    if (!reconcileRangeStart || !reconcileRangeEnd) {
+      toast.error('Isi rentang tanggal bongkar (Dari - Sampai).')
+      return
+    }
+
+    setReconcileRangeLoading(true)
+    const toastId = toast.loading('Memuat nota dari rentang tanggal...')
+    try {
+      const start = wibStartFromYmd(reconcileRangeStart)
+      const end = wibEndFromYmd(reconcileRangeEnd)
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '500',
+        search: '',
+        pabrikId: String(reconcilePabrikId),
+        statusPembayaran: 'BELUM_LUNAS',
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      })
+      const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat nota')
+      const list = Array.isArray(json?.data) ? (json.data as NotaSawitData[]) : []
+      setReconcileRangeCandidates(list)
+      toast.success('Nota berhasil dimuat', { id: toastId })
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal memuat nota', { id: toastId })
+    } finally {
+      setReconcileRangeLoading(false)
+    }
+  }, [reconcilePabrikId, reconcileRangeEnd, reconcileRangeStart, wibEndFromYmd, wibStartFromYmd])
+
+  const handleReconcileEditFetchByRange = useCallback(async () => {
+    if (!reconcileEditPabrikId) {
+      toast.error('Pabrik batch tidak valid.')
+      return
+    }
+    if (!reconcileEditRangeStart || !reconcileEditRangeEnd) {
+      toast.error('Isi rentang tanggal bongkar (Dari - Sampai).')
+      return
+    }
+
+    setReconcileEditRangeLoading(true)
+    const toastId = toast.loading('Memuat nota dari rentang tanggal...')
+    try {
+      const start = wibStartFromYmd(reconcileEditRangeStart)
+      const end = wibEndFromYmd(reconcileEditRangeEnd)
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '500',
+        search: '',
+        pabrikId: String(reconcileEditPabrikId),
+        statusPembayaran: 'BELUM_LUNAS',
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      })
+      const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat nota')
+      const list = Array.isArray(json?.data) ? (json.data as any[]) : []
+      setReconcileEditRangeCandidates(list)
+      toast.success('Nota berhasil dimuat', { id: toastId })
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal memuat nota', { id: toastId })
+    } finally {
+      setReconcileEditRangeLoading(false)
+    }
+  }, [reconcileEditPabrikId, reconcileEditRangeEnd, reconcileEditRangeStart, wibEndFromYmd, wibStartFromYmd])
+
+  const handleReconcileToggleNota = useCallback((nota: NotaSawitData, checked: boolean) => {
+    const id = Number((nota as any)?.id)
+    if (!Number.isFinite(id) || id <= 0) return
+    setReconcileNotas((prev) => {
+      const exists = prev.some((n: any) => Number(n?.id) === id)
+      if (checked) {
+        if (exists) return prev
+        return [...prev, nota]
+      }
+      if (!exists) return prev
+      return prev.filter((n: any) => Number(n?.id) !== id)
+    })
+  }, [])
+
+  const handleReconcileEditToggleNota = useCallback((nota: any, checked: boolean) => {
+    const id = Number(nota?.id)
+    if (!Number.isFinite(id) || id <= 0) return
+    setReconcileEditNotas((prev) => {
+      const exists = prev.some((n: any) => Number(n?.id) === id)
+      if (checked) {
+        if (exists) return prev
+        return [...prev, nota]
+      }
+      if (!exists) return prev
+      return prev.filter((n: any) => Number(n?.id) !== id)
+    })
+  }, [])
+
+  const handleReconcileEditAddAllCandidates = useCallback(() => {
+    if (reconcileEditRangeCandidates.length === 0) {
+      toast.error('Tidak ada nota dari rentang tanggal.')
+      return
+    }
+    const existing = new Set(reconcileEditNotaIds)
+    const next = [...reconcileEditNotas]
+    for (const n of reconcileEditRangeCandidates) {
+      const id = Number((n as any)?.id)
+      if (!Number.isFinite(id) || id <= 0) continue
+      if (existing.has(id)) continue
+      next.push(n)
+      existing.add(id)
+    }
+    setReconcileEditNotas(next)
+    toast.success('Nota ditambahkan ke pembayaran')
+  }, [reconcileEditNotaIds, reconcileEditNotas, reconcileEditRangeCandidates])
+
+  const handleReconcileAddAllCandidates = useCallback(() => {
+    if (reconcileRangeCandidates.length === 0) {
+      toast.error('Tidak ada nota dari rentang tanggal.')
+      return
+    }
+    const existing = new Set(reconcileNotaIds)
+    const next = [...reconcileNotas]
+    for (const n of reconcileRangeCandidates) {
+      const id = Number((n as any)?.id)
+      if (!Number.isFinite(id) || id <= 0) continue
+      if (existing.has(id)) continue
+      next.push(n)
+      existing.add(id)
+    }
+    setReconcileNotas(next)
+    toast.success('Nota ditambahkan ke rekonsiliasi')
+  }, [reconcileNotaIds, reconcileNotas, reconcileRangeCandidates])
+
+  const handleBulkReconcileSubmit = useCallback(async () => {
+    const selectedIds = reconcileNotaIds
+    if (selectedIds.length === 0) {
+      toast.error('Pilih minimal 1 nota untuk direkonsiliasi.')
+      return
+    }
+
+    const parseMoney = (v: string) => Math.round(Number(String(v || '').replace(/[^\d.-]/g, '')) || 0)
+    const jumlahMasuk = parseMoney(reconcileJumlahMasuk)
+
+    setReconcileSubmitting(true)
+    const toastId = toast.loading('Menyimpan rekonsiliasi...')
+    try {
+      let finalGambarUrl: string | null = null
+      if (reconcileGambarFile) {
+        const uploadFormData = new FormData()
+        uploadFormData.append('file', reconcileGambarFile)
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: uploadFormData })
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json().catch(() => ({}))
+          if (uploadData?.success && uploadData?.url) {
+            finalGambarUrl = String(uploadData.url)
+          } else {
+            throw new Error(uploadData?.error || 'Gagal upload gambar')
+          }
+        } else {
+          throw new Error('Gagal upload gambar: Server Error')
+        }
+      }
+
+      const res = await fetch('/api/nota-sawit/pembayaran-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedIds,
+          tanggal: reconcileTanggal,
+          jumlahMasuk,
+          setLunas: reconcileSetLunas,
+          keterangan: reconcileKeterangan,
+          gambarUrl: finalGambarUrl,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan rekonsiliasi')
+      setIsBulkReconcileOpen(false)
+      setRowSelection({})
+      await fetchReconcileHistory({ soft: true })
+      refreshData()
+      const batchId = json?.batchId ? Number(json.batchId) : null
+      toast.success(batchId ? `Rekonsiliasi berhasil (Batch #${batchId})` : 'Rekonsiliasi pembayaran berhasil', { id: toastId })
+      if (reconcileSetLunas && selectedStatus === 'BELUM_LUNAS') {
+        toast('Catatan: jika filter status BELUM LUNAS aktif, nota yang sudah direkonsiliasi (LUNAS) tidak akan muncul di tabel.')
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menyimpan rekonsiliasi', { id: toastId })
+    } finally {
+      setReconcileSubmitting(false)
+    }
+  }, [fetchReconcileHistory, reconcileGambarFile, reconcileJumlahMasuk, reconcileKeterangan, reconcileNotaIds, reconcileSetLunas, reconcileTanggal, refreshData, selectedStatus])
+
+  const handleExportPembayaranBatchPdf = useCallback(async () => {
+    if (!reconcileDetail?.id) return
+    const batchId = Number(reconcileDetail.id)
+    const formatNumberLocal = (num: number) => new Intl.NumberFormat('id-ID').format(num)
+    const formatCurrencyLocal = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
+    const jsPDF = (await import('jspdf')).default
+    const autoTable = (await import('jspdf-autotable')).default
+    const doc = new jsPDF()
+
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const marginX = 14
+    const contentW = pageW - marginX * 2
+
+    const tanggalText = reconcileDetail?.tanggal
+      ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+      : '-'
+    const pabrikName = String(reconcileDetail?.pabrikSawit?.name || '-')
+    const jumlahNota = formatNumberLocal(Number(reconcileDetail?.count || 0))
+    const totalTagihan = Number(reconcileDetail?.totalTagihan || 0)
+    const jumlahDitransfer = Number(reconcileDetail?.jumlahMasuk || 0)
+    const selisih = Number(reconcileDetail?.selisih || 0)
+
+    doc.setFillColor(16, 185, 129)
+    doc.rect(0, 0, pageW, 28, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text('Detail Pembayaran Nota Sawit', marginX, 14)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Batch #${batchId}`, marginX, 22)
+
+    doc.setTextColor(17, 24, 39)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.text(`Batch #${batchId}`, marginX, 38)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.text(`${tanggalText} • ${pabrikName} • ${jumlahNota} nota`, marginX, 45)
+
+    const cardY = 52
+    const cardGap = 4
+    const cardW = (contentW - cardGap * 2) / 3
+    const cardH = 22
+    const cards = [
+      { label: 'Jumlah Dibayar/Ditransfer', value: formatCurrencyLocal(jumlahDitransfer), color: [17, 24, 39] as [number, number, number] },
+      { label: 'Jumlah Sesuai Nota Sawit', value: formatCurrencyLocal(totalTagihan), color: [17, 24, 39] as [number, number, number] },
+      { label: 'Selisih Pembayaran', value: formatCurrencyLocal(selisih), color: selisih < 0 ? ([225, 29, 72] as any) : ([5, 150, 105] as any) },
+    ]
+    for (let i = 0; i < cards.length; i++) {
+      const x = marginX + i * (cardW + cardGap)
+      doc.setFillColor(249, 250, 251)
+      doc.setDrawColor(229, 231, 235)
+      doc.roundedRect(x, cardY, cardW, cardH, 3, 3, 'DF')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9.5)
+      doc.setTextColor(107, 114, 128)
+      doc.text(cards[i].label, x + 4, cardY + 7)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(cards[i].color[0], cards[i].color[1], cards[i].color[2])
+      doc.text(cards[i].value, x + 4, cardY + 16)
+    }
+
+    const rows = (Array.isArray(reconcileDetail?.items) ? reconcileDetail.items : []).map((i: any) => {
+      const nota = i?.nota
+      const kebunName = nota?.kebun?.name || '-'
+      const tgl = nota?.tanggalBongkar ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'
+      const nominal = Math.round(Number(i?.tagihanNet || 0))
+      return [`Nota ${kebunName}`, tgl, nominal]
+    })
+
+    autoTable(doc, {
+      startY: cardY + cardH + 10,
+      head: [['Nota', 'Tanggal Nota', 'Nominal']],
+      body: rows,
+      styles: { font: 'helvetica', fontSize: 10, cellPadding: 2 },
+      headStyles: { fillColor: [16, 185, 129] },
+      columnStyles: {
+        2: { halign: 'right', cellWidth: 64, font: 'courier' },
+      },
+      didParseCell: (data: any) => {
+        if (data?.column?.index === 2) {
+          data.cell.styles.halign = 'right'
+          if (data.section === 'head') data.cell.styles.font = 'helvetica'
+          if (data.section === 'body') {
+            const n = Number(data.cell.raw || 0)
+            data.cell.text = [formatCurrencyLocal(n)]
+            data.cell.styles.font = 'courier'
+          }
+          if (data.section === 'foot') {
+            data.cell.styles.font = 'courier'
+            data.cell.styles.fontStyle = 'bold'
+          }
+        }
+      },
+      foot: [
+        [
+          { content: 'Total Jumlah', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+        ],
+      ],
+      footStyles: { fillColor: [249, 250, 251], textColor: [17, 24, 39], fontStyle: 'bold' },
+    })
+
+    const toDataURL = (url: string): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const img = new window.Image()
+        img.crossOrigin = 'Anonymous'
+        img.onload = () => {
+          const canvas = document.createElement('CANVAS') as HTMLCanvasElement
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return reject(new Error('Failed to get canvas context'))
+          canvas.height = img.naturalHeight
+          canvas.width = img.naturalWidth
+          ctx.drawImage(img, 0, 0)
+          resolve(canvas.toDataURL('image/jpeg', 0.9))
+        }
+        img.onerror = reject
+        img.src = url
+      })
+
+    const gambarUrl = reconcileDetail?.gambarUrl ? String(reconcileDetail.gambarUrl) : ''
+    if (gambarUrl) {
+      try {
+        const imgData = await toDataURL(gambarUrl)
+        const imgProps = doc.getImageProperties(imgData as any)
+        const maxW = contentW
+        const maxH = pageH - 28 - 20
+        const ratio = Math.min(maxW / imgProps.width, maxH / imgProps.height)
+        const imgW = imgProps.width * ratio
+        const imgH = imgProps.height * ratio
+        doc.addPage()
+        doc.setFillColor(16, 185, 129)
+        doc.rect(0, 0, pageW, 28, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(16)
+        doc.text('Bukti Transfer', marginX, 14)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(11)
+        doc.text(`Batch #${batchId}`, marginX, 22)
+        doc.setTextColor(17, 24, 39)
+        doc.addImage(imgData, 'JPEG', marginX, 36, imgW, imgH)
+      } catch {
+        return
+      }
+    }
+
+    doc.save(`pembayaran-nota-sawit-batch-${batchId}.pdf`)
+  }, [reconcileDetail])
 
   const handleBulkPrint = async () => {
     const selectedIds = Object.keys(rowSelection);
@@ -852,9 +1538,6 @@ export default function NotaSawitPage() {
           { label: 'Potongan PPh (0.25%)', value: `- ${formatCurrency(nota.pph)}` },
           { label: 'Total Pembayaran (Net)', value: formatCurrency(nota.pembayaranSetelahPph), isBold: true },
         ];
-        if ((nota as any).pembayaranAktual !== null && (nota as any).pembayaranAktual !== undefined) {
-          financeRows.push({ label: 'Pembayaran Aktual', value: formatCurrency((nota as any).pembayaranAktual), isBold: true, color: '#1D4ED8' });
-        }
         const financeHeaderH = 6;
         const rowH = 9 * financeRows.length;
         const dividerH = 8 + 4;
@@ -894,8 +1577,7 @@ export default function NotaSawitPage() {
         doc.setFontSize(16);
         doc.setTextColor('#16A34A');
         doc.setFont('helvetica', 'bold');
-        const finalAmount = (nota as any).pembayaranAktual ?? nota.pembayaranSetelahPph;
-        doc.text(formatCurrency(finalAmount), rightContentRight, fy, { align: 'right' });
+        doc.text(formatCurrency(nota.pembayaranSetelahPph), rightContentRight, fy, { align: 'right' });
         rightY += financeBoxHeight + 10;
       }
 
@@ -1020,12 +1702,16 @@ export default function NotaSawitPage() {
     if (quickRange !== 'custom' && quickRange !== 'all' && (!startDate || !endDate)) {
       return;
     }
-
-    setLoading(true);
-    setRowSelection({}); // Reset row selection
+    const soft = notaHasLoadedRef.current
+    if (soft) setNotaSoftLoading(true)
+    else setLoading(true)
+    setRowSelection({})
 
     const fetchData = async () => {
       try {
+        notaAbortRef.current?.abort()
+        const controller = new AbortController()
+        notaAbortRef.current = controller
         const startDateString = startDate?.toISOString();
         const endDateString = endDate?.toISOString();
 
@@ -1048,8 +1734,8 @@ export default function NotaSawitPage() {
         const queryString = params.toString();
 
         const [dataRes, summaryRes] = await Promise.all([
-          fetch(`/api/nota-sawit?${queryString}`, { cache: 'no-store' }),
-          fetch(`/api/nota-sawit/summary?${queryString}`, { cache: 'no-store' }),
+          fetch(`/api/nota-sawit?${queryString}`, { cache: 'no-store', signal: controller.signal }),
+          fetch(`/api/nota-sawit/summary?${queryString}`, { cache: 'no-store', signal: controller.signal }),
         ]);
 
         if (!dataRes.ok || !summaryRes.ok) {
@@ -1066,10 +1752,14 @@ export default function NotaSawitPage() {
         setSummary(summaryPayload);
         setNextCursor(dataPayload.nextCursor || null);
       } catch (error) {
+        if ((error as any)?.name === 'AbortError') return
         if (ignore) return;
         toast.error('Gagal memuat data.');
       } finally {
-        if (!ignore) setLoading(false);
+        if (ignore) return
+        notaHasLoadedRef.current = true
+        if (soft) setNotaSoftLoading(false)
+        else setLoading(false)
       }
     };
 
@@ -1091,6 +1781,9 @@ export default function NotaSawitPage() {
     refreshData,
   }), [role, refreshData, handleOpenUbahStatusModal, handleOpenModal, handleOpenConfirm, handleDetail, handleViewImage]);
 
+  const formatNumber = useCallback((num: number) => new Intl.NumberFormat('id-ID').format(num), [])
+  const formatCurrency = useCallback((num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num), [])
+
   const tableColumns = useMemo(() => {
     if (role === 'SUPIR') {
       return columns.filter(col => {
@@ -1101,8 +1794,56 @@ export default function NotaSawitPage() {
     return columns;
   }, [role]);
 
-  const formatNumber = useCallback((num: number) => new Intl.NumberFormat('id-ID').format(num), [])
-  const formatCurrency = useCallback((num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num), [])
+  const pembayaranColumns = useMemo<ColumnDef<any>[]>(() => {
+    return [
+      {
+        id: 'batch',
+        header: 'Batch',
+        cell: ({ row }) => <div className="font-extrabold text-gray-900">#{row.original?.id}</div>,
+      },
+      {
+        id: 'tanggal',
+        header: 'Tanggal',
+        cell: ({ row }) => (
+          <div className="text-gray-700 whitespace-nowrap">
+            {row.original?.tanggal ? new Date(row.original.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'}
+          </div>
+        ),
+      },
+      {
+        id: 'pabrik',
+        header: 'Pabrik',
+        cell: ({ row }) => <div className="text-gray-700 truncate max-w-[240px]" title={row.original?.pabrikSawit?.name || '-'}>{row.original?.pabrikSawit?.name || '-'}</div>,
+      },
+      {
+        id: 'nota',
+        header: () => <div className="text-right">Nota</div>,
+        cell: ({ row }) => <div className="text-right font-semibold text-gray-900 tabular-nums">{formatNumber(Number(row.original?.count || 0))}</div>,
+      },
+      {
+        id: 'totalTagihan',
+        header: () => <div className="text-right">Jumlah Tagihan Nota</div>,
+        cell: ({ row }) => <div className="text-right font-semibold text-gray-700 tabular-nums">{formatCurrency(Number(row.original?.totalTagihan || 0))}</div>,
+      },
+      {
+        id: 'jumlahMasuk',
+        header: () => <div className="text-right">Jumlah Ditransfer</div>,
+        cell: ({ row }) => <div className="text-right font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(row.original?.jumlahMasuk || 0))}</div>,
+      },
+      {
+        id: 'selisih',
+        header: () => <div className="text-right">Selisih</div>,
+        cell: ({ row }) => {
+          const val = Number(row.original?.selisih || 0)
+          return (
+            <div className={cn("text-right font-extrabold tabular-nums", val === 0 ? "text-emerald-700" : val > 0 ? "text-emerald-700" : "text-rose-700")}>
+              {formatCurrency(val)}
+            </div>
+          )
+        },
+      },
+    ]
+  }, [cn, formatCurrency, formatNumber])
 
   return (
     <main className="p-4 md:p-8 space-y-8">
@@ -1112,6 +1853,25 @@ export default function NotaSawitPage() {
             <p className="text-gray-500 mt-2 md:mt-0">Kelola data nota sawit Anda di sini.</p>
         </div>
 
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
+          <TabsList className="w-full sm:w-auto flex items-center gap-1 h-12 rounded-2xl bg-gray-50 border border-gray-100 p-1">
+            <TabsTrigger
+              value="nota"
+              className="flex-1 rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+            >
+              <ClipboardDocumentListIcon className="h-4 w-4 mr-2" />
+              Daftar Nota Sawit
+            </TabsTrigger>
+            <TabsTrigger
+              value="pembayaran"
+              className="flex-1 rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+            >
+              <BanknotesIcon className="h-4 w-4 mr-2" />
+              Pembayaran Nota Sawit
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="nota" className="space-y-8">
         {loading && data.length === 0 ? (
           <div className="mb-8">
             <div className="card-style p-4 rounded-2xl space-y-4">
@@ -1146,52 +1906,68 @@ export default function NotaSawitPage() {
                   </div>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Periode: <span className="font-semibold text-gray-900">{dateDisplay}</span>
+                  <span className="whitespace-nowrap">Periode: </span>
+                  <span className="font-semibold text-gray-900 whitespace-nowrap">{dateDisplay}</span>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                  <p className="text-xs text-emerald-700">Total Nota</p>
-                  <p className="text-lg font-semibold text-gray-900" title={summary.totalNota.toLocaleString('id-ID')}>
+              <div className={cn("mt-4 grid gap-3 items-stretch", role !== 'SUPIR' ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
+                <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3 h-full flex flex-col">
+                  <div className="text-xs font-semibold text-emerald-700 whitespace-nowrap">Total Nota</div>
+                  <div className="mt-0.5 text-xl font-extrabold text-gray-900 tabular-nums whitespace-nowrap" title={summary.totalNota.toLocaleString('id-ID')}>
                     {summary.totalNota.toLocaleString('id-ID')}
-                  </p>
+                  </div>
                   {role !== 'SUPIR' && (
-                    <div className="text-xs text-gray-600 mt-0.5">
-                      Dibayar: <span className="font-semibold text-gray-900">{summary.lunasCount.toLocaleString('id-ID')}</span> • Belum: <span className="font-semibold text-gray-900">{summary.belumLunasCount.toLocaleString('id-ID')}</span>
+                    <div className="mt-1 text-[11px] text-gray-600 whitespace-nowrap">
+                      Nota dibayar: <span className="font-semibold text-gray-900">{summary.lunasCount.toLocaleString('id-ID')}</span> • Nota belum dibayar: <span className="font-semibold text-gray-900">{summary.belumLunasCount.toLocaleString('id-ID')}</span>
                     </div>
                   )}
                 </div>
-                <div className="rounded-xl bg-amber-50/70 px-3 py-2">
-                  <p className="text-xs text-amber-700">Total Tonase (Berat Akhir)</p>
-                  <p className="text-lg font-semibold text-gray-900" title={`${summary.totalBerat.toLocaleString('id-ID')} Kg`}>
-                    {summary.totalBerat.toLocaleString('id-ID')} Kg
-                  </p>
+                <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-3 h-full flex flex-col">
+                  <div className="text-xs font-semibold text-amber-700 whitespace-nowrap">Total Tonase</div>
+                  <div className="mt-0.5 text-xl font-extrabold text-gray-900 tabular-nums whitespace-nowrap" title={`${summary.totalBerat.toLocaleString('id-ID')} Kg`}>
+                    {summary.totalBerat.toLocaleString('id-ID')} <span className="text-sm font-semibold text-gray-500">Kg</span>
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    {Array.isArray(summary.tonaseByKebun) && summary.tonaseByKebun.length > 0 ? (
+                      <>
+                        {summary.tonaseByKebun.slice(0, 2).map((r) => (
+                          <div key={String(r.kebunId)} className="flex items-center justify-between gap-2 text-[11px] text-gray-600">
+                            <div className="min-w-0 truncate">{r.name}</div>
+                            <div className="font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatNumber(Number(r.totalBerat || 0))} Kg</div>
+                          </div>
+                        ))}
+                        {summary.tonaseByKebun.length > 2 ? (
+                          <div className="text-[11px] text-gray-500 whitespace-nowrap">
+                            +{formatNumber(summary.tonaseByKebun.length - 2)} kebun lainnya
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="text-[11px] text-gray-600 whitespace-nowrap">Berat akhir nota</div>
+                    )}
+                  </div>
                 </div>
                 {role !== 'SUPIR' && (
                   <>
-                    <div className="rounded-xl bg-sky-50/70 px-3 py-2">
-                      <p className="text-xs text-sky-700">Total Pembayaran</p>
-                      <p className="text-lg font-semibold text-gray-900" title={formatCurrency(summary.totalPembayaran)}>
+                    <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/80 to-white p-3 h-full flex flex-col">
+                      <div className="text-xs font-semibold text-sky-700 whitespace-nowrap">Pembayaran</div>
+                      <div className="mt-0.5 text-lg font-extrabold text-gray-900 tabular-nums whitespace-nowrap" title={formatCurrency(summary.totalPembayaran)}>
                         {formatCurrency(summary.totalPembayaran)}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                      <p className="text-xs text-emerald-700">Lunas / Belum Lunas</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {summary.lunasCount.toLocaleString('id-ID')} / {summary.belumLunasCount.toLocaleString('id-ID')}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                      <p className="text-xs text-emerald-700">Total Nota Sawit Lunas</p>
-                      <p className="text-lg font-semibold text-gray-900" title={formatCurrency(summary.totalPembayaranLunas)}>
-                        {formatCurrency(summary.totalPembayaranLunas)}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-rose-50/70 px-3 py-2">
-                      <p className="text-xs text-rose-700">Total Nota Sawit Belum Lunas</p>
-                      <p className="text-lg font-semibold text-gray-900" title={formatCurrency(summary.totalPembayaranBelumLunas)}>
-                        {formatCurrency(summary.totalPembayaranBelumLunas)}
-                      </p>
+                      </div>
+                      <div className="mt-1 grid grid-cols-1 gap-2">
+                        <div className="rounded-xl border border-sky-100 bg-white/70 px-3 py-1.5 min-w-0">
+                          <div className="text-[11px] font-semibold text-sky-700 whitespace-nowrap">Nota Sawit Lunas</div>
+                          <div className="text-sm font-extrabold text-gray-900 tabular-nums whitespace-nowrap truncate leading-tight" title={formatCurrency(summary.totalPembayaranLunas)}>
+                            {formatCurrency(summary.totalPembayaranLunas)}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-sky-100 bg-white/70 px-3 py-1.5 min-w-0">
+                          <div className="text-[11px] font-semibold text-sky-700 whitespace-nowrap">Nota Sawit Belum Lunas</div>
+                          <div className="text-sm font-extrabold text-gray-900 tabular-nums whitespace-nowrap truncate leading-tight" title={formatCurrency(summary.totalPembayaranBelumLunas)}>
+                            {formatCurrency(summary.totalPembayaranBelumLunas)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </>
                 )}
@@ -1201,16 +1977,33 @@ export default function NotaSawitPage() {
         )}
 
         <div className="card-style">
+          {role !== 'SUPIR' ? (
+            <div className="hidden lg:flex justify-start mb-3">
+              <Button
+                onClick={() => { setSelectedNota(null); setIsModalOpen(true); }}
+                className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap"
+                title="Tambah Nota Sawit"
+              >
+                <PlusIcon className="w-4 h-4 mr-2" />
+                Tambah Nota Sawit
+              </Button>
+            </div>
+          ) : null}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
             <div className="grid grid-cols-2 lg:flex lg:flex-row lg:flex-nowrap items-start lg:items-center gap-4 flex-1 w-full lg:w-auto">
               <div className="col-span-2 w-full lg:w-auto lg:flex-1">
-                <Input
-                    type="text"
-                    placeholder="Cari supir atau plat nomor..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="input-style rounded-lg"
-                />
+                <div className="relative">
+                  <Input
+                      type="text"
+                      placeholder="Cari supir atau plat nomor..."
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      className="input-style rounded-lg pr-10"
+                  />
+                  {notaSoftLoading ? (
+                    <ArrowPathIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+                  ) : null}
+                </div>
               </div>
               <div className="col-span-1 w-full lg:w-auto lg:flex-1 flex items-center gap-2">
                 <Popover>
@@ -1312,12 +2105,22 @@ export default function NotaSawitPage() {
                 <option value="LUNAS">Lunas</option>
                 <option value="BELUM_LUNAS">Belum Lunas</option>
               </select>
-              <div className="col-span-1 w-full lg:w-auto lg:flex-1 flex items-center">
+              <div className="col-span-2 w-full lg:w-auto lg:flex-1 flex items-center gap-2 justify-between lg:justify-end">
+                {role !== 'SUPIR' ? (
+                  <Button
+                    onClick={() => { setSelectedNota(null); setIsModalOpen(true); }}
+                    className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white justify-center lg:hidden"
+                    title="Tambah Nota Sawit"
+                  >
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Tambah Nota Sawit
+                  </Button>
+                ) : null}
                 <Button
                   onClick={handleRefresh}
                   variant="outline"
                   size="icon"
-                  className="rounded-full"
+                  className="rounded-full shrink-0"
                   title="Refresh data"
                   aria-label="Refresh data"
                 >
@@ -1334,9 +2137,6 @@ export default function NotaSawitPage() {
                 <>
                   <Button variant="destructive" onClick={() => setIsBulkDeleteConfirmOpen(true)} className="rounded-full w-full sm:w-auto">
                     Hapus
-                  </Button>
-                  <Button onClick={() => setIsBulkUbahStatusOpen(true)} className="rounded-full w-full sm:w-auto">
-                    Ubah Status
                   </Button>
                   <Button onClick={() => setIsBulkHargaOpen(true)} className="rounded-full w-full sm:w-auto">
                     Update Harga
@@ -1542,6 +2342,338 @@ export default function NotaSawitPage() {
             </div>
           </div>
         </div>
+
+          </TabsContent>
+
+          <TabsContent value="pembayaran" className="space-y-6">
+            {role === 'SUPIR' ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
+                Menu pembayaran tidak tersedia untuk role SUPIR.
+              </div>
+            ) : (
+              <div className="card-style p-4 rounded-2xl">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <ClipboardDocumentListIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Pembayaran Nota Sawit</p>
+                      <p className="text-xs text-gray-500">Riwayat rekonsiliasi pembayaran (batch transfer)</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" className="rounded-full" onClick={() => fetchReconcileHistory()} disabled={reconcileHistoryLoading || reconcileHistorySoftLoading}>
+                      <ArrowPathIcon className={cn("w-4 h-4 mr-2", (reconcileHistoryLoading || reconcileHistorySoftLoading) ? "animate-spin" : "")} />
+                      Refresh
+                    </Button>
+                    <Button onClick={handleOpenBulkReconcileEmpty} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                      <PlusIcon className="w-4 h-4 mr-2" />
+                      Pembayaran
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Cari</Label>
+                    <div className="relative">
+                      <Input
+                        value={pembayaranSearch}
+                        onChange={(e) => {
+                          setPembayaranSearch(e.target.value)
+                          setReconcileHistoryPage(1)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setReconcileHistoryPage(1)
+                          }
+                        }}
+                        placeholder="Cari batch / pabrik / kebun..."
+                        className="rounded-xl h-10 pr-10"
+                        disabled={reconcileHistoryLoading}
+                      />
+                      {reconcileHistorySoftLoading ? (
+                        <ArrowPathIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Pabrik</Label>
+                    <select
+                      value={pembayaranPabrikId}
+                      onChange={(e) => {
+                        setPembayaranPabrikId(e.target.value)
+                        setReconcileHistoryPage(1)
+                      }}
+                      className="w-full input-style rounded-xl border-gray-200 h-10"
+                      disabled={reconcileHistoryLoading}
+                    >
+                      <option value="">Semua Pabrik</option>
+                      {pabrikList.map((pabrik) => (
+                        <option key={pabrik.id} value={pabrik.id}>
+                          {pabrik.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Kebun</Label>
+                    <select
+                      value={pembayaranKebunId}
+                      onChange={(e) => {
+                        setPembayaranKebunId(e.target.value)
+                        setReconcileHistoryPage(1)
+                      }}
+                      className="w-full input-style rounded-xl border-gray-200 h-10"
+                      disabled={reconcileHistoryLoading}
+                    >
+                      <option value="">Semua Kebun</option>
+                      {kebunList.map((kebun: any) => (
+                        <option key={kebun.id} value={kebun.id}>
+                          {kebun.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Periode</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="pembayaran-date"
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal bg-white rounded-xl h-10",
+                            !pembayaranStartDate && "text-muted-foreground",
+                          )}
+                          disabled={reconcileHistoryLoading}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {pembayaranDateDisplay}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-4 bg-white" align="start">
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <h4 className="font-medium leading-none">Periode</h4>
+                            <p className="text-sm text-muted-foreground">Pilih periode cepat atau rentang waktu</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { applyPembayaranQuickRange('all'); setReconcileHistoryPage(1) }}
+                              className={pembayaranQuickRange === 'all' ? 'bg-accent' : ''}
+                            >
+                              Semua
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { applyPembayaranQuickRange('today'); setReconcileHistoryPage(1) }}
+                              className={pembayaranQuickRange === 'today' ? 'bg-accent' : ''}
+                            >
+                              Hari Ini
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { applyPembayaranQuickRange('this_week'); setReconcileHistoryPage(1) }}
+                              className={pembayaranQuickRange === 'this_week' ? 'bg-accent' : ''}
+                            >
+                              Minggu Ini
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { applyPembayaranQuickRange('this_month'); setReconcileHistoryPage(1) }}
+                              className={pembayaranQuickRange === 'this_month' ? 'bg-accent' : ''}
+                            >
+                              Bulan Ini
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { applyPembayaranQuickRange('this_year'); setReconcileHistoryPage(1) }}
+                              className={pembayaranQuickRange === 'this_year' ? 'bg-accent' : ''}
+                            >
+                              Tahun Ini
+                            </Button>
+                          </div>
+                          <div className="border-t pt-4 space-y-2">
+                            <h4 className="font-medium leading-none">Rentang Waktu</h4>
+                            <div className="grid gap-2">
+                              <div className="grid grid-cols-3 items-center gap-4">
+                                <Label htmlFor="pembayaran-start-date" className="text-xs">Dari</Label>
+                                <Input
+                                  id="pembayaran-start-date"
+                                  type="date"
+                                  className="col-span-2 h-8"
+                                  value={pembayaranStartDate ? toWibYmd(pembayaranStartDate) : ''}
+                                  onChange={(e) => {
+                                    setPembayaranStartDate(e.target.value ? wibStartFromYmd(e.target.value) : undefined)
+                                    setPembayaranQuickRange('custom')
+                                    setReconcileHistoryPage(1)
+                                  }}
+                                />
+                              </div>
+                              <div className="grid grid-cols-3 items-center gap-4">
+                                <Label htmlFor="pembayaran-end-date" className="text-xs">Sampai</Label>
+                                <Input
+                                  id="pembayaran-end-date"
+                                  type="date"
+                                  className="col-span-2 h-8"
+                                  value={pembayaranEndDate ? toWibYmd(pembayaranEndDate) : ''}
+                                  onChange={(e) => {
+                                    setPembayaranEndDate(e.target.value ? wibEndFromYmd(e.target.value) : undefined)
+                                    setPembayaranQuickRange('custom')
+                                    setReconcileHistoryPage(1)
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <DataTable
+                    columns={pembayaranColumns}
+                    data={reconcileHistory}
+                    isLoading={reconcileHistoryLoading}
+                    meta={{
+                      onRowClick: (b: any) => {
+                        setReconcileDetail(b)
+                        setIsReconcileDetailOpen(true)
+                      },
+                    }}
+                    renderMobileCards={({ data, isLoading }) => {
+                      if (isLoading) {
+                        return (
+                          <div className="space-y-3">
+                            {[...Array(3)].map((_, i) => (
+                              <div key={i} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                                <Skeleton className="h-4 w-32" />
+                                <Skeleton className="h-4 w-44" />
+                                <Skeleton className="h-4 w-36" />
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                      if (!data || data.length === 0) {
+                        return (
+                          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
+                            Belum ada riwayat rekonsiliasi.
+                          </div>
+                        )
+                      }
+                      return (
+                        <div className="space-y-3">
+                          {(data as any[]).map((b) => {
+                            const selisih = Number(b?.selisih || 0)
+                            return (
+                              <div
+                                key={String(b?.id)}
+                                className="rounded-2xl border border-gray-100 bg-white p-4 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                                onClick={() => {
+                                  setReconcileDetail(b)
+                                  setIsReconcileDetailOpen(true)
+                                }}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-extrabold text-gray-900">Batch #{b?.id}</div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {b?.tanggal ? new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'} • {b?.pabrikSawit?.name || '-'}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-xs text-gray-500">Nota</div>
+                                    <div className="text-sm font-extrabold text-gray-900 tabular-nums">{formatNumber(Number(b?.count || 0))}</div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                                    <div className="text-gray-500">Jumlah Tagihan Nota</div>
+                                    <div className="font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(b?.totalTagihan || 0))}</div>
+                                  </div>
+                                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                                    <div className="text-gray-500">Jumlah Ditransfer</div>
+                                    <div className="font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(b?.jumlahMasuk || 0))}</div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 flex items-center justify-between text-xs">
+                                  <div className="text-gray-500">Selisih</div>
+                                  <div className={cn("font-extrabold tabular-nums", selisih === 0 ? "text-emerald-700" : selisih > 0 ? "text-emerald-700" : "text-rose-700")}>
+                                    {formatCurrency(selisih)}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }}
+                  />
+                </div>
+
+                <div className="mt-4 flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3">
+                  <div className="text-sm text-gray-500">
+                    Menampilkan{' '}
+                    <span className="font-medium text-gray-800">
+                      {Math.min((reconcileHistoryPage - 1) * reconcileHistoryLimit + 1, reconcileHistoryTotal || 0)}
+                    </span>{' '}
+                    -{' '}
+                    <span className="font-medium text-gray-800">
+                      {Math.min(reconcileHistoryPage * reconcileHistoryLimit, reconcileHistoryTotal || 0)}
+                    </span>{' '}
+                    dari <span className="font-medium text-gray-800">{formatNumber(reconcileHistoryTotal || 0)}</span> batch
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                      value={reconcileHistoryLimit}
+                      onChange={(e) => {
+                        const next = Number(e.target.value)
+                        setReconcileHistoryLimit(next)
+                        setReconcileHistoryPage(1)
+                      }}
+                      title="Per halaman"
+                      disabled={reconcileHistoryLoading}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={200}>200</option>
+                    </select>
+                    <button
+                      onClick={() => setReconcileHistoryPage((p) => Math.max(1, p - 1))}
+                      disabled={reconcileHistoryPage <= 1 || reconcileHistoryLoading}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Sebelumnya
+                    </button>
+                    <button
+                      onClick={() => setReconcileHistoryPage((p) => p + 1)}
+                      disabled={reconcileHistoryLoading || reconcileHistoryPage * reconcileHistoryLimit >= reconcileHistoryTotal}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Berikutnya
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {isModalOpen && (
@@ -1587,41 +2719,6 @@ export default function NotaSawitPage() {
         onSave={handleSaveStatus}
       />
 
-      {isBulkUbahStatusOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-          <div className="bg-white w-[92vw] sm:w-full sm:max-w-[520px] max-h-[92vh] rounded-2xl overflow-hidden shadow-xl p-0 flex flex-col">
-            <ModalHeader
-              title="Ubah Status Pembayaran Massal"
-              subtitle={`Pilih status baru untuk ${Object.keys(rowSelection).length} nota yang dipilih.`}
-              variant="emerald"
-              icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
-              onClose={() => setIsBulkUbahStatusOpen(false)}
-            />
-            <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <div className="flex flex-col space-y-4">
-                <button 
-                  onClick={() => handleBulkUbahStatus('LUNAS')} 
-                  className="w-full px-4 py-2 rounded-md text-white bg-green-500 border border-green-600 hover:bg-green-600"
-                >
-                  Ubah menjadi LUNAS
-                </button>
-                <button 
-                  onClick={() => handleBulkUbahStatus('BELUM_LUNAS')} 
-                  className="w-full px-4 py-2 rounded-md text-white bg-yellow-500 border border-yellow-600 hover:bg-yellow-600"
-                >
-                  Ubah menjadi BELUM LUNAS
-                </button>
-              </div>
-            </ModalContentWrapper>
-            <ModalFooter className="sm:justify-end">
-              <Button variant="outline" className="rounded-full" onClick={() => setIsBulkUbahStatusOpen(false)}>
-                Batal
-              </Button>
-            </ModalFooter>
-          </div>
-        </div>
-      )}
-
       {isBulkHargaOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
           <div className="bg-white w-[92vw] sm:w-full sm:max-w-[520px] max-h-[92vh] rounded-2xl overflow-hidden shadow-xl p-0 flex flex-col">
@@ -1661,6 +2758,824 @@ export default function NotaSawitPage() {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={isBulkReconcileOpen}
+        onOpenChange={(open) => {
+          if (!open && !reconcileSubmitting) setIsBulkReconcileOpen(false)
+        }}
+      >
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-[640px] max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Rekonsiliasi Pembayaran"
+            subtitle={`Atur pembayaran aktual untuk ${reconcileNotaIds.length} nota.`}
+            variant="emerald"
+            icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
+            onClose={() => { if (!reconcileSubmitting) setIsBulkReconcileOpen(false) }}
+          />
+          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Pabrik</Label>
+                <select
+                  className="w-full input-style rounded-xl border-gray-200 h-10"
+                  value={reconcilePabrikId}
+                  onChange={(e) => setReconcilePabrikId(e.target.value)}
+                  disabled={reconcileSubmitting || reconcileNotaIds.length > 0}
+                >
+                  <option value="">Pilih Pabrik</option>
+                  {pabrikList.map((pabrik) => (
+                    <option key={pabrik.id} value={String(pabrik.id)}>
+                      {pabrik.name}
+                    </option>
+                  ))}
+                </select>
+                {reconcileNotaIds.length > 0 ? (
+                  <div className="text-xs text-gray-500">
+                    Pabrik dikunci karena sudah ada nota terpilih. Kosongkan pilihan nota jika ingin ganti pabrik.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Tanggal Dibayar/Ditransfer</Label>
+                  <Input
+                    type="date"
+                    value={reconcileTanggal}
+                    onChange={(e) => setReconcileTanggal(e.target.value)}
+                    className="rounded-xl"
+                    disabled={reconcileSubmitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Nominal Ditransfer (Rp)</Label>
+                  <Input
+                    inputMode="numeric"
+                    value={reconcileJumlahMasuk ? formatNumber(Math.round(Number(reconcileJumlahMasuk) || 0)) : ''}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '')
+                      setReconcileJumlahMasuk(digits)
+                    }}
+                    placeholder="contoh: 12500000"
+                    className="rounded-xl"
+                    disabled={reconcileSubmitting}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-gray-900">Nota Dipilih</div>
+                  <div className="text-xs text-gray-500">
+                    Jumlah: <span className="font-semibold text-gray-900">{formatNumber(reconcileNotas.length)}</span>
+                  </div>
+                </div>
+                {reconcileNotas.length === 0 ? (
+                  <div className="text-xs text-gray-500">Belum ada nota dipilih.</div>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
+                    <div className="divide-y divide-gray-100">
+                      {reconcileNotas.map((n: any) => {
+                        const id = Number(n?.id)
+                        const tagihan = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
+                        const kebunName = n?.kebun?.name || n?.timbangan?.kebun?.name || '-'
+                        const dateText = n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'
+                        const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
+                        const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
+                        const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
+                        const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
+                        const checked = reconcileNotaIds.includes(id)
+                        return (
+                          <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => handleReconcileToggleNota(n, !!v)}
+                              disabled={reconcileSubmitting}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {kebunName} • {dateText} • {beratText} • {hargaText}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-500">Tagihan Net</div>
+                              <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                <div className="text-sm font-semibold text-gray-900">Tambah Nota dari Rentang Tanggal</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Dari</Label>
+                    <Input
+                      type="date"
+                      value={reconcileRangeStart}
+                      onChange={(e) => setReconcileRangeStart(e.target.value)}
+                      className="rounded-xl h-10 bg-white"
+                      disabled={reconcileSubmitting || reconcileRangeLoading}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Sampai</Label>
+                    <Input
+                      type="date"
+                      value={reconcileRangeEnd}
+                      onChange={(e) => setReconcileRangeEnd(e.target.value)}
+                      className="rounded-xl h-10 bg-white"
+                      disabled={reconcileSubmitting || reconcileRangeLoading}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      className="rounded-full w-full"
+                      variant="outline"
+                      onClick={handleReconcileFetchByRange}
+                      disabled={reconcileSubmitting || reconcileRangeLoading}
+                    >
+                      {reconcileRangeLoading ? 'Memuat...' : 'Cari Nota'}
+                    </Button>
+                  </div>
+                </div>
+
+                {reconcileRangeCandidates.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-gray-500">
+                        Ditemukan <span className="font-semibold text-gray-900">{reconcileRangeCandidates.length.toLocaleString('id-ID')}</span> nota (filter: BELUM LUNAS)
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={handleReconcileAddAllCandidates}
+                          disabled={reconcileSubmitting}
+                        >
+                          Tambah Semua
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
+                      <div className="divide-y divide-gray-100">
+                        {reconcileRangeCandidates.map((n: any) => {
+                          const id = Number(n?.id)
+                          const tagihan = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
+                          const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
+                          const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
+                          const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
+                          const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
+                          const checked = reconcileNotaIds.includes(id)
+                          return (
+                            <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) => handleReconcileToggleNota(n, !!v)}
+                                disabled={reconcileSubmitting}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {n?.kendaraanPlatNomor || '-'} • {n?.supir?.name || '-'} • {beratText} • {hargaText}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs text-gray-500">Tagihan Net</div>
+                                <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500">
+                    Pilih rentang tanggal bongkar, lalu klik “Cari Nota” untuk menambahkan nota ke rekonsiliasi.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={reconcileSetLunas}
+                  onCheckedChange={(v) => setReconcileSetLunas(!!v)}
+                  disabled={reconcileSubmitting}
+                />
+                <div className="text-sm text-gray-700">Set status pembayaran menjadi LUNAS</div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                {(() => {
+                  const parseMoney = (v: string) => Math.round(Number(String(v || '').replace(/[^\d.-]/g, '')) || 0)
+                  const jumlahMasuk = parseMoney(reconcileJumlahMasuk)
+                  const tagihan = reconcileNotas.reduce((sum, n: any) => sum + Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0), 0)
+                  const totalAktual = Math.max(0, jumlahMasuk)
+                  const selisih = Math.round(Number(totalAktual - tagihan) || 0)
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <div className="text-gray-500">Total Tagihan (Net)</div>
+                          <div className="font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            Jumlah Nota: <span className="font-semibold text-gray-900">{reconcileNotas.length.toLocaleString('id-ID')}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Total Aktual (Jumlah Ditransfer)</div>
+                          <div className="font-extrabold text-gray-900">{formatCurrency(totalAktual)}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Selisih</div>
+                          <div className={cn("font-extrabold", selisih === 0 ? "text-emerald-700" : selisih > 0 ? "text-emerald-700" : "text-rose-700")}>
+                            {formatCurrency(selisih)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Keterangan (opsional)</Label>
+                <Input
+                  value={reconcileKeterangan}
+                  onChange={(e) => setReconcileKeterangan(e.target.value)}
+                  placeholder="contoh: Transfer gabungan"
+                  className="rounded-xl"
+                  disabled={reconcileSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Bukti Transfer (opsional)</Label>
+                <ImageUpload
+                  previewUrl={reconcileGambarPreview}
+                  onFileChange={(file) => {
+                    setReconcileGambarFile(file)
+                    setReconcileGambarPreview(file ? URL.createObjectURL(file) : null)
+                  }}
+                />
+              </div>
+            </div>
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-end">
+            <Button variant="outline" className="rounded-full" onClick={() => setIsBulkReconcileOpen(false)} disabled={reconcileSubmitting}>
+              Batal
+            </Button>
+            <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleBulkReconcileSubmit} disabled={reconcileSubmitting}>
+              {reconcileSubmitting ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isReconcileDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsReconcileDetailOpen(false)
+            setReconcileDetail(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-3xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Detail Pembayaran Nota Sawit"
+            subtitle={reconcileDetail?.id ? `Batch #${reconcileDetail.id}` : 'Detail batch'}
+            variant="emerald"
+            icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
+            onClose={() => {
+              setIsReconcileDetailOpen(false)
+              setReconcileDetail(null)
+            }}
+          />
+          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+            {!reconcileDetail ? (
+              <div className="text-sm text-gray-500">Tidak ada data batch.</div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-extrabold text-gray-900">Batch #{reconcileDetail.id}</div>
+                    <div className="text-sm font-semibold text-gray-700">
+                      {reconcileDetail?.tanggal
+                        ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+                        : '-'}{' '}
+                      • <span className="font-extrabold text-gray-900">{reconcileDetail?.pabrikSawit?.name || '-'}</span> • <span className="font-extrabold text-gray-900">{formatNumber(Number(reconcileDetail?.count || 0))}</span> nota
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                    <div className="text-gray-500 font-semibold">Jumlah Dibayar/Ditransfer</div>
+                    <div className="text-lg font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(reconcileDetail?.jumlahMasuk || 0))}</div>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                    <div className="text-gray-500 font-semibold">Jumlah Sesuai Nota Sawit</div>
+                    <div className="text-lg font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(reconcileDetail?.totalTagihan || 0))}</div>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                    <div className="text-gray-500 font-semibold">Selisih Pembayaran</div>
+                    <div className={cn("text-lg font-extrabold tabular-nums", Number(reconcileDetail?.selisih || 0) === 0 ? "text-emerald-700" : Number(reconcileDetail?.selisih || 0) > 0 ? "text-emerald-700" : "text-rose-700")}>
+                      {formatCurrency(Number(reconcileDetail?.selisih || 0))}
+                    </div>
+                  </div>
+                </div>
+
+                {Array.isArray(reconcileDetail?.items) && reconcileDetail.items.length > 0 ? (
+                  <div className="rounded-xl border border-gray-100 overflow-hidden bg-white">
+                    <div className="px-3 py-2 text-[11px] font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
+                      NOTA DIBAYAR
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {(reconcileDetail.items as any[]).slice(0, 20).map((i: any) => {
+                        const nota = i?.nota
+                        const kebunName = nota?.kebun?.name || '-'
+                        const dateText = nota?.tanggalBongkar
+                          ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+                          : '-'
+                        const beratAkhir = Math.round(Number(nota?.beratAkhir || 0) || 0)
+                        const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
+                        const hargaPerKg = Math.round(Number(nota?.hargaPerKg || 0) || 0)
+                        const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
+                        const amount = Math.round(Number(i?.tagihanNet || 0))
+                        return (
+                          <div key={String(i?.notaSawitId)} className="px-3 py-2 text-xs text-gray-700">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 text-gray-900 font-semibold truncate">
+                                Nota {kebunName} tanggal {dateText}
+                              </div>
+                              <div className="shrink-0 text-right text-gray-900 tabular-nums font-extrabold">
+                                {formatCurrency(amount)}
+                              </div>
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-gray-500">
+                              Berat akhir: <span className="font-semibold text-gray-800">{beratText}</span> • Harga: <span className="font-semibold text-gray-800">{hargaText}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="px-3 py-2 text-xs bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                      <div className="text-gray-500">Total Jumlah</div>
+                      <div className="font-extrabold text-gray-900 tabular-nums">
+                        {formatCurrency(
+                          (reconcileDetail.items as any[]).reduce((sum: number, i: any) => sum + Math.round(Number(i?.tagihanNet || 0)), 0),
+                        )}
+                      </div>
+                    </div>
+                    {reconcileDetail.items.length > 20 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500 bg-gray-50 border-t border-gray-100">
+                        +{formatNumber(reconcileDetail.items.length - 20)} nota lainnya
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {reconcileDetail?.gambarUrl ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase text-gray-500">Bukti Transfer</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBuktiTransferUrl(String(reconcileDetail.gambarUrl))
+                        setIsBuktiTransferOpen(true)
+                      }}
+                      className="block w-full text-left rounded-2xl border border-gray-100 overflow-hidden bg-white hover:bg-gray-50/50 transition-colors"
+                    >
+                      <img src={String(reconcileDetail.gambarUrl)} alt="Bukti Transfer" className="w-full max-h-[60vh] object-contain bg-white" />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-end">
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={handleExportPembayaranBatchPdf}
+              disabled={!reconcileDetail?.id}
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+              Ekspor PDF
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => reconcileDetail && handleOpenEditReconcileBatch(reconcileDetail)}
+              disabled={!reconcileDetail}
+            >
+              <PencilSquareIcon className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-full"
+              onClick={() => handleOpenDeleteReconcileBatch(Number(reconcileDetail?.id))}
+              disabled={!reconcileDetail?.id}
+            >
+              <TrashIcon className="w-4 h-4 mr-2" />
+              Hapus
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => {
+                setIsReconcileDetailOpen(false)
+                setReconcileDetail(null)
+              }}
+            >
+              Tutup
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isBuktiTransferOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsBuktiTransferOpen(false)
+            setBuktiTransferUrl(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-4xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Bukti Transfer"
+            subtitle={reconcileDetail?.id ? `Batch #${reconcileDetail.id}` : 'Bukti transfer'}
+            variant="emerald"
+            icon={<PhotoIcon className="h-5 w-5 text-white" />}
+            onClose={() => {
+              setIsBuktiTransferOpen(false)
+              setBuktiTransferUrl(null)
+            }}
+          />
+          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+            {buktiTransferUrl ? (
+              <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                <img src={buktiTransferUrl} alt="Bukti Transfer" className="w-full max-h-[70vh] object-contain bg-white" />
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">Tidak ada gambar.</div>
+            )}
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-end">
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => {
+                if (!buktiTransferUrl) return
+                const link = document.createElement('a')
+                link.href = buktiTransferUrl
+                link.target = '_blank'
+                link.rel = 'noreferrer'
+                link.download = `bukti-transfer-batch-${reconcileDetail?.id || 'unknown'}`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+              }}
+              disabled={!buktiTransferUrl}
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+              Download
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => {
+                setIsBuktiTransferOpen(false)
+                setBuktiTransferUrl(null)
+              }}
+            >
+              Tutup
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isReconcileEditOpen}
+        onOpenChange={(open) => {
+          if (!open && !reconcileEditSubmitting) setIsReconcileEditOpen(false)
+        }}
+      >
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-[640px] max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Edit Pembayaran Nota Sawit"
+            subtitle={reconcileEditingBatchId ? `Batch #${reconcileEditingBatchId}` : 'Edit pembayaran'}
+            variant="emerald"
+            icon={<PencilSquareIcon className="h-5 w-5 text-white" />}
+            onClose={() => { if (!reconcileEditSubmitting) setIsReconcileEditOpen(false) }}
+          />
+          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Pabrik</Label>
+                <select
+                  className="w-full input-style rounded-xl border-gray-200 h-10"
+                  value={reconcileEditPabrikId}
+                  onChange={(e) => setReconcileEditPabrikId(e.target.value)}
+                  disabled
+                >
+                  <option value="">Pilih Pabrik</option>
+                  {pabrikList.map((pabrik) => (
+                    <option key={pabrik.id} value={String(pabrik.id)}>
+                      {pabrik.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Tanggal Dibayar/Ditransfer</Label>
+                  <Input
+                    type="date"
+                    value={reconcileEditTanggal}
+                    onChange={(e) => setReconcileEditTanggal(e.target.value)}
+                    className="rounded-xl"
+                    disabled={reconcileEditSubmitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Nominal Ditransfer (Rp)</Label>
+                  <Input
+                    inputMode="numeric"
+                    value={reconcileEditJumlahMasuk ? formatNumber(Math.round(Number(reconcileEditJumlahMasuk) || 0)) : ''}
+                    onChange={(e) => setReconcileEditJumlahMasuk(e.target.value.replace(/\D/g, ''))}
+                    placeholder="contoh: 12500000"
+                    className="rounded-xl"
+                    disabled={reconcileEditSubmitting}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-gray-900">Nota Dipilih</div>
+                  <div className="text-xs text-gray-500">
+                    Jumlah: <span className="font-semibold text-gray-900">{formatNumber(reconcileEditNotas.length)}</span>
+                  </div>
+                </div>
+                {reconcileEditNotas.length === 0 ? (
+                  <div className="text-xs text-gray-500">Belum ada nota dipilih.</div>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
+                    <div className="divide-y divide-gray-100">
+                      {reconcileEditNotas.map((n: any) => {
+                        const id = Number(n?.id)
+                        const tagihan = Math.round(Number(n?.tagihanNet ?? n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
+                        const kebunName = n?.kebun?.name || n?.timbangan?.kebun?.name || '-'
+                        const dateText = n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'
+                        const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
+                        const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
+                        const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
+                        const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
+                        const checked = reconcileEditNotaIds.includes(id)
+                        return (
+                          <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => handleReconcileEditToggleNota(n, !!v)}
+                              disabled={reconcileEditSubmitting}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {kebunName} • {dateText} • {beratText} • {hargaText}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-500">Tagihan Net</div>
+                              <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                <div className="text-sm font-semibold text-gray-900">Tambah Nota dari Rentang Tanggal</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Dari</Label>
+                    <Input
+                      type="date"
+                      value={reconcileEditRangeStart}
+                      onChange={(e) => setReconcileEditRangeStart(e.target.value)}
+                      className="rounded-xl h-10 bg-white"
+                      disabled={reconcileEditSubmitting || reconcileEditRangeLoading}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Sampai</Label>
+                    <Input
+                      type="date"
+                      value={reconcileEditRangeEnd}
+                      onChange={(e) => setReconcileEditRangeEnd(e.target.value)}
+                      className="rounded-xl h-10 bg-white"
+                      disabled={reconcileEditSubmitting || reconcileEditRangeLoading}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      className="rounded-full w-full"
+                      variant="outline"
+                      onClick={handleReconcileEditFetchByRange}
+                      disabled={reconcileEditSubmitting || reconcileEditRangeLoading}
+                    >
+                      {reconcileEditRangeLoading ? 'Memuat...' : 'Cari Nota'}
+                    </Button>
+                  </div>
+                </div>
+
+                {reconcileEditRangeCandidates.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-gray-500">
+                        Ditemukan <span className="font-semibold text-gray-900">{reconcileEditRangeCandidates.length.toLocaleString('id-ID')}</span> nota (filter: BELUM LUNAS)
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={handleReconcileEditAddAllCandidates}
+                          disabled={reconcileEditSubmitting}
+                        >
+                          Tambah Semua
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
+                      <div className="divide-y divide-gray-100">
+                        {reconcileEditRangeCandidates.map((n: any) => {
+                          const id = Number(n?.id)
+                          const tagihan = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
+                          const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
+                          const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
+                          const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
+                          const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
+                          const checked = reconcileEditNotaIds.includes(id)
+                          return (
+                            <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) => handleReconcileEditToggleNota(n, !!v)}
+                                disabled={reconcileEditSubmitting}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {n?.kendaraanPlatNomor || '-'} • {n?.supir?.name || '-'} • {beratText} • {hargaText}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs text-gray-500">Tagihan Net</div>
+                                <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500">
+                    Pilih rentang tanggal bongkar, lalu klik “Cari Nota” untuk menambahkan nota ke pembayaran.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={reconcileEditSetLunas}
+                  onCheckedChange={(v) => setReconcileEditSetLunas(!!v)}
+                  disabled={reconcileEditSubmitting}
+                />
+                <div className="text-sm text-gray-700">Set status pembayaran menjadi LUNAS</div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                {(() => {
+                  const parseMoney = (v: string) => Math.round(Number(String(v || '').replace(/[^\d.-]/g, '')) || 0)
+                  const jumlahMasuk = parseMoney(reconcileEditJumlahMasuk)
+                  const tagihan = reconcileEditNotas.reduce((sum: number, n: any) => sum + Math.round(Number(n?.tagihanNet ?? n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0), 0)
+                  const totalAktual = Math.max(0, jumlahMasuk)
+                  const selisih = Math.round(Number(totalAktual - tagihan) || 0)
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <div className="text-gray-500">Total Tagihan (Net)</div>
+                          <div className="font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            Jumlah Nota: <span className="font-semibold text-gray-900">{reconcileEditNotas.length.toLocaleString('id-ID')}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Total Aktual (Jumlah Ditransfer)</div>
+                          <div className="font-extrabold text-gray-900">{formatCurrency(totalAktual)}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Selisih</div>
+                          <div className={cn("font-extrabold", selisih === 0 ? "text-emerald-700" : selisih > 0 ? "text-emerald-700" : "text-rose-700")}>
+                            {formatCurrency(selisih)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Keterangan (opsional)</Label>
+                <Input
+                  value={reconcileEditKeterangan}
+                  onChange={(e) => setReconcileEditKeterangan(e.target.value)}
+                  placeholder="contoh: Transfer gabungan"
+                  className="rounded-xl"
+                  disabled={reconcileEditSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Bukti Transfer (opsional)</Label>
+                <ImageUpload
+                  previewUrl={reconcileEditGambarPreview}
+                  onFileChange={(file) => {
+                    setReconcileEditGambarFile(file)
+                    if (file) {
+                      const url = URL.createObjectURL(file)
+                      setReconcileEditGambarPreview(url)
+                      setReconcileEditGambarExistingUrl(null)
+                    } else {
+                      setReconcileEditGambarPreview(null)
+                      setReconcileEditGambarExistingUrl(null)
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-end">
+            <Button variant="outline" className="rounded-full" onClick={() => setIsReconcileEditOpen(false)} disabled={reconcileEditSubmitting}>
+              Batal
+            </Button>
+            <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmitEditReconcileBatch} disabled={reconcileEditSubmitting || reconcileEditNotaIds.length === 0}>
+              {reconcileEditSubmitting ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isReconcileDeleteConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && !reconcileDeleteSubmitting) setIsReconcileDeleteConfirmOpen(false)
+        }}
+      >
+        <DialogContent className="w-[96vw] sm:w-full sm:max-w-md p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Hapus Rekonsiliasi"
+            subtitle={reconcileDeletingBatchId ? `Batch #${reconcileDeletingBatchId}` : 'Hapus batch'}
+            variant="emerald"
+            icon={<TrashIcon className="h-5 w-5 text-white" />}
+            onClose={() => { if (!reconcileDeleteSubmitting) setIsReconcileDeleteConfirmOpen(false) }}
+          />
+          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto">
+            <div className="p-6 text-sm text-gray-700">
+              Batch ini akan dihapus, transaksi kas batch akan dibatalkan, dan nota di batch akan kembali menjadi BELUM LUNAS.
+            </div>
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-end">
+            <Button variant="outline" className="rounded-full" onClick={() => setIsReconcileDeleteConfirmOpen(false)} disabled={reconcileDeleteSubmitting}>
+              Batal
+            </Button>
+            <Button variant="destructive" className="rounded-full" onClick={handleConfirmDeleteReconcileBatch} disabled={reconcileDeleteSubmitting}>
+              {reconcileDeleteSubmitting ? 'Menghapus...' : 'Hapus'}
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={duplicateWarningOpen}
@@ -1821,17 +3736,6 @@ export default function NotaSawitPage() {
           )}
         </DialogContent>
       </Dialog>
-
-      {role !== 'SUPIR' ? (
-        <Button
-          onClick={() => { setSelectedNota(null); setIsModalOpen(true); }}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-          title="Tambah Nota"
-          size="icon"
-        >
-          <PlusIcon className="w-8 h-8" />
-        </Button>
-      ) : null}
 
     </main>
   )

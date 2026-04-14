@@ -425,6 +425,17 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Transaksi gaji tidak bisa dihapus karena sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
       }
     }
+    if (existingTrx.kategori === 'PENJUALAN_SAWIT') {
+      const deskripsi = String(existingTrx.deskripsi || '')
+      const keterangan = String((existingTrx as any).keterangan || '')
+      const isUangNotaSawit = deskripsi.startsWith('Uang Nota Sawit -') || keterangan.startsWith('Batch ID:')
+      if (isUangNotaSawit) {
+        return NextResponse.json(
+          { error: 'Transaksi Uang Nota Sawit tidak bisa dihapus dari menu Kasir. Hapus dari menu Nota Sawit > Pembayaran.' },
+          { status: 400 },
+        )
+      }
+    }
 
     await prisma.jurnal.deleteMany({
       where: {

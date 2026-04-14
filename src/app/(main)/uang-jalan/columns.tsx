@@ -26,6 +26,17 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', {
 
 export const columns: ColumnDef<SesiUangJalanWithDetails>[] = [
     {
+        id: "no",
+        header: "No",
+        cell: ({ row, table }) => {
+            const meta = table.options.meta as any
+            const page = Number(meta?.page || 1)
+            const limit = Number(meta?.limit || 0)
+            const base = Number.isFinite(page) && page > 0 && Number.isFinite(limit) && limit > 0 ? (page - 1) * limit : 0
+            return <div className="text-gray-600 tabular-nums">{base + row.index + 1}</div>
+        },
+    },
+    {
         accessorKey: "supir.name",
         header: "Supir",
     },

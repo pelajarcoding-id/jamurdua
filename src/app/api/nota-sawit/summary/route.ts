@@ -147,7 +147,8 @@ export async function GET(request: Request) {
         pembayaranSetelahPph: true,
         totalPembayaran: true,
         statusPembayaran: true,
-        timbangan: { select: { netKg: true } },
+        kebun: { select: { id: true, name: true } },
+        timbangan: { select: { netKg: true, kebun: { select: { id: true, name: true } } } },
       },
     })
 
@@ -156,6 +157,17 @@ export async function GET(request: Request) {
       const beratAkhir = Number(r.beratAkhir || 0)
       return sum + (Number.isFinite(beratAkhir) ? beratAkhir : 0)
     }, 0)
+    const tonaseByKebunMap = rows.reduce((acc, r) => {
+      const kebun = (r as any).kebun || (r as any).timbangan?.kebun || null
+      const kebunId = kebun?.id ? Number(kebun.id) : null
+      const kebunName = kebun?.name ? String(kebun.name) : null
+      if (!kebunId || !kebunName) return acc
+      const beratAkhir = Number(r.beratAkhir || 0)
+      const add = Number.isFinite(beratAkhir) ? beratAkhir : 0
+      const prev = acc.get(kebunId)
+      acc.set(kebunId, { kebunId, name: kebunName, totalBerat: (prev?.totalBerat || 0) + add })
+      return acc
+    }, new Map<number, { kebunId: number; name: string; totalBerat: number }>())
     const totalPembayaran = rows.reduce((sum, r) => {
       const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
       return sum + (Number.isFinite(val) ? val : 0)
@@ -172,11 +184,15 @@ export async function GET(request: Request) {
       const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
       return sum + (Number.isFinite(val) ? val : 0)
     }, 0)
+    const tonaseByKebun = Array.from(tonaseByKebunMap.values())
+      .map((r) => ({ ...r, totalBerat: Math.round(Number(r.totalBerat) || 0) }))
+      .sort((a, b) => b.totalBerat - a.totalBerat)
 
     return NextResponse.json({
       count: totalNota,
       totalNota,
       totalBerat: Math.round(totalBerat),
+      tonaseByKebun,
       totalPembayaran: Math.round(totalPembayaran),
       lunasCount,
       belumLunasCount,

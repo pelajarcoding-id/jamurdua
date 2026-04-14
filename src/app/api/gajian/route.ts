@@ -134,6 +134,9 @@ export async function GET(request: Request) {
 // POST  /api/gajian
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    const currentUserId = session?.user?.id ? Number(session.user.id) : 1;
+
     const body = await request.json();
     const { kebunId, tanggalMulai, tanggalSelesai, keterangan, notas, biayaLain, potongan, status, gajianId, payAbsensi, detailKaryawan, dibuatOlehName, disetujuiOlehName, hutangTambahan, pekerjaanBoronganIds } = body;
 
@@ -415,6 +418,39 @@ export async function POST(request: Request) {
         },
       })
 
+      await (tx as any).kasTransaksi.deleteMany({
+        where: {
+          gajianId: upsertedGajian.id,
+          kategori: 'GAJI',
+          karyawanId: null,
+        },
+      })
+
+      if (status === 'FINALIZED') {
+        const amount = Math.max(0, Math.round(Number(totalGajiFinal || 0)))
+        if (amount > 0) {
+          const pemilik = await tx.user.findFirst({ where: { role: 'PEMILIK' }, select: { id: true } })
+          const transactionUserId = pemilik?.id ?? currentUserId
+          const periodeText = `${String(startYmd.y).padStart(4, '0')}-${String(startYmd.m).padStart(2, '0')}-${String(startYmd.d).padStart(2, '0')} - ${String(endYmd.y).padStart(4, '0')}-${String(endYmd.m).padStart(2, '0')}-${String(endYmd.d).padStart(2, '0')}`
+          const deskripsiKas = `Pembayaran Gaji via Proses Gaji #${upsertedGajian.id}`
+          const keteranganKas = `Gajian #${upsertedGajian.id} • Periode ${periodeText}`
+          await tx.kasTransaksi.create({
+            data: {
+              date: tanggalSelesaiUtc,
+              tipe: 'PENGELUARAN',
+              deskripsi: deskripsiKas,
+              jumlah: amount,
+              kategori: 'GAJI',
+              keterangan: keteranganKas,
+              kebunId: parsedKebunId,
+              userId: transactionUserId,
+              gajianId: upsertedGajian.id,
+              karyawanId: null,
+            } as any,
+          })
+        }
+      }
+
       // Handle Absensi Payment Status Update
       if (status === 'FINALIZED' && payAbsensi) {
         // Ensure table exists
@@ -550,8 +586,6 @@ export async function POST(request: Request) {
     });
 
     // Audit Log
-    const session = await auth();
-    const currentUserId = session?.user?.id ? Number(session.user.id) : 1;
     await createAuditLog(currentUserId, gajianId ? 'UPDATE' : 'CREATE', 'Gajian', gajian.id.toString(), {
         kebunId: gajian.kebunId,
         totalGaji: gajian.totalGaji,

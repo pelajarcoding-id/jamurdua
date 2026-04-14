@@ -826,7 +826,9 @@ export default function UangJalanPage() {
         onOpenNewSesi: (supirId: number) => handleOpenSesiModal(null, supirId),
         onViewDetails: handleOpenDetailModal, // Tambahkan ini
         onRowClick: handleOpenDetailModal,
-    }), [handleOpenSesiModal, handleOpenConfirm, handleOpenStatusConfirm, handleOpenDetailModal]);
+        page,
+        limit,
+    }), [handleOpenSesiModal, handleOpenConfirm, handleOpenStatusConfirm, handleOpenDetailModal, limit, page]);
 
     const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 

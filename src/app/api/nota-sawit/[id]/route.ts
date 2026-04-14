@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
   }
   try {
-    const nota = await prisma.notaSawit.findUnique({
+    const nota = await (prisma as any).notaSawit.findUnique({
       where: { id },
       include: {
         timbangan: {
@@ -30,6 +30,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         supir: true,
         kendaraan: true,
         pabrikSawit: true,
+        pembayaranBatchItems: {
+          include: { batch: { select: { id: true, tanggal: true, jumlahMasuk: true, adminBank: true, metodeAlokasi: true } } },
+          orderBy: { id: 'desc' },
+          take: 1,
+        },
       },
     })
 
@@ -399,8 +404,22 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     });
 
-    // INTEGRATION: Sync update to KasTransaksi if status is LUNAS
+    // INTEGRATION: Sync update to KasTransaksi if status is LUNAS (skip if already reconciled via batch)
     if (updatedNota.statusPembayaran === 'LUNAS') {
+        const hasBatch = await (prisma as any).notaSawitPembayaranBatchItem.findFirst({
+            where: { notaSawitId: updatedNota.id },
+            select: { id: true },
+        })
+        if (hasBatch) {
+            await createAuditLog(currentUserId, 'UPDATE', 'NotaSawit', String(id), {
+                before: existingNota,
+                after: updatedNota,
+                changedFields: Object.keys(dataToUpdate),
+                note: 'Skip KasTransaksi sync because nota is reconciled via batch',
+            })
+            return Response.json(updatedNota)
+        }
+
         const kasTransaction = await prisma.kasTransaksi.findFirst({
             where: {
                 kategori: 'PENJUALAN_SAWIT',

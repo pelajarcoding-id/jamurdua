@@ -143,7 +143,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     timbanganId?: number,
     kebunId?: number,
     keterangan?: string,
-    pembayaranAktual?: number | null,
     pph25?: number | null,
     bruto?: number,
     tara?: number,
@@ -151,7 +150,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   }>({});
 
   const [isManualInput, setIsManualInput] = useState(false);
-  const [isPembayaranAktualManual, setIsPembayaranAktualManual] = useState(false);
   const [useTimbanganKebunInput, setUseTimbanganKebunInput] = useState(false);
   const [selectedTimbangan, setSelectedTimbangan] = useState<TimbanganWithKebun | null>(null);
   const [isEditingComparison, setIsEditingComparison] = useState(false);
@@ -174,11 +172,9 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   const [supirQuery, setSupirQuery] = useState('');
   const [kendaraanQuery, setKendaraanQuery] = useState('');
   const [pabrikQuery, setPabrikQuery] = useState('');
-  const [statusQuery, setStatusQuery] = useState('');
   const [openSupir, setOpenSupir] = useState(false);
   const [openKendaraan, setOpenKendaraan] = useState(false);
   const [openPabrik, setOpenPabrik] = useState(false);
-  const [openStatus, setOpenStatus] = useState(false);
   const [openTimbangan, setOpenTimbangan] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -199,7 +195,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                 keterangan: (nota as any).keterangan || '',
                 timbanganId: nota.timbanganId || undefined,
                 kebunId: (nota as any).kebunId || nota.timbangan?.kebunId || undefined,
-                pembayaranAktual: typeof nota.pembayaranAktual === 'number' ? Math.round(nota.pembayaranAktual) : nota.pembayaranAktual,
                 pph25: Math.round(nota.pph25 || 0),
                 // Initialize with existing values, fallback to Timbangan values if 0 (legacy data)
                 // @ts-ignore
@@ -226,13 +221,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             const calculatedNet = Math.round((nota.pembayaranSetelahPph || (totalBayar - existingPph - Math.round(nota.pph25 || 0))) as number);
             setPembayaranSetelahPph(calculatedNet);
 
-            if (nota.pembayaranAktual !== null && nota.pembayaranAktual !== undefined) {
-                 const diff = Math.abs(nota.pembayaranAktual - calculatedNet);
-                 setIsPembayaranAktualManual(diff > 1);
-            } else {
-                 setIsPembayaranAktualManual(false);
-            }
-
         } else {
             // Add Mode
             setFormData({
@@ -244,7 +232,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                 manualGross: 0,
                 manualTare: 0,
                 manualNet: 0,
-                pembayaranAktual: null,
                 pph25: 0,
                 bruto: 0,
                 tara: 0,
@@ -252,7 +239,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             });
             setPreview(null);
             setIsManualInput(false);
-            setIsPembayaranAktualManual(false);
             setUseTimbanganKebunInput(false);
             setSelectedTimbangan(null);
             setBeratTotal(0);
@@ -438,17 +424,6 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
-    // Special handling for nullable fields
-    if (name === 'pembayaranAktual') {
-        if (value === '') {
-             setFormData(prev => ({ ...prev, [name]: null }));
-             setIsPembayaranAktualManual(false); // Reset to auto if cleared
-             return;
-        } else {
-             setIsPembayaranAktualManual(true);
-        }
-    }
-
     const numericValue = Math.round(parseNumber(value));
 
     setFormData(prev => {
@@ -505,23 +480,12 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     setPph(calculatedPph);
     const netPay = Math.round(totalBayar - calculatedPph - Math.round(formData.pph25 || 0));
     setPembayaranSetelahPph(netPay);
-    
-    if (!isPembayaranAktualManual) {
-         setFormData(prev => {
-             // Avoid infinite loop by checking if value actually changed
-             if (prev.pembayaranAktual !== netPay) {
-                 return { ...prev, pembayaranAktual: netPay };
-             }
-             return prev;
-         });
-    }
 
   }, [
     formData.netto, // Depend on netto
     formData.potongan, formData.hargaPerKg,
     formData.pph25,
-    nota,
-    isPembayaranAktualManual
+    nota
   ]);
 
 
@@ -902,72 +866,17 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                     </div>
                 </div>
                 
-                <div className="mt-4 pt-4 border-t border-blue-200">
-                    <Label className="flex justify-between">
-                        <span>Pembayaran Aktual (Opsional)</span>
-                        <span className="text-xs font-normal text-gray-500">Isi jika beda dengan hitungan sistem</span>
-                    </Label>
-                    <FormattedNumberInput 
-                        name="pembayaranAktual"
-                        value={formData.pembayaranAktual ?? ''}
-                        onChange={handleNumericChange}
-                        placeholder={formatNumber(pembayaranSetelahPph)}
-                        className="bg-white border-blue-300 rounded-xl"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                        *Biarkan kosong untuk menggunakan nominal &quot;Bayar Setelah PPh&quot; otomatis.
-                    </p>
-                </div>
-
                 {role !== 'SUPIR' && (
                   <div className="mt-4 pt-4 border-t border-blue-200">
                       <Label>Status Pembayaran</Label>
-                      <Popover open={openStatus} onOpenChange={setOpenStatus}>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="w-full input-style rounded-xl border-gray-200 flex items-center justify-between mt-1"
-                            aria-haspopup="listbox"
-                          >
-                            <span>
-                              {(formData.statusPembayaran || 'BELUM_LUNAS') === 'BELUM_LUNAS' ? 'Belum Lunas' : 'Lunas'}
-                            </span>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent align="start" className="p-2 w-[--radix-popover-trigger-width] max-h-60 overflow-y-auto bg-white rounded-xl border shadow-sm">
-                          <Input
-                            autoFocus
-                            placeholder="Cari status…"
-                            value={statusQuery}
-                            onChange={(e) => setStatusQuery(e.target.value)}
-                            className="mb-2 rounded-lg"
-                          />
-                          <div role="listbox" className="space-y-1">
-                            {[
-                              { val: 'BELUM_LUNAS', label: 'Belum Lunas' },
-                              { val: 'LUNAS', label: 'Lunas' },
-                            ]
-                              .filter(s => s.label.toLowerCase().includes(statusQuery.toLowerCase()))
-                              .map(s => (
-                                <button
-                                  key={s.val}
-                                  type="button"
-                                  onClick={() => { setFormData(prev => ({ ...prev, statusPembayaran: s.val as any })); setOpenStatus(false); }}
-                                  className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 ${(formData.statusPembayaran || 'BELUM_LUNAS') === s.val ? 'bg-blue-50 text-blue-700' : ''}`}
-                                >
-                                  {s.label}
-                                </button>
-                              ))}
-                            {[
-                              { val: 'BELUM_LUNAS', label: 'Belum Lunas' },
-                              { val: 'LUNAS', label: 'Lunas' },
-                            ].filter(s => s.label.toLowerCase().includes(statusQuery.toLowerCase())).length === 0 && (
-                              <div className="px-3 py-2 text-sm text-gray-500">Tidak ditemukan</div>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <Input
+                        value={(formData.statusPembayaran || 'BELUM_LUNAS') === 'BELUM_LUNAS' ? 'Belum Lunas' : 'Lunas'}
+                        readOnly
+                        className="bg-white rounded-xl border-gray-200 mt-1"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Status pembayaran dikelola dari menu Nota Sawit &gt; Pembayaran.
+                      </p>
                   </div>
                 )}
               </div>

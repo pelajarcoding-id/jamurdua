@@ -33,6 +33,11 @@ export const columns = (
   onRenewDocument: (kendaraan: KendaraanData) => void
 ): ColumnDef<KendaraanData>[] => [
   {
+    id: 'no',
+    header: () => <span className="font-semibold">No</span>,
+    cell: ({ row }) => <span className="text-gray-600 tabular-nums">{row.index + 1}</span>,
+  },
+  {
     accessorKey: 'platNomor',
     header: () => <span className="font-semibold">Plat Nomor</span>,
     cell: ({ row }) => <span className="font-bold">{row.original.platNomor}</span>,

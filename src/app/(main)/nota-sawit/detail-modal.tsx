@@ -66,7 +66,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       `Potongan: ${n.potongan.toLocaleString('id-ID')} kg`,
       `Total Berat (Net): ${beratTotal.toLocaleString('id-ID')} kg`,
       `Status Pembayaran: ${n.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}`,
-      `Total Diterima: ${formatCurrency((n as any).pembayaranAktual ?? n.pembayaranSetelahPph)}`
+      `Total Diterima: ${formatCurrency(n.pembayaranSetelahPph)}`
     ].join('\n');
   };
 
@@ -354,14 +354,34 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
         { label: 'Potongan PPh (0.25%)', value: `- ${formatCurrency(nota.pph)}` },
         { label: 'Total Pembayaran (Net)', value: formatCurrency(nota.pembayaranSetelahPph), isBold: true },
       ];
-      if ((nota as any).pembayaranAktual !== null && (nota as any).pembayaranAktual !== undefined) {
-        financeRows.push({
-          label: 'Pembayaran Aktual',
-          value: formatCurrency((nota as any).pembayaranAktual),
-          isBold: true,
-          color: '#1D4ED8'
-        });
-      }
+      const batch = (nota as any).pembayaranBatchItems?.[0]?.batch
+      const hasBatchTanggal = !!batch?.tanggal
+      const hasBatchNominal = typeof batch?.jumlahMasuk === 'number'
+      const showBatch = !!batch && (hasBatchTanggal || hasBatchNominal)
+      const batchBoxPadding = 3
+      const batchHeaderH = 6
+      const batchRowH = 8
+      const batchRows: { label: string; value: string; isBold?: boolean }[] = [
+        ...(hasBatchTanggal
+          ? [
+              {
+                label: 'Tanggal Dibayar/Ditransfer',
+                value: new Date(batch.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }),
+              },
+            ]
+          : []),
+        ...(hasBatchNominal
+          ? [
+              {
+                label: 'Nominal Transfer',
+                value: formatCurrency(Number(batch.jumlahMasuk || 0)),
+                isBold: true,
+              },
+            ]
+          : []),
+      ]
+      const batchBoxHeight = showBatch ? (batchBoxPadding * 2 + batchHeaderH + 4 + (batchRows.length * batchRowH) + 2) : 0
+      const batchSpacingAfter = showBatch ? 6 : 0
       const financeHeaderH = 6;
       const rowH = 9 * financeRows.length;
       const dividerH = 8 + 4;
@@ -370,7 +390,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       const ketWidth = rightContentRight - rightContentMargin
       const ketLines = ketRaw ? doc.splitTextToSize(ketRaw, ketWidth) : []
       const ketBlockHeight = ketLines.length > 0 ? (8 + 6 + (ketLines.length * 5)) : 0
-      let financeBoxHeight = financeHeaderH + rowH + dividerH + totalH + (boxPadding * 2) + 8 + ketBlockHeight;
+      let financeBoxHeight = financeHeaderH + rowH + (showBatch ? (batchBoxHeight + batchSpacingAfter) : 0) + dividerH + totalH + (boxPadding * 2) + 8 + ketBlockHeight;
       doc.setFillColor('#F9FAFB');
       doc.setDrawColor('#E5E7EB');
       doc.roundedRect(rightColumnX, rightY, contentWidth, financeBoxHeight, 3, 3, 'DF');
@@ -390,7 +410,38 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
         doc.text(row.value, rightContentRight, fy, { align: 'right' });
         fy += 9;
       });
-      fy += 4;
+      if (showBatch) {
+        fy += 2;
+        const bx = rightContentMargin
+        const bw = rightContentRight - rightContentMargin
+        const by0 = fy
+        doc.setFillColor('#ECFDF5')
+        doc.setDrawColor('#A7F3D0')
+        doc.roundedRect(bx, by0, bw, batchBoxHeight, 3, 3, 'FD')
+        let by = by0 + batchBoxPadding + 4
+        doc.setFontSize(9)
+        doc.setTextColor('#15803D')
+        doc.setFont('helvetica', 'bold')
+        doc.text('PEMBAYARAN BATCH', bx + 2, by)
+        doc.text(`ID: ${batch?.id ?? '-'}`, bx + bw - 2, by, { align: 'right' })
+        by += 6
+        doc.setDrawColor('#A7F3D0')
+        doc.line(bx + 1.5, by, bx + bw - 1.5, by)
+        by += 6
+        batchRows.forEach((r) => {
+          doc.setFontSize(9)
+          doc.setTextColor('#6B7280')
+          doc.setFont('helvetica', 'normal')
+          doc.text(r.label, bx + 2, by)
+          doc.setTextColor('#111827')
+          doc.setFont('helvetica', r.isBold ? 'bold' : 'normal')
+          doc.text(r.value, bx + bw - 2, by, { align: 'right' })
+          by += batchRowH
+        })
+        fy = by0 + batchBoxHeight + batchSpacingAfter
+      } else {
+        fy += 4;
+      }
       doc.setDrawColor('#E5E7EB');
       doc.line(rightContentMargin, fy, rightContentRight, fy);
       fy += 8;
@@ -407,7 +458,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       doc.setFontSize(16);
       doc.setTextColor('#16A34A');
       doc.setFont('helvetica', 'bold');
-      const finalAmount = (nota as any).pembayaranAktual ?? nota.pembayaranSetelahPph;
+      const finalAmount = nota.pembayaranSetelahPph;
       doc.text(formatCurrency(finalAmount), rightContentRight, fy, { align: 'right' });
 
       if (ketLines.length > 0) {
@@ -654,21 +705,45 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
                     value={formatCurrency(nota.pembayaranSetelahPph)} 
                     valueClassName="text-gray-900 font-bold"
                 />
-                {(nota as any).pembayaranAktual !== null && (nota as any).pembayaranAktual !== undefined && (
-                   <Row 
-                       label="Pembayaran Aktual" 
-                       value={formatCurrency((nota as any).pembayaranAktual)} 
-                       valueClassName="text-blue-700 font-bold"
-                   />
-                )}
+                {(() => {
+                  const batch = (nota as any).pembayaranBatchItems?.[0]?.batch
+                  if (!batch) return null
+                  const hasTanggal = !!batch?.tanggal
+                  const hasNominal = typeof batch?.jumlahMasuk === 'number'
+                  if (!hasTanggal && !hasNominal) return null
+                  return (
+                    <div className="mt-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-4">
+                      <div className="flex items-center justify-between gap-3 pb-3 border-b border-emerald-200/60">
+                        <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Pembayaran Batch</div>
+                        <div className="text-xs font-semibold text-emerald-700">Batch ID: {batch?.id ?? '-'}</div>
+                      </div>
+                      <div className="pt-2 space-y-1">
+                        {hasTanggal ? (
+                          <Row
+                            label="Tanggal Dibayar/Ditransfer"
+                            value={new Date(batch.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            valueClassName="text-gray-900"
+                          />
+                        ) : null}
+                        {hasNominal ? (
+                          <Row
+                            label="Nominal Transfer"
+                            value={formatCurrency(Number(batch.jumlahMasuk || 0))}
+                            valueClassName="text-gray-900 font-bold"
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })()}
                 <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-between">
                   <span className={`${nota.statusPembayaran === 'LUNAS' ? 'text-green-700' : 'text-yellow-700'} text-sm font-semibold`}>
                     Status Pembayaran: {nota.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}
                   </span>
                   <div className="flex flex-col items-end">
-                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Total Diterima</span>
+                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Total Bayar Net</span>
                     <span className="text-3xl font-bold text-green-600 tracking-tight">
-                      {formatCurrency((nota as any).pembayaranAktual ?? nota.pembayaranSetelahPph)}
+                      {formatCurrency(nota.pembayaranSetelahPph)}
                     </span>
                   </div>
                 </div>

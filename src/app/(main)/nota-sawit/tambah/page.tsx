@@ -49,9 +49,7 @@ export default function TambahNotaSawitPage() {
 
   const [hargaPerKg, setHargaPerKg] = useState(0);
   const [pph25, setPph25] = useState(0);
-  const [pembayaranAktual, setPembayaranAktual] = useState<number | null>(null);
-  const [isPembayaranAktualManual, setIsPembayaranAktualManual] = useState(false);
-  const [statusPembayaran, setStatusPembayaran] = useState('BELUM_LUNAS');
+  const [statusPembayaran] = useState('BELUM_LUNAS');
   const [gambarNota, setGambarNota] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [crop, setCrop] = useState<Crop>();
@@ -109,15 +107,6 @@ export default function TambahNotaSawitPage() {
       case 'pph25':
         setPph25(numericValue);
         break;
-      case 'pembayaranAktual':
-        if (value === '') {
-            setPembayaranAktual(null);
-            setIsPembayaranAktualManual(false); // Reset to auto if cleared
-        } else {
-            setPembayaranAktual(numericValue);
-            setIsPembayaranAktualManual(true);
-        }
-        break;
       default:
         break;
     }
@@ -169,9 +158,6 @@ export default function TambahNotaSawitPage() {
         setTimbanganTare(Number(d.timbanganTare ?? 0));
         setHargaPerKg(Number(d.hargaPerKg ?? 0));
         setPph25(Number(d.pph25 ?? 0));
-        setPembayaranAktual(d.pembayaranAktual ?? null);
-        setIsPembayaranAktualManual(!!d.isPembayaranAktualManual);
-        setStatusPembayaran(d.statusPembayaran ?? 'BELUM_LUNAS');
         setKeterangan(String(d.keterangan ?? ''));
         if (d.tanggalBongkar) {
           const rawTgl = String(d.tanggalBongkar)
@@ -205,8 +191,6 @@ export default function TambahNotaSawitPage() {
       timbanganTare,
       hargaPerKg,
       pph25,
-      pembayaranAktual,
-      isPembayaranAktualManual,
       statusPembayaran,
       tanggalBongkar,
       keterangan,
@@ -226,8 +210,6 @@ export default function TambahNotaSawitPage() {
     timbanganTare,
     hargaPerKg,
     pph25,
-    pembayaranAktual,
-    isPembayaranAktualManual,
     statusPembayaran,
     tanggalBongkar,
     keterangan,
@@ -272,12 +254,6 @@ export default function TambahNotaSawitPage() {
 
   const pph = totalPembayaran * 0.0025;
   const pembayaranSetelahPph = totalPembayaran - pph - pph25;
-
-  useEffect(() => {
-      if (!isPembayaranAktualManual) {
-          setPembayaranAktual(pembayaranSetelahPph > 0 ? pembayaranSetelahPph : 0);
-      }
-  }, [pembayaranSetelahPph, isPembayaranAktualManual]);
 
   const handleFileChangeForCrop = (file: File | null) => {
     if (file) {
@@ -470,7 +446,6 @@ export default function TambahNotaSawitPage() {
         hargaPerKg,
         pph25,
         statusPembayaran,
-        pembayaranAktual,
         gambarNotaUrl: finalGambarUrl,
         bruto: isManualInput ? manualGross : timbanganGross,
         tara: isManualInput ? manualTare : timbanganTare,
@@ -677,25 +652,15 @@ export default function TambahNotaSawitPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div className="grid grid-cols-1 gap-6 mt-6">
                   <div>
                     <label htmlFor="statusPembayaran" className="block text-sm font-medium text-gray-700 mb-2">Status Pembayaran</label>
-                    <select name="statusPembayaran" id="statusPembayaran" value={statusPembayaran} onChange={(e) => setStatusPembayaran(e.target.value)} className="input-style w-full">
+                    <select name="statusPembayaran" id="statusPembayaran" value={statusPembayaran} className="input-style w-full bg-gray-100 text-gray-600 cursor-not-allowed" disabled>
                         <option value="BELUM_LUNAS">Belum Lunas</option>
-                        <option value="LUNAS">Lunas</option>
                     </select>
-                  </div>
-                  <div>
-                    <label htmlFor="pembayaranAktual" className="block text-sm font-medium text-gray-700 mb-2">Pembayaran Aktual</label>
-                    <input 
-                      type="text" 
-                      name="pembayaranAktual" 
-                      id="pembayaranAktual" 
-                      value={pembayaranAktual !== null ? formatNumber(pembayaranAktual) : ''} 
-                      onChange={handleNumericChange} 
-                      className="input-style w-full" 
-                      placeholder="Kosongkan jika sama dengan Net" 
-                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Status pembayaran dikelola dari menu Nota Sawit &gt; Pembayaran.
+                    </p>
                   </div>
                 </div>
               </>

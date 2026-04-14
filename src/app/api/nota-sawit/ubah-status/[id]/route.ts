@@ -38,8 +38,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         throw new Error('NOT_FOUND')
       }
 
+      const hasBatch = await (tx as any).notaSawitPembayaranBatchItem.findFirst({
+        where: { notaSawitId: existingItem.id },
+        select: { id: true },
+      })
+
       if (statusPembayaran === 'LUNAS') {
         if (existingItem.statusPembayaran !== 'LUNAS') {
+          if (!hasBatch) {
           const pabrikName = existingItem.pabrikSawit?.name || 'Unknown Pabrik'
           const supirName = existingItem.supir?.name || 'Unknown Supir'
           const tglBongkar = existingItem.tanggalBongkar
@@ -84,6 +90,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
               },
             ],
           })
+          }
         }
       } else if (statusPembayaran === 'BELUM_LUNAS') {
         const fallbackPrefix = `Penjualan Sawit #${existingItem.id} -`
@@ -115,7 +122,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
       return tx.notaSawit.update({
         where: { id: notaId },
-        data: { statusPembayaran },
+        data: { statusPembayaran, ...(statusPembayaran === 'LUNAS' ? { pembayaranAktual: null } : {}) } as any,
       })
     })
 
