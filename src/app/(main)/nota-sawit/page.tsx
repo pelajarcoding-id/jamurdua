@@ -1987,8 +1987,8 @@ export default function NotaSawitPage() {
             </div>
           ) : null}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-            <div className="grid grid-cols-2 gap-4 w-full lg:flex lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
-              <div className="col-span-2 w-full lg:flex-[2] lg:min-w-[420px]">
+            <div className="grid grid-cols-2 gap-4 w-full lg:flex lg:flex-wrap lg:items-center lg:gap-3">
+              <div className="col-span-2 w-full min-w-0 lg:flex-1 lg:min-w-[320px] lg:max-w-[640px]">
                 <div className="relative">
                   <Input
                       type="text"
@@ -2002,7 +2002,7 @@ export default function NotaSawitPage() {
                   ) : null}
                 </div>
               </div>
-              <div className="col-span-1 w-full lg:w-[260px] flex items-center gap-2">
+              <div className="col-span-1 w-full lg:flex-none lg:w-[260px] flex items-center gap-2">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -2072,7 +2072,7 @@ export default function NotaSawitPage() {
               <select
                 value={selectedKebun}
                 onChange={(e) => setSelectedKebun(e.target.value)}
-                className="w-full lg:w-[220px] input-style rounded-lg"
+                className="w-full lg:flex-none lg:w-[220px] input-style rounded-lg"
               >
                 <option value="">Semua Kebun</option>
                 {kebunList.map((kebun) => (
@@ -2084,7 +2084,7 @@ export default function NotaSawitPage() {
               <select
                 value={selectedPabrik}
                 onChange={(e) => setSelectedPabrik(e.target.value)}
-                className="w-full lg:w-[220px] input-style rounded-lg"
+                className="w-full lg:flex-none lg:w-[220px] input-style rounded-lg"
               >
                 <option value="">Semua Pabrik</option>
                 {pabrikList.map((pabrik) => (
@@ -2096,13 +2096,13 @@ export default function NotaSawitPage() {
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="col-span-1 w-full lg:w-[180px] input-style rounded-lg"
+                className="col-span-1 w-full lg:flex-none lg:w-[180px] input-style rounded-lg"
               >
                 <option value="">Semua Status</option>
                 <option value="LUNAS">Lunas</option>
                 <option value="BELUM_LUNAS">Belum Lunas</option>
               </select>
-              <div className="col-span-2 w-full lg:w-auto lg:flex-none flex items-center gap-2 justify-between lg:justify-start">
+              <div className="col-span-2 w-full lg:w-auto lg:flex-none lg:ml-auto flex items-center gap-2 justify-between lg:justify-end">
                 {role !== 'SUPIR' ? (
                   <Button
                     onClick={() => { setSelectedNota(null); setIsModalOpen(true); }}
