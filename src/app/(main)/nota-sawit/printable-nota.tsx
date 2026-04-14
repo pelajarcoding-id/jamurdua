@@ -91,7 +91,7 @@ export const PrintableNota = React.forwardRef<HTMLDivElement, PrintableNotaProps
           
           <div className="mt-2 pt-2 border-t border-gray-300">
              <div className="flex justify-end items-center gap-4">
-               <span className="text-sm">PPh (0.25%)</span>
+               <span className="text-sm">PPh</span>
                <span className="font-bold text-red-600">{formatCurrency(nota.pph || 0)}</span>
              </div>
              <div className="flex justify-end items-center gap-4 mt-1">

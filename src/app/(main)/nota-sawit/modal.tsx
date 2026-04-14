@@ -168,6 +168,8 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   const [totalPembayaran, setTotalPembayaran] = useState(0);
   const [pph, setPph] = useState(0);
   const [pembayaranSetelahPph, setPembayaranSetelahPph] = useState(0);
+  const [pphRate, setPphRate] = useState(0.0025)
+  const [perusahaanList, setPerusahaanList] = useState<any[]>([])
 
   const [supirQuery, setSupirQuery] = useState('');
   const [kendaraanQuery, setKendaraanQuery] = useState('');
@@ -216,7 +218,9 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             const totalBayar = Math.round(nota.totalPembayaran || 0);
             setTotalPembayaran(totalBayar);
             
-            const existingPph = Math.round((nota.pph || totalBayar * 0.0025) as number);
+            const appliedRate = Number((nota as any)?.pphRateApplied ?? 0.0025)
+            setPphRate(Number.isFinite(appliedRate) ? appliedRate : 0.0025)
+            const existingPph = Math.round((nota.pph || totalBayar * (Number.isFinite(appliedRate) ? appliedRate : 0.0025)) as number);
             setPph(existingPph);
             const calculatedNet = Math.round((nota.pembayaranSetelahPph || (totalBayar - existingPph - Math.round(nota.pph25 || 0))) as number);
             setPembayaranSetelahPph(calculatedNet);
@@ -245,10 +249,48 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             setTotalPembayaran(0);
             setPph(0);
             setPembayaranSetelahPph(0);
+            setPphRate(0.0025)
         }
         setErrors({});
     }
   }, [isOpen, nota]);
+
+  useEffect(() => {
+    if (!isOpen) return
+    const pabrikId = Number((formData as any)?.pabrikSawitId)
+    const tanggal = String((formData as any)?.tanggalBongkar || '').trim()
+    if (!Number.isFinite(pabrikId) || pabrikId <= 0 || !tanggal) {
+      setPphRate(0.0025)
+      return
+    }
+
+    const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+    const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
+    if (options.length === 1) {
+      const onlyId = Number(options[0]?.id || 0)
+      if (onlyId > 0 && Number((formData as any).perusahaanId || 0) !== onlyId) {
+        setFormData((prev: any) => ({ ...prev, perusahaanId: onlyId }))
+      }
+    } else if (options.length === 0) {
+      if ((formData as any).perusahaanId) setFormData((prev: any) => ({ ...prev, perusahaanId: undefined }))
+    }
+
+    const ac = new AbortController()
+    ;(async () => {
+      try {
+        const sp = new URLSearchParams({ pabrikId: String(pabrikId), tanggal })
+        const perusahaanId = Number((formData as any)?.perusahaanId || 0)
+        if (Number.isFinite(perusahaanId) && perusahaanId > 0) sp.set('perusahaanId', String(perusahaanId))
+        const res = await fetch(`/api/pabrik-sawit/pph-rate?${sp.toString()}`, { cache: 'no-store', signal: ac.signal })
+        const json = await res.json().catch(() => ({} as any))
+        if (!res.ok) return
+        const rate = Number((json as any)?.data?.pphRate)
+        if (Number.isFinite(rate) && rate >= 0 && rate <= 1) setPphRate(rate)
+      } catch {}
+    })()
+
+    return () => ac.abort()
+  }, [formData.pabrikSawitId, formData.perusahaanId, formData.tanggalBongkar, isOpen, pabrikSawitList])
 
   useEffect(() => {
     if (!isOpen) return
@@ -270,12 +312,13 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             timbanganUrl += `?includeId=${nota.timbanganId}`;
         }
 
-        const [kendaraanRes, supirRes, pabrikRes, timbanganRes, kebunRes] = await Promise.all([
+        const [kendaraanRes, supirRes, pabrikRes, timbanganRes, kebunRes, perusahaanRes] = await Promise.all([
             fetch('/api/kendaraan?limit=1000'),
             fetch('/api/supir/list'),
             fetch('/api/pabrik-sawit?limit=1000'),
             fetch(timbanganUrl), 
-            fetch('/api/kebun/list')
+            fetch('/api/kebun/list'),
+            fetch('/api/perusahaan?limit=1000'),
         ]);
         
         setKendaraanList((await kendaraanRes.json()).data || []);
@@ -291,6 +334,9 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
         
         const kebunData = await kebunRes.json();
         setKebunList(kebunData.data || kebunData);
+
+        const perusahaanData = await perusahaanRes.json();
+        setPerusahaanList(perusahaanData.data || []);
 
       } catch (error) {
         console.error("Error fetching form data", error);
@@ -475,8 +521,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     const totalBayar = Math.round(beratAkhir * harga);
     setTotalPembayaran(totalBayar);
     
-    // Calculate PPh (0.25%)
-    const calculatedPph = Math.round(totalBayar * 0.0025);
+    const calculatedPph = Math.round(totalBayar * (Number.isFinite(pphRate) ? pphRate : 0.0025));
     setPph(calculatedPph);
     const netPay = Math.round(totalBayar - calculatedPph - Math.round(formData.pph25 || 0));
     setPembayaranSetelahPph(netPay);
@@ -485,6 +530,8 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     formData.netto, // Depend on netto
     formData.potongan, formData.hargaPerKg,
     formData.pph25,
+    formData.pabrikSawitId,
+    pphRate,
     nota
   ]);
 
@@ -575,6 +622,12 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     if (!formData.supirId) newErrors.supirId = 'Supir harus dipilih.';
     if (!formData.kendaraanPlatNomor) newErrors.kendaraanPlatNomor = 'Kendaraan harus dipilih.';
     if (!formData.pabrikSawitId) newErrors.pabrikSawitId = 'Pabrik sawit harus dipilih.';
+    if (formData.pabrikSawitId) {
+      const pabrikId = Number(formData.pabrikSawitId)
+      const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+      const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
+      if (options.length > 1 && !Number((formData as any).perusahaanId || 0)) newErrors.perusahaanId = 'Perusahaan harus dipilih.'
+    }
     if (!formData.timbanganId && !formData.kebunId) newErrors.kebunId = 'Kebun harus dipilih jika tidak memilih timbangan.';
     // Catatan: timbangan dan harga/kg tidak lagi wajib diisi sesuai permintaan
 
@@ -619,6 +672,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     finalData.pph = pph;
     finalData.pembayaranSetelahPph = pembayaranSetelahPph;
     finalData.pph25 = formData.pph25 || 0;
+    finalData.perusahaanId = (formData as any).perusahaanId || undefined;
     
     // Determine isManual based on timbanganId
     const isManual = !formData.timbanganId && !useTimbanganKebunInput;
@@ -849,7 +903,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                 </div>
                 <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                        <Label>PPh 25 (0.25%)</Label>
+                        <Label>PPh</Label>
                         <Input 
                             value={formatNumber(pph)}
                             readOnly
@@ -1079,6 +1133,49 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                               <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.pabrikSawitId}</p>
                             )}
                         </div>
+
+                        {(() => {
+                          const pabrikId = Number((formData as any).pabrikSawitId || 0)
+                          if (!Number.isFinite(pabrikId) || pabrikId <= 0) return null
+                          const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+                          const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
+                          if (options.length === 0) return null
+                          if (options.length === 1) {
+                            const only = options[0]
+                            return (
+                              <div>
+                                <Label>Perusahaan Penjual</Label>
+                                <Input
+                                  value={String(only?.name || '-')}
+                                  readOnly
+                                  className="bg-gray-100 text-gray-600 cursor-not-allowed rounded-xl border-gray-200 mt-1"
+                                />
+                                <input type="hidden" name="perusahaanId" value={String(only?.id || '')} />
+                              </div>
+                            )
+                          }
+                          return (
+                            <div>
+                              <Label>Perusahaan Penjual</Label>
+                              <select
+                                name="perusahaanId"
+                                value={String((formData as any).perusahaanId || '')}
+                                onChange={(e) => setFormData((prev: any) => ({ ...prev, perusahaanId: Number(e.target.value) || undefined }))}
+                                className={`w-full input-style rounded-xl border-gray-200 mt-1 ${errors.perusahaanId ? 'border-red-500 ring-2 ring-red-500/10' : ''}`}
+                              >
+                                <option value="">-- Pilih Perusahaan --</option>
+                                {options.map((opt: any) => (
+                                  <option key={String(opt.id)} value={String(opt.id)}>
+                                    {String(opt.name || opt.id)}
+                                  </option>
+                                ))}
+                              </select>
+                              {errors.perusahaanId && (
+                                <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.perusahaanId}</p>
+                              )}
+                            </div>
+                          )
+                        })()}
 
                         <div>
                             <Label>Keterangan</Label>

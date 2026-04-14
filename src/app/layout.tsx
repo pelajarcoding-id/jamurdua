@@ -7,9 +7,11 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Sarakan App',
-  description: 'Aplikasi Manajemen Operasional Sarakan',
+  description: 'Aplikasi Manajemen Operasional Perusahaan',
   manifest: '/manifest.json',
   icons: {
+    icon: '/icons/icon-192x192.png',
+    shortcut: '/icons/icon-192x192.png',
     apple: '/icons/icon-192x192.png',
   },
 }

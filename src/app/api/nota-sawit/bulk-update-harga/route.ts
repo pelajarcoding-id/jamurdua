@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/route-auth'
 import { createAuditLog } from '@/lib/audit'
+import { Prisma } from '@prisma/client'
+import { getNotaSawitPphRate } from '@/lib/nota-sawit-pph'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,8 @@ export async function POST(request: Request) {
       },
     })
 
+    const rateCache = new Map<string, number>()
+
     let updated = 0
     let updatedKas = 0
 
@@ -51,7 +55,15 @@ export async function POST(request: Request) {
       const potongan = roundInt(nota.potongan || 0)
       const beratAkhir = Math.max(0, net - potongan)
       const totalPembayaran = roundInt(beratAkhir * hargaPerKg)
-      const pph = roundInt(totalPembayaran * 0.0025)
+      const perusahaanId = Number((nota as any)?.pabrikSawit?.perusahaanId)
+      const tgl = (nota as any).tanggalBongkar ? new Date((nota as any).tanggalBongkar) : null
+      const cacheKey = `${perusahaanId}:${tgl ? tgl.toISOString().slice(0, 10) : 'null'}`
+      const rate = rateCache.has(cacheKey)
+        ? (rateCache.get(cacheKey) as number)
+        : await getNotaSawitPphRate({ perusahaanId, tanggal: tgl })
+      rateCache.set(cacheKey, rate)
+      const pphRateApplied = Number.isFinite(rate) ? rate : 0.0025
+      const pph = roundInt(totalPembayaran * pphRateApplied)
       const pph25 = roundInt((nota as any).pph25 || 0)
       const pembayaranSetelahPph = roundInt(totalPembayaran - pph - pph25)
 
@@ -63,8 +75,9 @@ export async function POST(request: Request) {
           totalPembayaran,
           pph,
           pembayaranSetelahPph,
+          pphRateApplied,
           pembayaranAktual: null,
-        },
+        } as any,
         include: { pabrikSawit: true, supir: true, timbangan: true },
       })
       updated += 1

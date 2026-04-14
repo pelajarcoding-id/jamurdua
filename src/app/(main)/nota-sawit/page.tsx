@@ -552,6 +552,7 @@ export default function NotaSawitPage() {
         kendaraanPlatNomor: formDataRaw.kendaraanPlatNomor || '',
         supirId: Number(formDataRaw.supirId),
         pabrikSawitId: Number(formDataRaw.pabrikSawitId),
+        perusahaanId: formDataRaw.perusahaanId ? Number(formDataRaw.perusahaanId) : undefined,
         potongan: Number(formDataRaw.potongan),
         hargaPerKg: Number(formDataRaw.hargaPerKg || 0),
         statusPembayaran: formDataRaw.statusPembayaran || 'BELUM_LUNAS',
@@ -750,7 +751,8 @@ export default function NotaSawitPage() {
       if (!selectedIds.includes(item.id)) return item
       const beratAkhir = Math.max(0, Number(item.beratAkhir || 0))
       const totalPembayaran = Math.round(beratAkhir * harga)
-      const pph = Math.round(totalPembayaran * 0.0025)
+      const rate = Number((pabrikList.find((p: any) => Number(p?.id) === Number((item as any)?.pabrikSawitId)) as any)?.pphRate ?? 0.0025)
+      const pph = Math.round(totalPembayaran * (Number.isFinite(rate) ? rate : 0.0025))
       const pph25 = Math.round(Number((item as any).pph25 || 0))
       const pembayaranSetelahPph = Math.round(totalPembayaran - pph - pph25)
       return { ...item, hargaPerKg: harga, totalPembayaran, pph, pembayaranSetelahPph }
@@ -779,7 +781,7 @@ export default function NotaSawitPage() {
     } finally {
       setBulkHargaSubmitting(false)
     }
-  }, [bulkHargaValue, data, refreshData, rowSelection])
+  }, [bulkHargaValue, data, pabrikList, refreshData, rowSelection])
 
   const handleOpenBulkReconcileFromSelection = useCallback(() => {
     if (selectedNotasForBulk.length === 0) {
@@ -1535,7 +1537,7 @@ export default function NotaSawitPage() {
         const financeRows: { label: string; value: string; isBold?: boolean; color?: string }[] = [
           { label: 'Harga / Kg', value: formatCurrency(nota.hargaPerKg) },
           { label: 'Total', value: formatCurrency(nota.totalPembayaran) },
-          { label: 'Potongan PPh (0.25%)', value: `- ${formatCurrency(nota.pph)}` },
+          { label: 'Potongan PPh', value: `- ${formatCurrency(nota.pph)}` },
           { label: 'Total Pembayaran (Net)', value: formatCurrency(nota.pembayaranSetelahPph), isBold: true },
         ];
         const financeHeaderH = 6;
@@ -1929,19 +1931,14 @@ export default function NotaSawitPage() {
                   </div>
                   <div className="mt-1 space-y-1">
                     {Array.isArray(summary.tonaseByKebun) && summary.tonaseByKebun.length > 0 ? (
-                      <>
-                        {summary.tonaseByKebun.slice(0, 2).map((r) => (
+                      <div className="max-h-24 overflow-y-auto pr-1 space-y-1">
+                        {summary.tonaseByKebun.map((r) => (
                           <div key={String(r.kebunId)} className="flex items-center justify-between gap-2 text-[11px] text-gray-600">
                             <div className="min-w-0 truncate">{r.name}</div>
                             <div className="font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatNumber(Number(r.totalBerat || 0))} Kg</div>
                           </div>
                         ))}
-                        {summary.tonaseByKebun.length > 2 ? (
-                          <div className="text-[11px] text-gray-500 whitespace-nowrap">
-                            +{formatNumber(summary.tonaseByKebun.length - 2)} kebun lainnya
-                          </div>
-                        ) : null}
-                      </>
+                      </div>
                     ) : (
                       <div className="text-[11px] text-gray-600 whitespace-nowrap">Berat akhir nota</div>
                     )}
@@ -1990,8 +1987,8 @@ export default function NotaSawitPage() {
             </div>
           ) : null}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-            <div className="grid grid-cols-2 lg:flex lg:flex-row lg:flex-nowrap items-start lg:items-center gap-4 flex-1 w-full lg:w-auto">
-              <div className="col-span-2 w-full lg:w-auto lg:flex-1">
+            <div className="grid grid-cols-2 gap-4 w-full lg:flex lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
+              <div className="col-span-2 w-full lg:flex-[2] lg:min-w-[420px]">
                 <div className="relative">
                   <Input
                       type="text"
@@ -2005,7 +2002,7 @@ export default function NotaSawitPage() {
                   ) : null}
                 </div>
               </div>
-              <div className="col-span-1 w-full lg:w-auto lg:flex-1 flex items-center gap-2">
+              <div className="col-span-1 w-full lg:w-[260px] flex items-center gap-2">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -2075,7 +2072,7 @@ export default function NotaSawitPage() {
               <select
                 value={selectedKebun}
                 onChange={(e) => setSelectedKebun(e.target.value)}
-                className="w-full lg:w-auto lg:flex-1 input-style rounded-lg"
+                className="w-full lg:w-[220px] input-style rounded-lg"
               >
                 <option value="">Semua Kebun</option>
                 {kebunList.map((kebun) => (
@@ -2087,7 +2084,7 @@ export default function NotaSawitPage() {
               <select
                 value={selectedPabrik}
                 onChange={(e) => setSelectedPabrik(e.target.value)}
-                className="w-full lg:w-auto lg:flex-1 input-style rounded-lg"
+                className="w-full lg:w-[220px] input-style rounded-lg"
               >
                 <option value="">Semua Pabrik</option>
                 {pabrikList.map((pabrik) => (
@@ -2099,13 +2096,13 @@ export default function NotaSawitPage() {
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="col-span-1 w-full lg:w-auto lg:flex-1 input-style rounded-lg"
+                className="col-span-1 w-full lg:w-[180px] input-style rounded-lg"
               >
                 <option value="">Semua Status</option>
                 <option value="LUNAS">Lunas</option>
                 <option value="BELUM_LUNAS">Belum Lunas</option>
               </select>
-              <div className="col-span-2 w-full lg:w-auto lg:flex-1 flex items-center gap-2 justify-between lg:justify-end">
+              <div className="col-span-2 w-full lg:w-auto lg:flex-none flex items-center gap-2 justify-between lg:justify-start">
                 {role !== 'SUPIR' ? (
                   <Button
                     onClick={() => { setSelectedNota(null); setIsModalOpen(true); }}

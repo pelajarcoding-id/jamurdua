@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib';
+import { getNotaSawitPphRate } from '@/lib/nota-sawit-pph';
 
 export const dynamic = 'force-dynamic'
 
@@ -428,9 +429,50 @@ export async function POST(request: Request) {
 
     if (!tanggalBongkar) tanggalBongkar = new Date();
 
-    // Get Perusahaan from Pabrik
-    const pabrik = await prisma.pabrikSawit.findUnique({ where: { id: pabrikSawitId } });
-    const perusahaanId = (pabrik as any)?.perusahaanId || null;
+    const requestedPerusahaanId = body?.perusahaanId ? Number(body.perusahaanId) : null
+    const requestedId = Number.isFinite(requestedPerusahaanId) && (requestedPerusahaanId as number) > 0 ? (requestedPerusahaanId as number) : null
+
+    const hasLinkTable = async () => {
+      const rows = await prisma.$queryRaw<any[]>(
+        Prisma.sql`SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = 'PabrikSawitPerusahaan'
+        ) AS "exists"`,
+      )
+      return Boolean(rows?.[0]?.exists)
+    }
+
+    const linkExists = await hasLinkTable().catch(() => false)
+    const linkedIds = linkExists
+      ? await prisma.$queryRaw<any[]>(
+          Prisma.sql`SELECT "perusahaanId"::int as id, "isDefault"::boolean as "isDefault" FROM "PabrikSawitPerusahaan" WHERE "pabrikSawitId" = ${pabrikSawitId}`,
+        )
+      : []
+    const allowed = new Set<number>((linkedIds || []).map((r) => Number(r?.id)).filter((n) => Number.isFinite(n) && n > 0))
+    if (requestedId && allowed.size > 0 && !allowed.has(requestedId)) {
+      return NextResponse.json({ error: 'Perusahaan tidak terikat dengan pabrik sawit' }, { status: 400 })
+    }
+
+    const pabrik = await prisma.pabrikSawit.findUnique({ where: { id: pabrikSawitId }, select: { perusahaanId: true } as any })
+    const defaultPabrikId = (pabrik as any)?.perusahaanId ? Number((pabrik as any).perusahaanId) : null
+    const defaultFromLink = (linkedIds || []).find((r) => Boolean(r?.isDefault))
+    const defaultLinkId = defaultFromLink ? Number(defaultFromLink.id) : null
+    const resolvedPerusahaanId =
+      requestedId ||
+      (defaultPabrikId && Number.isFinite(defaultPabrikId) && defaultPabrikId > 0 ? defaultPabrikId : null) ||
+      (defaultLinkId && Number.isFinite(defaultLinkId) && defaultLinkId > 0 ? defaultLinkId : null) ||
+      (allowed.size === 1 ? Array.from(allowed)[0] : null)
+    if (!resolvedPerusahaanId && allowed.size > 1) {
+      return NextResponse.json({ error: 'Perusahaan wajib dipilih untuk pabrik ini' }, { status: 400 })
+    }
+
+    const perusahaanId = resolvedPerusahaanId
+    const pphRateApplied = perusahaanId ? await getNotaSawitPphRate({ perusahaanId: Number(perusahaanId), tanggal: tanggalBongkar }) : 0.0025
+
+    const computedPph = roundInt(totalPembayaran * pphRateApplied)
+    const computedPembayaranSetelahPph = roundInt(totalPembayaran - computedPph - pph25)
 
     const createData: any = { 
         timbanganId, 
@@ -445,9 +487,10 @@ export async function POST(request: Request) {
         kendaraanPlatNomor, 
         hargaPerKg, 
         totalPembayaran, 
-        pph,
+        pph: computedPph,
         pph25,
-        pembayaranSetelahPph,
+        pembayaranSetelahPph: computedPembayaranSetelahPph,
+        pphRateApplied,
         pembayaranAktual,
         statusPembayaran: statusPembayaran || 'BELUM_LUNAS',
         gambarNotaUrl,

@@ -129,18 +129,21 @@ export const createPabrikSawitColumns = (
   },
   {
     id: 'pph',
-    header: 'PPh 0.25%',
+    header: 'PPh',
     cell: ({ row }) => {
       const stats = row.original.stats;
       if (!stats || stats.totalNilai === 0) return '-';
-      const pph = stats.totalNilai * 0.0025;
+      const rate = Number((row.original as any).pphRate ?? 0.0025)
+      const pph = stats.totalNilai * (Number.isFinite(rate) ? rate : 0.0025);
       return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(pph);
     },
     footer: ({ table }) => {
-      const totalNilai = table.getFilteredRowModel().rows.reduce((acc, row) => {
-        return acc + (row.original.stats?.totalNilai || 0);
+      const totalPPh = table.getFilteredRowModel().rows.reduce((acc, row) => {
+        const totalNilai = row.original.stats?.totalNilai || 0
+        const rate = Number((row.original as any).pphRate ?? 0.0025)
+        const pph = totalNilai * (Number.isFinite(rate) ? rate : 0.0025)
+        return acc + pph
       }, 0);
-      const totalPPh = totalNilai * 0.0025;
       return totalPPh > 0 ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalPPh) : '-';
     },
   },

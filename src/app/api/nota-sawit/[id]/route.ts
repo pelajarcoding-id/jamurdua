@@ -5,6 +5,8 @@ import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { parseWibYmd, wibStartUtc } from '@/lib/wib';
+import { Prisma } from '@prisma/client';
+import { getNotaSawitPphRate } from '@/lib/nota-sawit-pph';
 
 export const dynamic = 'force-dynamic'
 
@@ -350,10 +352,53 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         dataToUpdate.totalPembayaran = roundInt(beratAkhir * (existingNota.hargaPerKg || 0));
     }
 
-    // Calculate PPH
+    const effectivePabrikSawitId = pabrikSawitId ? Number(pabrikSawitId) : Number((existingNota as any).pabrikSawitId)
+    const effectiveTanggalBongkar = dataToUpdate.tanggalBongkar ? new Date(dataToUpdate.tanggalBongkar as any) : (existingNota as any).tanggalBongkar ? new Date((existingNota as any).tanggalBongkar) : new Date()
+    const requestedPerusahaanId = body?.perusahaanId ? Number(body.perusahaanId) : null
+    const requestedId = Number.isFinite(requestedPerusahaanId) && (requestedPerusahaanId as number) > 0 ? (requestedPerusahaanId as number) : null
+
+    const hasLinkTable = async () => {
+      const rows = await prisma.$queryRaw<any[]>(
+        Prisma.sql`SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = 'PabrikSawitPerusahaan'
+        ) AS "exists"`,
+      )
+      return Boolean(rows?.[0]?.exists)
+    }
+    const linkExists = await hasLinkTable().catch(() => false)
+    const linkedIds = linkExists
+      ? await prisma.$queryRaw<any[]>(
+          Prisma.sql`SELECT "perusahaanId"::int as id, "isDefault"::boolean as "isDefault" FROM "PabrikSawitPerusahaan" WHERE "pabrikSawitId" = ${effectivePabrikSawitId}`,
+        )
+      : []
+    const allowed = new Set<number>((linkedIds || []).map((r) => Number(r?.id)).filter((n) => Number.isFinite(n) && n > 0))
+    if (requestedId && allowed.size > 0 && !allowed.has(requestedId)) {
+      return NextResponse.json({ error: 'Perusahaan tidak terikat dengan pabrik sawit' }, { status: 400 })
+    }
+
+    const pabrik = await prisma.pabrikSawit.findUnique({ where: { id: effectivePabrikSawitId }, select: { perusahaanId: true } as any })
+    const defaultPabrikId = (pabrik as any)?.perusahaanId ? Number((pabrik as any).perusahaanId) : null
+    const defaultFromLink = (linkedIds || []).find((r) => Boolean(r?.isDefault))
+    const defaultLinkId = defaultFromLink ? Number(defaultFromLink.id) : null
+    const resolvedPerusahaanId =
+      requestedId ||
+      (defaultPabrikId && Number.isFinite(defaultPabrikId) && defaultPabrikId > 0 ? defaultPabrikId : null) ||
+      (defaultLinkId && Number.isFinite(defaultLinkId) && defaultLinkId > 0 ? defaultLinkId : null) ||
+      (allowed.size === 1 ? Array.from(allowed)[0] : null)
+    if (!resolvedPerusahaanId && allowed.size > 1) {
+      return NextResponse.json({ error: 'Perusahaan wajib dipilih untuk pabrik ini' }, { status: 400 })
+    }
+
+    dataToUpdate.perusahaanId = resolvedPerusahaanId
+    const pphRateApplied = resolvedPerusahaanId ? await getNotaSawitPphRate({ perusahaanId: resolvedPerusahaanId, tanggal: effectiveTanggalBongkar }) : 0.0025
+
     const newTotalPembayaran = dataToUpdate.totalPembayaran;
-    const newPph = roundInt(newTotalPembayaran * 0.0025);
+    const newPph = roundInt(newTotalPembayaran * pphRateApplied);
     dataToUpdate.pph = newPph;
+    dataToUpdate.pphRateApplied = pphRateApplied;
 
     if (pph25Value !== undefined && pph25Value !== null) {
         dataToUpdate.pph25 = roundInt(pph25Value);

@@ -27,6 +27,9 @@ model Perusahaan {
   financeSnapshots PerusahaanFinanceSnapshot[]
   ppnReports PerusahaanPpnReport[]
   ppnSetting PerusahaanPpnSetting?
+  notaSawitSetting PerusahaanNotaSawitSetting?
+  notaSawitPphRates PerusahaanNotaSawitPphRate[]
+  pabrikSawitLinks PabrikSawitPerusahaan[]
   assets     PerusahaanAsset[]
 }
 
@@ -166,6 +169,33 @@ model PerusahaanPpnSetting {
   updatedAt    DateTime   @updatedAt
 
   perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+}
+
+model PerusahaanNotaSawitSetting {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int        @unique
+  pphRate      Float      @default(0.0025)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@index([perusahaanId])
+}
+
+model PerusahaanNotaSawitPphRate {
+  id           Int        @id @default(autoincrement())
+  perusahaanId Int
+  effectiveFrom DateTime
+  pphRate      Float      @default(0.0025)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  perusahaan   Perusahaan @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@unique([perusahaanId, effectiveFrom])
+  @@index([perusahaanId])
+  @@index([perusahaanId, effectiveFrom])
 }
 
 model User {
@@ -523,6 +553,21 @@ model PabrikSawit {
   notasSawit   NotaSawit[]
   notaSawitPembayaranBatches NotaSawitPembayaranBatch[]
   perusahaan   Perusahaan?  @relation(fields: [perusahaanId], references: [id])
+  perusahaanLinks PabrikSawitPerusahaan[]
+}
+
+model PabrikSawitPerusahaan {
+  pabrikSawitId Int
+  perusahaanId  Int
+  isDefault     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  pabrikSawit   PabrikSawit @relation(fields: [pabrikSawitId], references: [id], onDelete: Cascade)
+  perusahaan    Perusahaan  @relation(fields: [perusahaanId], references: [id], onDelete: Cascade)
+
+  @@id([pabrikSawitId, perusahaanId])
+  @@index([perusahaanId])
 }
 
 model NotaSawit {
@@ -548,6 +593,7 @@ model NotaSawit {
   deletedById          Int?
   pembayaranSetelahPph Float            @default(0)
   pph                  Float            @default(0)
+  pphRateApplied       Float            @default(0.0025)
   pembayaranAktual     Float?
   pph25                Float            @default(0)
   bruto                Float            @default(0)

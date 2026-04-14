@@ -31,6 +31,9 @@ export default function TambahNotaSawitPage() {
   const [kebunList, setKebunList] = useState<Kebun[]>([]);
   const [kendaraanList, setKendaraanList] = useState<Kendaraan[]>([]);
   const [pabrikSawitList, setPabrikSawitList] = useState<PabrikSawit[]>([]);
+  const [selectedPabrikSawitId, setSelectedPabrikSawitId] = useState<string>('');
+  const [perusahaanList, setPerusahaanList] = useState<any[]>([])
+  const [selectedPerusahaanId, setSelectedPerusahaanId] = useState<string>('')
   
   const [selectedTimbangan, setSelectedTimbangan] = useState<TimbanganWithKebun | null>(null);
   const [potongan, setPotongan] = useState(0);
@@ -49,6 +52,7 @@ export default function TambahNotaSawitPage() {
 
   const [hargaPerKg, setHargaPerKg] = useState(0);
   const [pph25, setPph25] = useState(0);
+  const [notaPphRate, setNotaPphRate] = useState(0.0025)
   const [statusPembayaran] = useState('BELUM_LUNAS');
   const [gambarNota, setGambarNota] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -117,24 +121,27 @@ export default function TambahNotaSawitPage() {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const [timbanganRes, supirRes, kebunRes, kendaraanRes, pabrikRes] = await Promise.all([
+        const [timbanganRes, supirRes, kebunRes, kendaraanRes, pabrikRes, perusahaanRes] = await Promise.all([
           fetch('/api/timbangan/list'),
           fetch('/api/supir?limit=1000'),
           fetch('/api/kebun/list'),
           fetch('/api/kendaraan?limit=1000'),
           fetch('/api/pabrik-sawit?limit=1000'),
+          fetch('/api/perusahaan?limit=1000'),
         ]);
         const timbanganData = await timbanganRes.json();
         const supirData = await supirRes.json();
         const kebunData = await kebunRes.json();
         const kendaraanData = await kendaraanRes.json();
         const pabrikData = await pabrikRes.json();
+        const perusahaanData = await perusahaanRes.json();
 
         setTimbanganList(timbanganData.data || timbanganData);
         setSupirList(supirData.data || []);
         setKebunList(kebunData.data || kebunData);
         setKendaraanList(kendaraanData.data || []);
         setPabrikSawitList(pabrikData.data || []);
+        setPerusahaanList(perusahaanData.data || []);
       } catch (error) {
         console.error("Failed to fetch data", error);
         toast.error("Gagal memuat data form");
@@ -159,6 +166,8 @@ export default function TambahNotaSawitPage() {
         setHargaPerKg(Number(d.hargaPerKg ?? 0));
         setPph25(Number(d.pph25 ?? 0));
         setKeterangan(String(d.keterangan ?? ''));
+        setSelectedPabrikSawitId(String(d.pabrikSawitId ?? ''));
+        setSelectedPerusahaanId(String(d.perusahaanId ?? ''));
         if (d.tanggalBongkar) {
           const rawTgl = String(d.tanggalBongkar)
           if (/^\d{4}-\d{2}-\d{2}$/.test(rawTgl)) {
@@ -195,6 +204,8 @@ export default function TambahNotaSawitPage() {
       tanggalBongkar,
       keterangan,
       selectedTimbanganId: selectedTimbangan?.id ?? null,
+      pabrikSawitId: selectedPabrikSawitId || null,
+      perusahaanId: selectedPerusahaanId || null,
     };
     const id = setTimeout(() => {
       try { localStorage.setItem('notaSawitDraft', JSON.stringify(payload)); } catch {}
@@ -213,7 +224,8 @@ export default function TambahNotaSawitPage() {
     statusPembayaran,
     tanggalBongkar,
     keterangan,
-    selectedTimbangan
+    selectedTimbangan,
+    selectedPabrikSawitId
   ]);
   // --- Event Handlers ---
   const handleTimbanganChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -252,7 +264,39 @@ export default function TambahNotaSawitPage() {
     setTotalPembayaran(pembayaran > 0 ? pembayaran : 0);
   }, [beratTotal, hargaPerKg]);
 
-  const pph = totalPembayaran * 0.0025;
+  useEffect(() => {
+    const pabrikId = Number(selectedPabrikSawitId || '')
+    if (!Number.isFinite(pabrikId) || pabrikId <= 0 || !tanggalBongkar) {
+      setNotaPphRate(0.0025)
+      return
+    }
+
+    const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+    const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
+    if (options.length === 1) {
+      const onlyId = String(options[0]?.id || '')
+      if (onlyId && selectedPerusahaanId !== onlyId) setSelectedPerusahaanId(onlyId)
+    } else if (options.length === 0) {
+      if (selectedPerusahaanId) setSelectedPerusahaanId('')
+    }
+
+    const ac = new AbortController()
+    ;(async () => {
+      try {
+        const sp = new URLSearchParams({ pabrikId: String(pabrikId), tanggal: tanggalBongkar })
+        if (selectedPerusahaanId) sp.set('perusahaanId', selectedPerusahaanId)
+        const res = await fetch(`/api/pabrik-sawit/pph-rate?${sp.toString()}`, { cache: 'no-store', signal: ac.signal })
+        const json = await res.json().catch(() => ({} as any))
+        if (!res.ok) return
+        const rate = Number((json as any)?.data?.pphRate)
+        if (Number.isFinite(rate) && rate >= 0 && rate <= 1) setNotaPphRate(rate)
+      } catch {}
+    })()
+
+    return () => ac.abort()
+  }, [pabrikSawitList, selectedPabrikSawitId, selectedPerusahaanId, tanggalBongkar])
+
+  const pph = totalPembayaran * (Number.isFinite(notaPphRate) ? notaPphRate : 0.0025);
   const pembayaranSetelahPph = totalPembayaran - pph - pph25;
 
   const handleFileChangeForCrop = (file: File | null) => {
@@ -382,6 +426,12 @@ export default function TambahNotaSawitPage() {
     if (!formData.get('supirId')) newErrors.supirId = 'Supir harus dipilih.';
     if (!formData.get('kendaraanPlatNomor')) newErrors.kendaraanPlatNomor = 'Kendaraan harus dipilih.';
     if (!formData.get('pabrikSawitId')) newErrors.pabrikSawitId = 'Pabrik sawit harus dipilih.';
+    if (formData.get('pabrikSawitId')) {
+      const pabrikId = Number(formData.get('pabrikSawitId'))
+      const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+      const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
+      if (options.length > 1 && !formData.get('perusahaanId')) newErrors.perusahaanId = 'Perusahaan harus dipilih.';
+    }
     if (!tanggalBongkar) newErrors.tanggalBongkar = 'Tanggal bongkar harus diisi.';
 
     setErrors(newErrors);
@@ -404,6 +454,7 @@ export default function TambahNotaSawitPage() {
     const supirId = Number(formData.get('supirId'));
     const kendaraanPlatNomor = formData.get('kendaraanPlatNomor') as string;
     const pabrikSawitId = Number(formData.get('pabrikSawitId'));
+    const perusahaanId = formData.get('perusahaanId') ? Number(formData.get('perusahaanId')) : null;
 
     try {
       let finalGambarUrl = '';
@@ -442,6 +493,7 @@ export default function TambahNotaSawitPage() {
         supirId,
         kendaraanPlatNomor,
         pabrikSawitId,
+        perusahaanId: perusahaanId,
         potongan,
         hargaPerKg,
         pph25,
@@ -546,12 +598,57 @@ export default function TambahNotaSawitPage() {
               </div>
               <div>
                 <label htmlFor="pabrikSawitId" className="block text-sm font-medium text-gray-700 mb-2">Pilih Pabrik Sawit</label>
-                <select name="pabrikSawitId" id="pabrikSawitId" className={`input-style w-full ${errors.pabrikSawitId ? 'border-red-500 focus-visible:ring-red-500' : ''}`}>
+                <select
+                  name="pabrikSawitId"
+                  id="pabrikSawitId"
+                  value={selectedPabrikSawitId}
+                  onChange={(e) => setSelectedPabrikSawitId(e.target.value)}
+                  className={`input-style w-full ${errors.pabrikSawitId ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                >
                   <option value="">-- Pilih Pabrik Sawit --</option>
                   {pabrikSawitList.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
                 </select>
                 {errors.pabrikSawitId && <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.pabrikSawitId}</p>}
               </div>
+              {(() => {
+                const pabrikId = Number(selectedPabrikSawitId || '')
+                const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+                const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
+                if (!selectedPabrikSawitId) return null
+                if (options.length === 0) return null
+                if (options.length === 1) {
+                  const only = options[0]
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Perusahaan Penjual</label>
+                      <input
+                        value={String(only?.name || '-')}
+                        readOnly
+                        className="input-style w-full bg-gray-100 text-gray-600 cursor-not-allowed"
+                      />
+                      <input type="hidden" name="perusahaanId" value={String(only?.id || '')} />
+                    </div>
+                  )
+                }
+                return (
+                  <div>
+                    <label htmlFor="perusahaanId" className="block text-sm font-medium text-gray-700 mb-2">Perusahaan Penjual</label>
+                    <select
+                      id="perusahaanId"
+                      name="perusahaanId"
+                      value={selectedPerusahaanId}
+                      onChange={(e) => setSelectedPerusahaanId(e.target.value)}
+                      className={`input-style w-full ${errors.perusahaanId ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                    >
+                      <option value="">-- Pilih Perusahaan --</option>
+                      {options.map((opt: any) => (
+                        <option key={String(opt.id)} value={String(opt.id)}>{String(opt.name || opt.id)}</option>
+                      ))}
+                    </select>
+                    {errors.perusahaanId && <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.perusahaanId}</p>}
+                  </div>
+                )
+              })()}
               <div className="md:col-span-2">
                 <label htmlFor="keterangan" className="block text-sm font-medium text-gray-700 mb-2">Keterangan</label>
                 <Textarea
@@ -643,7 +740,7 @@ export default function TambahNotaSawitPage() {
                     <input type="text" name="pph25" id="pph25" value={formatNumber(pph25)} onChange={handleNumericChange} className="input-style w-full" placeholder="0" />
                   </div>
                    <div>
-                    <label className="block text-sm font-medium text-gray-500">PPh (0.25%)</label>
+                    <label className="block text-sm font-medium text-gray-500">PPh</label>
                     <p className="mt-1 text-xl font-semibold text-red-600">Rp {pph.toLocaleString('id-ID')}</p>
                   </div>
                   <div>

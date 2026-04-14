@@ -28,6 +28,12 @@ interface ModalDetailProps {
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 const formatDate = (date: Date) => new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 const formatWeight = (num: number) => `${num.toLocaleString('id-ID')} kg`;
+const formatPct = (rate: number | null | undefined) => {
+  const r = Number(rate)
+  if (!Number.isFinite(r)) return '-'
+  const pct = Math.round(r * 10000) / 100
+  return `${String(pct).replace('.', ',')}%`
+}
 
 function Row({ label, value, className, valueClassName }: { label: string; value: React.ReactNode; className?: string; valueClassName?: string }) {
   return (
@@ -56,6 +62,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
   const buildSummary = (n: NotaSawitData) => {
     const effectiveNetto = (n.netto && n.netto > 0) ? n.netto : (n.timbangan?.netKg || 0);
     const beratTotal = effectiveNetto - n.potongan;
+    const pphRateApplied = (n as any).pphRateApplied ?? 0.0025
     return [
       `Nota Sawit #${n.id}`,
       `Tanggal Bongkar: ${n.tanggalBongkar ? formatDate(n.tanggalBongkar) : '-'}`,
@@ -66,6 +73,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       `Potongan: ${n.potongan.toLocaleString('id-ID')} kg`,
       `Total Berat (Net): ${beratTotal.toLocaleString('id-ID')} kg`,
       `Status Pembayaran: ${n.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}`,
+      `Tarif PPh: ${formatPct(pphRateApplied)}`,
       `Total Diterima: ${formatCurrency(n.pembayaranSetelahPph)}`
     ].join('\n');
   };
@@ -348,10 +356,12 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
 
     // --- Financials (RIGHT COLUMN, BOXED) ---
     if (role !== 'SUPIR') {
+      const pphRateApplied = (nota as any).pphRateApplied ?? 0.0025
       const financeRows: { label: string; value: string; isBold?: boolean; color?: string }[] = [
         { label: 'Harga / Kg', value: formatCurrency(nota.hargaPerKg) },
         { label: 'Total', value: formatCurrency(nota.totalPembayaran) },
-        { label: 'Potongan PPh (0.25%)', value: `- ${formatCurrency(nota.pph)}` },
+        { label: 'Tarif PPh', value: formatPct(pphRateApplied) },
+        { label: 'Potongan PPh', value: `- ${formatCurrency(nota.pph)}` },
         { label: 'Total Pembayaran (Net)', value: formatCurrency(nota.pembayaranSetelahPph), isBold: true },
       ];
       const batch = (nota as any).pembayaranBatchItems?.[0]?.batch
@@ -361,6 +371,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       const batchBoxPadding = 3
       const batchHeaderH = 6
       const batchRowH = 8
+      const batchSpacingBefore = showBatch ? 10 : 0
       const batchRows: { label: string; value: string; isBold?: boolean }[] = [
         ...(hasBatchTanggal
           ? [
@@ -390,7 +401,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       const ketWidth = rightContentRight - rightContentMargin
       const ketLines = ketRaw ? doc.splitTextToSize(ketRaw, ketWidth) : []
       const ketBlockHeight = ketLines.length > 0 ? (8 + 6 + (ketLines.length * 5)) : 0
-      let financeBoxHeight = financeHeaderH + rowH + (showBatch ? (batchBoxHeight + batchSpacingAfter) : 0) + dividerH + totalH + (boxPadding * 2) + 8 + ketBlockHeight;
+      let financeBoxHeight = financeHeaderH + rowH + dividerH + totalH + (showBatch ? (batchSpacingBefore + batchBoxHeight + batchSpacingAfter) : 0) + (boxPadding * 2) + 8 + ketBlockHeight;
       doc.setFillColor('#F9FAFB');
       doc.setDrawColor('#E5E7EB');
       doc.roundedRect(rightColumnX, rightY, contentWidth, financeBoxHeight, 3, 3, 'DF');
@@ -410,8 +421,28 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
         doc.text(row.value, rightContentRight, fy, { align: 'right' });
         fy += 9;
       });
+      fy += 4;
+      doc.setDrawColor('#E5E7EB');
+      doc.line(rightContentMargin, fy, rightContentRight, fy);
+      fy += 8;
+      doc.setFontSize(10);
+      doc.setTextColor('#16A34A');
+      doc.setFont('helvetica', 'bold');
+      doc.text("TOTAL DITERIMA", rightContentRight, fy, { align: 'right' });
+      // Status Pembayaran di kiri, TOTAL DITERIMA di kanan pada baris yang sama
+      doc.setFontSize(10);
+      doc.setTextColor(nota.statusPembayaran === 'LUNAS' ? '#15803D' : '#A16207');
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Status Pembayaran: ${nota.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}`, rightContentMargin, fy);
+      fy += 8;
+      doc.setFontSize(16);
+      doc.setTextColor('#16A34A');
+      doc.setFont('helvetica', 'bold');
+      const finalAmount = nota.pembayaranSetelahPph;
+      doc.text(formatCurrency(finalAmount), rightContentRight, fy, { align: 'right' });
+
       if (showBatch) {
-        fy += 2;
+        fy += batchSpacingBefore
         const bx = rightContentMargin
         const bw = rightContentRight - rightContentMargin
         const by0 = fy
@@ -439,27 +470,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
           by += batchRowH
         })
         fy = by0 + batchBoxHeight + batchSpacingAfter
-      } else {
-        fy += 4;
       }
-      doc.setDrawColor('#E5E7EB');
-      doc.line(rightContentMargin, fy, rightContentRight, fy);
-      fy += 8;
-      doc.setFontSize(10);
-      doc.setTextColor('#16A34A');
-      doc.setFont('helvetica', 'bold');
-      doc.text("TOTAL DITERIMA", rightContentRight, fy, { align: 'right' });
-      // Status Pembayaran di kiri, TOTAL DITERIMA di kanan pada baris yang sama
-      doc.setFontSize(10);
-      doc.setTextColor(nota.statusPembayaran === 'LUNAS' ? '#15803D' : '#A16207');
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Status Pembayaran: ${nota.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}`, rightContentMargin, fy);
-      fy += 8;
-      doc.setFontSize(16);
-      doc.setTextColor('#16A34A');
-      doc.setFont('helvetica', 'bold');
-      const finalAmount = nota.pembayaranSetelahPph;
-      doc.text(formatCurrency(finalAmount), rightContentRight, fy, { align: 'right' });
 
       if (ketLines.length > 0) {
         fy += 10;
@@ -695,8 +706,13 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
             <div className="bg-gray-50 rounded-2xl p-5 mb-4 space-y-3 border border-gray-100 mt-6">
                 <Row label="Harga / Kg" value={formatCurrency(nota.hargaPerKg)} />
                 <Row label="Total" value={formatCurrency(nota.totalPembayaran)} />
+                <Row
+                    label="Tarif PPh"
+                    value={formatPct((nota as any).pphRateApplied ?? 0.0025)}
+                    valueClassName="text-gray-900"
+                />
                 <Row 
-                    label="Potongan PPh (0.25%)" 
+                    label="Potongan PPh"
                     value={`- ${formatCurrency(nota.pph)}`} 
                     valueClassName="text-gray-900"
                 />
@@ -705,6 +721,17 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
                     value={formatCurrency(nota.pembayaranSetelahPph)} 
                     valueClassName="text-gray-900 font-bold"
                 />
+                <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-between">
+                  <span className={`${nota.statusPembayaran === 'LUNAS' ? 'text-green-700' : 'text-yellow-700'} text-sm font-semibold`}>
+                    Status Pembayaran: {nota.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}
+                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Total Bayar Net</span>
+                    <span className="text-3xl font-bold text-green-600 tracking-tight">
+                      {formatCurrency(nota.pembayaranSetelahPph)}
+                    </span>
+                  </div>
+                </div>
                 {(() => {
                   const batch = (nota as any).pembayaranBatchItems?.[0]?.batch
                   if (!batch) return null
@@ -736,17 +763,6 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
                     </div>
                   )
                 })()}
-                <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-between">
-                  <span className={`${nota.statusPembayaran === 'LUNAS' ? 'text-green-700' : 'text-yellow-700'} text-sm font-semibold`}>
-                    Status Pembayaran: {nota.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}
-                  </span>
-                  <div className="flex flex-col items-end">
-                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Total Bayar Net</span>
-                    <span className="text-3xl font-bold text-green-600 tracking-tight">
-                      {formatCurrency(nota.pembayaranSetelahPph)}
-                    </span>
-                  </div>
-                </div>
                 {(nota as any).keterangan ? (
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Keterangan</div>

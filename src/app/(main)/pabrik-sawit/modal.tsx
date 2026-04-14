@@ -25,6 +25,8 @@ interface PabrikSawitModalProps {
 
 export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: PabrikSawitModalProps) {
   const [formData, setFormData] = useState({ name: '', address: '', perusahaanId: '' });
+  const [perusahaanIds, setPerusahaanIds] = useState<number[]>([]);
+  const [defaultPerusahaanId, setDefaultPerusahaanId] = useState<string>('');
   const [perusahaans, setPerusahaans] = useState<any[]>([]);
 
   useEffect(() => {
@@ -42,22 +44,35 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
 
   useEffect(() => {
     if (pabrik) {
+      const options = Array.isArray((pabrik as any).perusahaanOptions) ? (pabrik as any).perusahaanOptions : []
+      const ids = options.map((o: any) => Number(o?.id)).filter((n: number) => Number.isFinite(n) && n > 0)
+      const defaultOpt = options.find((o: any) => !!o?.isDefault) || null
+      const defaultId = defaultOpt?.id ? String(defaultOpt.id) : (pabrik as any).perusahaanId?.toString() || ''
       setFormData({ 
         name: pabrik.name, 
         address: pabrik.address || '',
         perusahaanId: (pabrik as any).perusahaanId?.toString() || ''
       });
+      setPerusahaanIds(ids);
+      setDefaultPerusahaanId(defaultId);
     } else {
       setFormData({ name: '', address: '', perusahaanId: '' });
+      setPerusahaanIds([]);
+      setDefaultPerusahaanId('');
     }
   }, [pabrik]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalIds = Array.from(new Set(perusahaanIds)).filter((n) => Number.isFinite(n) && n > 0)
+    const defaultIdNum = defaultPerusahaanId ? Number(defaultPerusahaanId) : null
+    const finalDefault = defaultIdNum && Number.isFinite(defaultIdNum) && defaultIdNum > 0 ? defaultIdNum : null
     onSave({ 
       ...formData, 
       id: pabrik?.id,
-      perusahaanId: (formData.perusahaanId && formData.perusahaanId !== 'none') ? parseInt(formData.perusahaanId) : null
+      perusahaanIds: finalIds,
+      defaultPerusahaanId: finalDefault,
+      perusahaanId: finalDefault
     });
   };
 
@@ -108,17 +123,45 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
               <Label htmlFor="perusahaanId">Perusahaan Penjual</Label>
               <select
                 id="perusahaanId"
-                value={formData.perusahaanId}
-                onChange={e => setFormData({ ...formData, perusahaanId: e.target.value })}
+                value={defaultPerusahaanId}
+                onChange={e => setDefaultPerusahaanId(e.target.value)}
                 className="w-full h-10 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               >
-                <option value="none">Tanpa Perusahaan</option>
-                {perusahaans.map((p) => (
-                  <option key={p.id} value={p.id.toString()}>
-                    {p.name}
-                  </option>
-                ))}
+                <option value="">-- Pilih Default --</option>
+                {perusahaans
+                  .filter((p) => perusahaanIds.includes(Number(p.id)))
+                  .map((p) => (
+                    <option key={p.id} value={p.id.toString()}>
+                      {p.name}
+                    </option>
+                  ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Perusahaan Terikat</Label>
+              <div className="grid grid-cols-1 gap-2 max-h-44 overflow-y-auto rounded-xl border border-gray-200 p-3">
+                {perusahaans.map((p) => {
+                  const id = Number(p.id)
+                  const checked = perusahaanIds.includes(id)
+                  return (
+                    <label key={p.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? Array.from(new Set([...perusahaanIds, id]))
+                            : perusahaanIds.filter((x) => x !== id)
+                          setPerusahaanIds(next)
+                          if (!next.includes(Number(defaultPerusahaanId || 0))) setDefaultPerusahaanId(next.length === 1 ? String(next[0]) : '')
+                        }}
+                      />
+                      <span className="text-gray-800">{p.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <div className="text-xs text-gray-500">Jika lebih dari 1 perusahaan terikat, nota sawit wajib memilih perusahaan.</div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">Alamat</Label>

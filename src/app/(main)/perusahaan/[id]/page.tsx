@@ -219,6 +219,11 @@ export default function PerusahaanDetailPage() {
   const [ppnSettingOpen, setPpnSettingOpen] = useState(false)
   const [ppnSettingLoading, setPpnSettingLoading] = useState(false)
   const [ppnRatePct, setPpnRatePct] = useState('11')
+  const [notaSawitSettingOpen, setNotaSawitSettingOpen] = useState(false)
+  const [notaSawitSettingLoading, setNotaSawitSettingLoading] = useState(false)
+  const [notaSawitPphRatePct, setNotaSawitPphRatePct] = useState('0.25')
+  const [notaSawitPphEffectiveFrom, setNotaSawitPphEffectiveFrom] = useState('')
+  const [notaSawitPphRates, setNotaSawitPphRates] = useState<any[]>([])
   const [taxSettingOpen, setTaxSettingOpen] = useState(false)
   const [taxSettingLoading, setTaxSettingLoading] = useState(false)
   const [taxScheme, setTaxScheme] = useState('AUTO')
@@ -1103,6 +1108,61 @@ export default function PerusahaanDetailPage() {
       setPpnSettingLoading(false)
     }
   }, [perusahaanId, ppnRatePct])
+
+  const openNotaSawitSettingModal = useCallback(async () => {
+    setNotaSawitSettingLoading(true)
+    try {
+      const res = await fetch(`/api/perusahaan/${perusahaanId}/nota-sawit/setting`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({} as any))
+      if (res.ok && (json as any).data) {
+        const rate = Number((json as any).data.pphRate ?? 0.0025)
+        setNotaSawitPphRatePct(String(Math.round(rate * 10000) / 100))
+        setNotaSawitPphRates(Array.isArray((json as any).data.rates) ? (json as any).data.rates : [])
+      } else {
+        setNotaSawitPphRatePct('0.25')
+        setNotaSawitPphRates([])
+      }
+      const today = new Date()
+      const y = today.getFullYear()
+      const m = String(today.getMonth() + 1).padStart(2, '0')
+      const d = String(today.getDate()).padStart(2, '0')
+      setNotaSawitPphEffectiveFrom(`${y}-${m}-${d}`)
+      setNotaSawitSettingOpen(true)
+    } catch {
+      setNotaSawitPphRatePct('0.25')
+      setNotaSawitPphRates([])
+      const today = new Date()
+      const y = today.getFullYear()
+      const m = String(today.getMonth() + 1).padStart(2, '0')
+      const d = String(today.getDate()).padStart(2, '0')
+      setNotaSawitPphEffectiveFrom(`${y}-${m}-${d}`)
+      setNotaSawitSettingOpen(true)
+    } finally {
+      setNotaSawitSettingLoading(false)
+    }
+  }, [perusahaanId])
+
+  const saveNotaSawitSetting = useCallback(async () => {
+    setNotaSawitSettingLoading(true)
+    const loadingToast = toast.loading('Menyimpan tarif PPh Nota Sawit...')
+    try {
+      const rate = Number(String(notaSawitPphRatePct).replace(',', '.')) / 100
+      const payload = { pphRate: Number.isFinite(rate) ? rate : 0.0025, effectiveFrom: notaSawitPphEffectiveFrom || undefined }
+      const res = await fetch(`/api/perusahaan/${perusahaanId}/nota-sawit/setting`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok || (json as any).error) throw new Error((json as any).error || 'Gagal menyimpan tarif PPh Nota Sawit')
+      toast.success('Tarif PPh Nota Sawit tersimpan', { id: loadingToast })
+      await openNotaSawitSettingModal()
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menyimpan tarif PPh Nota Sawit', { id: loadingToast })
+    } finally {
+      setNotaSawitSettingLoading(false)
+    }
+  }, [notaSawitPphEffectiveFrom, notaSawitPphRatePct, openNotaSawitSettingModal, perusahaanId])
 
   const exportLabaRugiPdf = useCallback(async (data: any) => {
     try {
@@ -2052,6 +2112,15 @@ export default function PerusahaanDetailPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button
+                variant="outline"
+                className="rounded-xl h-10 w-full sm:w-auto"
+                onClick={openNotaSawitSettingModal}
+                disabled={notaSawitSettingLoading}
+              >
+                <TagIcon className={`h-4 w-4 mr-2 ${notaSawitSettingLoading ? 'animate-spin' : ''}`} />
+                Tarif PPh Nota Sawit
+              </Button>
             </div>
             <div className="mt-3 space-y-3 sm:hidden">
               {notaLoading ? (
@@ -4014,6 +4083,74 @@ export default function PerusahaanDetailPage() {
             </Button>
             <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={savePpnSetting} disabled={ppnSettingLoading}>
               {ppnSettingLoading ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={notaSawitSettingOpen} onOpenChange={setNotaSawitSettingOpen}>
+        <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden [&>button.absolute]:hidden">
+          <ModalHeader
+            title="Pengaturan Tarif PPh Nota Sawit"
+            variant="emerald"
+            icon={<TagIcon className="h-5 w-5 text-white" />}
+            onClose={() => setNotaSawitSettingOpen(false)}
+          />
+          <ModalContentWrapper className="space-y-4">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Berlaku Mulai</Label>
+                  <Input
+                    type="date"
+                    className="h-10 rounded-xl"
+                    value={notaSawitPphEffectiveFrom}
+                    onChange={(e) => setNotaSawitPphEffectiveFrom(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tarif PPh Nota Sawit (%)</Label>
+                  <Input
+                    className="h-10 rounded-xl"
+                    value={notaSawitPphRatePct}
+                    onChange={(e) => setNotaSawitPphRatePct(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0.25"
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-gray-500">Masukkan angka persen. Misal 0.25 untuk 0,25% atau 0.5 untuk 0,5%.</div>
+            </div>
+
+            {notaSawitPphRates.length > 0 ? (
+              <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b text-xs font-black tracking-wider text-gray-700 uppercase">
+                  Riwayat Tarif
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {notaSawitPphRates.slice(0, 20).map((r: any, idx: number) => {
+                    const dt = r?.effectiveFrom ? new Date(r.effectiveFrom) : null
+                    const label = dt && !Number.isNaN(dt.getTime()) ? dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'
+                    const pct = Math.round(Number(r?.pphRate ?? 0) * 10000) / 100
+                    return (
+                      <div key={`${idx}-${String(r?.effectiveFrom)}`} className="px-4 py-3 flex items-center justify-between text-sm">
+                        <div className="text-gray-700">{label}</div>
+                        <div className="font-extrabold text-gray-900 tabular-nums">{String(pct).replace('.', ',')}%</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500">Belum ada riwayat tarif. Simpan tarif pertama untuk membuat riwayat.</div>
+            )}
+          </ModalContentWrapper>
+          <ModalFooter className="sm:justify-between">
+            <Button className="rounded-full" variant="outline" onClick={() => setNotaSawitSettingOpen(false)} disabled={notaSawitSettingLoading}>
+              Batal
+            </Button>
+            <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={saveNotaSawitSetting} disabled={notaSawitSettingLoading}>
+              {notaSawitSettingLoading ? 'Menyimpan...' : 'Simpan'}
             </Button>
           </ModalFooter>
         </DialogContent>
