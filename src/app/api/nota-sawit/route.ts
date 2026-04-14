@@ -471,8 +471,8 @@ export async function POST(request: Request) {
     const perusahaanId = resolvedPerusahaanId
     const pphRateApplied = perusahaanId ? await getNotaSawitPphRate({ perusahaanId: Number(perusahaanId), tanggal: tanggalBongkar }) : 0.0025
 
-    const computedPph = roundInt(totalPembayaran * pphRateApplied)
-    const computedPembayaranSetelahPph = roundInt(totalPembayaran - computedPph - pph25)
+    const computedPph = Math.round(totalPembayaran * pphRateApplied)
+    const computedPembayaranSetelahPph = Math.round(totalPembayaran - computedPph - pph25)
 
     const createData: any = { 
         timbanganId, 
@@ -658,7 +658,7 @@ export async function DELETE(request: Request) {
 
     if (linkedToGajian) {
       return NextResponse.json(
-        { error: 'Gagal menghapus: Beberapa Nota Sawit sudah masuk dalam perhitungan Gajian. Silakan hapus dari Gajian terlebih dahulu.' },
+        { error: 'nota sawit tidak bisa dihapus karena sudah ada di gajian' },
         { status: 409 }
       )
     }
@@ -686,7 +686,10 @@ export async function DELETE(request: Request) {
     ))
 
     return NextResponse.json({ message: `${updated.count} nota sawit deleted successfully` })
-  } catch (error) {
+  } catch (error: any) {
+    if (error.code === 'P2003') {
+      return NextResponse.json({ error: 'nota sawit tidak bisa dihapus karena sudah ada di gajian' }, { status: 409 });
+    }
     console.error('Error deleting nota sawit:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }

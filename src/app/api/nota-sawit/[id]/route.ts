@@ -156,13 +156,10 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
     return Response.json({ ok: true })
   } catch (error: any) {
+    if (error.code === 'LINKED_TO_GAJIAN' || error.code === 'P2003') {
+      return NextResponse.json({ error: 'nota sawit tidak bisa dihapus karena sudah ada di gajian' }, { status: 409 });
+    }
     console.error('Error deleting nota sawit:', error);
-    if (error.code === 'P2003') {
-      return new Response('Gagal menghapus: Nota Sawit ini sudah terikat dengan data Gajian dan tidak dapat dihapus.', { status: 409 });
-    }
-    if (error?.code === 'LINKED_TO_GAJIAN') {
-      return new Response('Gagal menghapus: Nota Sawit ini sudah terikat dengan data Gajian dan tidak dapat dihapus.', { status: 409 });
-    }
     return new Response('Internal Server Error', { status: 500 });
   }
 }
@@ -210,6 +207,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     if (!existingNota || existingNota.deletedAt) {
       return new Response('Nota Sawit not found', { status: 404 });
+    }
+
+    if (kebunId) {
+      dataToUpdate.kebun = { connect: { id: Number(kebunId) } };
     }
 
     if (useTimbanganKebun) {
@@ -396,7 +397,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const pphRateApplied = resolvedPerusahaanId ? await getNotaSawitPphRate({ perusahaanId: resolvedPerusahaanId, tanggal: effectiveTanggalBongkar }) : 0.0025
 
     const newTotalPembayaran = dataToUpdate.totalPembayaran;
-    const newPph = roundInt(newTotalPembayaran * pphRateApplied);
+    const newPph = Math.round(newTotalPembayaran * pphRateApplied);
     dataToUpdate.pph = newPph;
     dataToUpdate.pphRateApplied = pphRateApplied;
 
@@ -446,6 +447,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         pabrikSawit: true,
         supir: true,
         timbangan: true,
+        kebun: true,
       }
     });
 

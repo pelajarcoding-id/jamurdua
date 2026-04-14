@@ -693,14 +693,15 @@ export default function NotaSawitPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Gagal menghapus data');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Gagal menghapus data');
       }
 
       refreshData();
       toast.success('Nota berhasil dihapus', { id: toastId })
-    } catch (error) {
+    } catch (error: any) {
       setData(previousData);
-      toast.error('Gagal menghapus data, mengembalikan perubahan.', { id: toastId });
+      toast.error(error.message || 'Gagal menghapus data, mengembalikan perubahan.', { id: toastId });
       console.error(error);
     }
   }, [selectedNota, data, refreshData, handleCloseConfirm]);
@@ -724,14 +725,15 @@ export default function NotaSawitPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Gagal menghapus nota');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Gagal menghapus nota');
       }
 
       refreshData();
       toast.success('Nota terpilih berhasil dihapus', { id: toastId })
-    } catch (error) {
+    } catch (error: any) {
       setData(previousData);
-      toast.error('Gagal menghapus nota, mengembalikan perubahan.', { id: toastId });
+      toast.error(error.message || 'Gagal menghapus nota, mengembalikan perubahan.', { id: toastId });
       console.error(error);
     }
   }, [rowSelection, data, refreshData]);
