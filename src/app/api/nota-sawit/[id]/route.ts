@@ -393,7 +393,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: 'Perusahaan wajib dipilih untuk pabrik ini' }, { status: 400 })
     }
 
-    dataToUpdate.perusahaanId = resolvedPerusahaanId
+    if (resolvedPerusahaanId) {
+      dataToUpdate.perusahaan = { connect: { id: resolvedPerusahaanId } }
+    } else {
+      dataToUpdate.perusahaan = { disconnect: true }
+    }
     const pphRateApplied = resolvedPerusahaanId ? await getNotaSawitPphRate({ perusahaanId: resolvedPerusahaanId, tanggal: effectiveTanggalBongkar }) : 0.0025
 
     const newTotalPembayaran = dataToUpdate.totalPembayaran;

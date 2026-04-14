@@ -479,7 +479,7 @@ export async function POST(request: Request) {
         kebunId,
         supirId, 
         pabrikSawitId,
-        perusahaanId,
+        ...(perusahaanId ? { perusahaan: { connect: { id: perusahaanId } } } : {}),
         tanggalBongkar,
         keterangan: keteranganRaw || null,
         potongan, 
