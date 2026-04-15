@@ -417,7 +417,7 @@ const toTerbilang = (num: number) => {
       const textStartX = pageWidth / 2
       const textAlignCenter = 'center'
 
-      doc.setFontSize(18)
+      doc.setFontSize(20)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(30, 41, 59) // Slate 800
       doc.text(params.letterName || 'CV. SARAKAN JAYA', textStartX, 16, { align: textAlignCenter })
@@ -518,8 +518,8 @@ const toTerbilang = (num: number) => {
         styles: { fontSize: 10, cellPadding: 3, overflow: 'linebreak', halign: 'left' },
         headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'left' },
-          1: { cellWidth: 50, halign: 'left' },
+          0: { cellWidth: 12, halign: 'left' }, // Perlebar sedikit agar "No" tidak turun
+          1: { cellWidth: 48, halign: 'left' }, // Kurangi sedikit untuk kompensasi
           2: { cellWidth: 35, halign: 'left' },
           3: { cellWidth: 40, halign: 'left' },
           4: { cellWidth: 35, halign: 'left' },
