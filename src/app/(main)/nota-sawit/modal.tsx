@@ -679,8 +679,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     finalData.pph25 = formData.pph25 || 0;
     finalData.perusahaanId = (formData as any).perusahaanId || undefined;
     
-    // Determine isManual based on timbanganId
-    const isManual = !formData.timbanganId && !useTimbanganKebunInput;
+    const isManual = !formData.timbanganId && useTimbanganKebunInput;
     finalData.isManual = isManual;
     finalData.useTimbanganKebun = useTimbanganKebunInput;
     finalData.disconnectTimbangan = !!nota?.timbanganId && isManual && !formData.timbanganId
@@ -724,12 +723,12 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                 </div>
 
                 <div className="flex items-center justify-between gap-3 mb-3">
-                  <div className="text-xs text-gray-600">Gunakan Data Timbangan Tersimpan</div>
+                  <div className="text-xs text-gray-600">Input Timbangan Manual</div>
                   <Switch
-                    checked={!useTimbanganKebunInput}
+                    checked={useTimbanganKebunInput}
                     onCheckedChange={(checked) => {
-                      setUseTimbanganKebunInput(!checked)
-                      if (!checked && !nota) {
+                      setUseTimbanganKebunInput(checked)
+                      if (checked) {
                         setSelectedTimbangan(null)
                         setFormData(prev => ({
                           ...prev,
@@ -768,6 +767,9 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                     {errors.timbanganId && (
                       <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{errors.timbanganId}</p>
                     )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Matikan “Input Timbangan Manual” untuk memilih dari data timbangan yang sudah tersimpan.
+                    </p>
                 </div>
 
                 {formData.timbanganId || useTimbanganKebunInput ? (

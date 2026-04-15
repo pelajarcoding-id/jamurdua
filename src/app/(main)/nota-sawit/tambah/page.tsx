@@ -557,12 +557,20 @@ export default function TambahNotaSawitPage() {
                 <input 
                     id="timbangan-source-toggle" 
                     type="checkbox" 
-                    checked={!isManualInput}
-                    onChange={(e) => setIsManualInput(!e.target.checked)}
+                    checked={isManualInput}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setIsManualInput(checked)
+                      if (checked) {
+                        setSelectedTimbangan(null)
+                        setTimbanganGross(0)
+                        setTimbanganTare(0)
+                      }
+                    }}
                     className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
                 <label htmlFor="timbangan-source-toggle" className="ml-2 block text-sm text-gray-900">
-                  Gunakan Data Timbangan Tersimpan
+                  Input Timbangan Manual
                 </label>
             </div>
 

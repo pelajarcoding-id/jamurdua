@@ -8,18 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import toast from 'react-hot-toast';
 import type { NotaSawit, Kebun, Kendaraan, Timbangan, User, Gajian } from '@prisma/client';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { Label } from '@/components/ui/label';
-import { useDebounce } from '@/hooks/useDebounce';
-import { AdjustmentsHorizontalIcon, BanknotesIcon, CalendarIcon, CheckIcon, CheckCircleIcon, ClipboardDocumentListIcon, ClockIcon, EllipsisHorizontalIcon, PrinterIcon, TrashIcon, ArrowRightIcon, ArrowDownTrayIcon, UserIcon, XMarkIcon, StarIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { AdjustmentsHorizontalIcon, BanknotesIcon, ClipboardDocumentListIcon, ClockIcon, EllipsisHorizontalIcon, PrinterIcon, TrashIcon, ArrowRightIcon, ArrowDownTrayIcon, UserIcon, StarIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,9 +23,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ConfirmationModal } from './modal';
-import { DetailGajianModal } from './detail-modal';
 import type { BiayaLainGajian, DetailGajian, PotonganGajian, DetailGajianKaryawan } from '@prisma/client';
+import { createWIBDate, formatWIBDateForInput, getCurrentWIBDateParts, parseWIBDateFromInput } from '@/lib/wib-date';
+import { useGajianModalsState } from './useGajianModalsState';
+import GajianPageModals from './GajianPageModals';
 
 
 interface GajianClientProps {
@@ -79,48 +75,7 @@ const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num)
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(date);
 
-const formatWIBDateForInput = (date: Date | undefined) => {
-  if (!date) return ''
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
-}
-
 const toYmdLocal = (d: Date) => formatWIBDateForInput(d)
-
-const createWIBDate = (year: number, month: number, day: number, isEnd: boolean = false) => {
-  const hour = isEnd ? 16 : -7
-  const minute = isEnd ? 59 : 0
-  const second = isEnd ? 59 : 0
-  const ms = isEnd ? 999 : 0
-  return new Date(Date.UTC(year, month, day, hour, minute, second, ms))
-}
-
-const parseWIBDateFromInput = (dateStr: string, isEnd: boolean = false) => {
-  if (!dateStr) return undefined
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return createWIBDate(year, month - 1, day, isEnd)
-}
-
-const getCurrentWIBDateParts = () => {
-  const now = new Date()
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-  })
-  const parts = formatter.formatToParts(now)
-  const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0')
-  return {
-    year: getPart('year'),
-    month: getPart('month') - 1,
-    day: getPart('day'),
-  }
-}
 
 const createHistoryColumns = (
   onDelete: (id: number) => void,
@@ -227,16 +182,48 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   // State for Gajian History
   const [gajianHistory, setGajianHistory] = useState(initialGajianHistory.finalized || []);
   const [draftsGajian, setDraftsGajian] = useState(initialGajianHistory.drafts || []);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [selectedGajianId, setSelectedGajianId] = useState<number | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedGajian, setSelectedGajian] = useState<GajianWithDetails | null>(null);
+  const {
+    isConfirmOpen,
+    setIsConfirmOpen,
+    selectedGajianId,
+    setSelectedGajianId,
+    isDetailOpen,
+    setIsDetailOpen,
+    selectedGajian,
+    setSelectedGajian,
+    isDraftConfirmOpen,
+    setIsDraftConfirmOpen,
+    selectedDraftId,
+    setSelectedDraftId,
+    isResetConfirmOpen,
+    setIsResetConfirmOpen,
+    isPreviewOpen,
+    setIsPreviewOpen,
+    previewGajian,
+    setPreviewGajian,
+    openPotongHutangMassal,
+    setOpenPotongHutangMassal,
+    massPotongMax,
+    setMassPotongMax,
+    massPotongAmount,
+    setMassPotongAmount,
+    openTambahHutang,
+    setOpenTambahHutang,
+    tambahHutangKaryawanId,
+    setTambahHutangKaryawanId,
+    tambahHutangJumlah,
+    setTambahHutangJumlah,
+    tambahHutangTanggal,
+    setTambahHutangTanggal,
+    tambahHutangDeskripsi,
+    setTambahHutangDeskripsi,
+    tambahHutangSubmitting,
+    setTambahHutangSubmitting,
+  } = useGajianModalsState()
   const [editingGajianId, setEditingGajianId] = useState<number | null>(null);
 
   // State for Draft Deletion
-  const [isDraftConfirmOpen, setIsDraftConfirmOpen] = useState(false);
-  const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+ 
 
   // State for Create New Gajian Form
   const [kebunId, setKebunId] = useState<string>('');
@@ -300,20 +287,11 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   const [boronganPekerjaanIds, setBoronganPekerjaanIds] = useState<number[]>([])
   const [boronganLoading, setBoronganLoading] = useState(false)
   const [refreshingData, setRefreshingData] = useState(false)
-  const [hutangRows, setHutangRows] = useState<Array<{ name: string; tanggal: string; saldo: number; potong: number; sisa: number; keterangan?: string }>>([]);
+  const [, setHutangRows] = useState<Array<{ name: string; tanggal: string; saldo: number; potong: number; sisa: number; keterangan?: string }>>([]);
   const [hutangSaldoMap, setHutangSaldoMap] = useState<Record<number, number>>({});
   const [hutangLoading, setHutangLoading] = useState(false);
   const [hutangSaldoKey, setHutangSaldoKey] = useState<string>('');
-  const [openPotongHutangMassal, setOpenPotongHutangMassal] = useState(false);
-  const [massPotongMax, setMassPotongMax] = useState(true);
-  const [massPotongAmount, setMassPotongAmount] = useState('');
-  const [absensiRows] = useState<Array<{ name: string; total: number }>>([]);
-  const [openTambahHutang, setOpenTambahHutang] = useState(false)
-  const [tambahHutangKaryawanId, setTambahHutangKaryawanId] = useState<string>('')
-  const [tambahHutangJumlah, setTambahHutangJumlah] = useState(0)
-  const [tambahHutangTanggal, setTambahHutangTanggal] = useState('')
-  const [tambahHutangDeskripsi, setTambahHutangDeskripsi] = useState('Hutang Karyawan')
-  const [tambahHutangSubmitting, setTambahHutangSubmitting] = useState(false)
+ 
   const [hutangTambahanMap, setHutangTambahanMap] = useState<Record<number, { jumlah: number; date: string; deskripsi: string }>>({})
   const [kebunDefaultBiaya, setKebunDefaultBiaya] = useState<any[]>([])
 
@@ -385,8 +363,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     setEndDate(createWIBDate(year, month, lastDay, true))
   }, []);
   const [keterangan, setKeterangan] = useState('');
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [previewGajian, setPreviewGajian] = useState<GajianWithDetails | null>(null);
+ 
 
   // Removed localStorage auto-restore and auto-save logic as per user request to clear form on reload
 
@@ -3018,226 +2995,50 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         </div>
       </div>
 
-      <ConfirmationModal
-        isOpen={isConfirmOpen}
-        onClose={handleCloseConfirm}
-        onConfirm={handleDelete}
-        title="Konfirmasi Hapus Gajian"
-        description="Apakah Anda yakin ingin menghapus gajian ini? Tindakan ini tidak dapat dibatalkan."
+      <GajianPageModals
+        isConfirmOpen={isConfirmOpen}
+        handleCloseConfirm={handleCloseConfirm}
+        handleDelete={handleDelete}
+        isDraftConfirmOpen={isDraftConfirmOpen}
+        handleCloseDraftDeleteConfirm={handleCloseDraftDeleteConfirm}
+        handleDeleteDraft={handleDeleteDraft}
+        isResetConfirmOpen={isResetConfirmOpen}
+        setIsResetConfirmOpen={setIsResetConfirmOpen}
+        handleConfirmReset={handleConfirmReset}
+        openPotongHutangMassal={openPotongHutangMassal}
+        setOpenPotongHutangMassal={setOpenPotongHutangMassal}
+        massPotongMax={massPotongMax}
+        setMassPotongMax={setMassPotongMax}
+        massPotongAmount={massPotongAmount}
+        setMassPotongAmount={setMassPotongAmount}
+        hutangLoading={hutangLoading}
+        applyPotongHutangMassal={applyPotongHutangMassal}
+        formatNumber={formatNumber}
+        openTambahHutang={openTambahHutang}
+        setOpenTambahHutang={setOpenTambahHutang}
+        tambahHutangKaryawanId={tambahHutangKaryawanId}
+        setTambahHutangKaryawanId={setTambahHutangKaryawanId}
+        tambahHutangJumlah={tambahHutangJumlah}
+        setTambahHutangJumlah={setTambahHutangJumlah}
+        tambahHutangTanggal={tambahHutangTanggal}
+        setTambahHutangTanggal={setTambahHutangTanggal}
+        tambahHutangDeskripsi={tambahHutangDeskripsi}
+        setTambahHutangDeskripsi={setTambahHutangDeskripsi}
+        tambahHutangSubmitting={tambahHutangSubmitting}
+        handleSubmitTambahHutang={handleSubmitTambahHutang}
+        hutangTambahanMap={hutangTambahanMap}
+        setHutangTambahanMap={setHutangTambahanMap}
+        detailKaryawan={detailKaryawan}
+        isDetailOpen={isDetailOpen}
+        isPreviewOpen={isPreviewOpen}
+        setIsPreviewOpen={setIsPreviewOpen}
+        selectedGajian={selectedGajian}
+        previewGajian={previewGajian}
+        handleCloseDetail={handleCloseDetail}
+        handleConfirmSave={handleConfirmSave}
+        loading={loading}
+        handleApplyHistoryFilters={handleApplyHistoryFilters}
       />
-
-      <ConfirmationModal
-        isOpen={isDraftConfirmOpen}
-        onClose={handleCloseDraftDeleteConfirm}
-        onConfirm={handleDeleteDraft}
-        title="Konfirmasi Hapus Draft"
-        description="Apakah Anda yakin ingin menghapus draft gajian ini?"
-      />
-
-      <ConfirmationModal
-        isOpen={isResetConfirmOpen}
-        onClose={() => setIsResetConfirmOpen(false)}
-        onConfirm={handleConfirmReset}
-        title="Konfirmasi Reset"
-        description="Mengatur ulang form akan menghapus data yang belum disimpan. Lanjutkan?"
-      />
-
-      <Dialog open={openPotongHutangMassal} onOpenChange={setOpenPotongHutangMassal}>
-        <DialogContent className="bg-white p-0 overflow-hidden [&>button.absolute]:hidden sm:max-w-[520px]">
-          <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <BanknotesIcon className="h-5 w-5 text-white" />
-                </div>
-                <DialogTitle className="text-white">Potong Hutang Massal</DialogTitle>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpenPotongHutangMassal(false)}
-                className="h-9 w-9 rounded-md border border-white/70 bg-white text-emerald-600 flex items-center justify-center hover:bg-white/90"
-                aria-label="Tutup"
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="px-6 py-5 space-y-4">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                checked={massPotongMax}
-                onCheckedChange={(v) => setMassPotongMax(Boolean(v))}
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-gray-900">Potong maksimal</div>
-                <div className="text-xs text-gray-500">Potongan = saldo hutang (gaji boleh minus).</div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Nominal Potongan per Karyawan (Rp)</Label>
-              <Input
-                disabled={massPotongMax}
-                value={massPotongAmount ? formatNumber(Number(String(massPotongAmount).replace(/\D/g, '')) || 0) : ''}
-                onChange={(e) => setMassPotongAmount(e.target.value.replace(/\D/g, ''))}
-                placeholder="Contoh: 100000"
-                className="rounded-xl text-right"
-                inputMode="numeric"
-              />
-              <div className="text-xs text-gray-500">Jika potong maksimal aktif, nominal ini diabaikan.</div>
-            </div>
-          </div>
-
-          <DialogFooter className="bg-gray-50 border-t px-6 py-4 flex flex-col-reverse sm:flex-row gap-3 sm:gap-2 sm:justify-between">
-            <Button
-              variant="outline"
-              onClick={() => setOpenPotongHutangMassal(false)}
-              className="rounded-full"
-              disabled={hutangLoading}
-            >
-              <XMarkIcon className="h-4 w-4 mr-2" />
-              Batal
-            </Button>
-            <Button
-              onClick={async () => {
-                const amount = Number(String(massPotongAmount || '').replace(/\D/g, '')) || 0
-                await applyPotongHutangMassal({ mode: massPotongMax ? 'MAX' : 'NOMINAL', amount })
-                setOpenPotongHutangMassal(false)
-              }}
-              className="rounded-full bg-emerald-600 hover:bg-emerald-700"
-              disabled={hutangLoading || (!massPotongMax && (Number(String(massPotongAmount || '').replace(/\D/g, '')) || 0) <= 0)}
-            >
-              <CheckIcon className="h-4 w-4 mr-2" />
-              Terapkan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={openTambahHutang} onOpenChange={setOpenTambahHutang}>
-        <DialogContent className="bg-white p-0 overflow-hidden [&>button.absolute]:hidden sm:max-w-[520px]">
-          <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <BanknotesIcon className="h-5 w-5 text-white" />
-                </div>
-                <DialogTitle className="text-white">Tambah Hutang Karyawan</DialogTitle>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpenTambahHutang(false)}
-                className="h-9 w-9 rounded-md border border-white/70 bg-white text-emerald-700 flex items-center justify-center hover:bg-white/90"
-                aria-label="Tutup"
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="px-6 py-5 space-y-4">
-            <div className="space-y-2">
-              <Label>Karyawan</Label>
-              <Select value={tambahHutangKaryawanId} onValueChange={setTambahHutangKaryawanId}>
-                <SelectTrigger className="input-style rounded-xl">
-                  <SelectValue placeholder="Pilih karyawan" />
-                </SelectTrigger>
-                <SelectContent>
-                  {detailKaryawan.map((dk: any) => (
-                    <SelectItem key={dk.userId} value={String(dk.userId)}>
-                      {dk.user?.name || '-'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Jumlah Hutang (Rp)</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="0"
-                value={formatNumber(tambahHutangJumlah || 0)}
-                onChange={(e) => setTambahHutangJumlah(Number(e.target.value.replace(/\D/g, '')) || 0)}
-                className="rounded-xl text-right"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tanggal</Label>
-              <Input
-                type="date"
-                value={tambahHutangTanggal}
-                onChange={(e) => setTambahHutangTanggal(e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Keterangan</Label>
-              <Input
-                value={tambahHutangDeskripsi}
-                onChange={(e) => setTambahHutangDeskripsi(e.target.value)}
-                placeholder="Hutang Karyawan"
-                className="rounded-xl"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="bg-gray-50 border-t px-6 py-4 flex flex-col-reverse sm:flex-row gap-3 sm:gap-2 sm:justify-between">
-            <Button
-              variant="outline"
-              onClick={() => setOpenTambahHutang(false)}
-              className="rounded-full"
-              disabled={tambahHutangSubmitting}
-            >
-              <XMarkIcon className="h-4 w-4 mr-2" />
-              Batal
-            </Button>
-            {Number(tambahHutangKaryawanId) > 0 && Boolean(hutangTambahanMap[Number(tambahHutangKaryawanId)]) && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const idNum = Number(tambahHutangKaryawanId)
-                  setHutangTambahanMap((prev) => {
-                    const next = { ...prev }
-                    delete (next as any)[idNum]
-                    return next
-                  })
-                  setOpenTambahHutang(false)
-                }}
-                className="rounded-full text-red-600 border-red-200 hover:bg-red-50"
-                disabled={tambahHutangSubmitting}
-              >
-                <TrashIcon className="h-4 w-4 mr-2" />
-                Hapus
-              </Button>
-            )}
-            <Button
-              onClick={handleSubmitTambahHutang}
-              className="rounded-full bg-emerald-600 hover:bg-emerald-700"
-              disabled={tambahHutangSubmitting || !tambahHutangKaryawanId || (tambahHutangJumlah || 0) <= 0}
-            >
-              <CheckIcon className="h-4 w-4 mr-2" />
-              Simpan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {(selectedGajian || isPreviewOpen) && (
-        <DetailGajianModal
-        isOpen={isDetailOpen || isPreviewOpen}
-        onClose={isPreviewOpen ? () => setIsPreviewOpen(false) : handleCloseDetail}
-        gajian={isPreviewOpen ? previewGajian : selectedGajian}
-        isPreview={isPreviewOpen}
-        onConfirm={handleConfirmSave}
-        isLoading={loading}
-        onRevert={handleApplyHistoryFilters}
-      />
-      )}
     </div>
   );
 }

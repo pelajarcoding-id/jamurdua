@@ -21,6 +21,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { useAuth } from '@/components/AuthProvider';
+import { createWIBDate, formatWIBDateForInput, getCurrentWIBDateParts, parseWIBDateFromInput } from '@/lib/wib-date';
 
 type UangJalanWithSoftDelete = UangJalan & {
     gambarUrl?: string | null;
@@ -48,49 +49,6 @@ interface SummaryData {
     totalSaldo: number;
     totalSesi: number;
 }
-
-const getCurrentWIBDateParts = () => {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-    });
-    const parts = formatter.formatToParts(now);
-    const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0');
-    return {
-        year: getPart('year'),
-        month: getPart('month') - 1, // 0-indexed
-        day: getPart('day')
-    };
-};
-
-const createWIBDate = (year: number, month: number, day: number, isEnd: boolean = false) => {
-    // 00:00 WIB = -7h UTC
-    // 23:59:59 WIB = 16:59:59 UTC
-    const hour = isEnd ? 16 : -7;
-    const minute = isEnd ? 59 : 0;
-    const second = isEnd ? 59 : 0;
-    const ms = isEnd ? 999 : 0;
-    return new Date(Date.UTC(year, month, day, hour, minute, second, ms));
-};
-
-const formatWIBDateForInput = (date: Date | undefined) => {
-    if (!date) return '';
-    return new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).format(date);
-};
-
-const parseWIBDateFromInput = (dateStr: string, isEnd: boolean = false) => {
-    if (!dateStr) return undefined;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return createWIBDate(year, month - 1, day, isEnd);
-};
 
 export default function UangJalanPage() {
     const { role, id: userId } = useAuth();

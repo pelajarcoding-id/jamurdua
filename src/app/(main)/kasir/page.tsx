@@ -7,7 +7,6 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from '@/components/AuthProvider';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -16,9 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import { DocumentTextIcon, CalendarIcon, PlusIcon, ArrowPathIcon, XMarkIcon, ArrowDownTrayIcon, TagIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { ModalHeader } from '@/components/ui/modal-elements';
+import { DocumentTextIcon, CalendarIcon, PlusIcon, ArrowPathIcon, ArrowDownTrayIcon, TagIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 import { columns } from './columns';
 import { DataTable } from '@/components/data-table';
@@ -27,8 +24,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import AddTransaksiForm from './add-transaksi-form';
-import DetailTransaksiModal from './detail-transaksi-modal';
+import KasirPageModals from './KasirPageModals';
+import { useKasirModalsState } from './useKasirModalsState';
+import { createWIBDate, formatWIBDateDisplay, formatWIBDateForInput, getCurrentWIBDateParts, parseWIBDateFromInput } from '@/lib/wib-date';
 
 import { KasirData, KasTransaksi } from '@/types/kasir';
 
@@ -40,62 +38,7 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-const formatDateDisplay = (value: string) => {
-  try {
-    const d = new Date(value);
-    return new Intl.DateTimeFormat('id-ID', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta'
-    }).format(d);
-  } catch {
-    return value;
-  }
-};
-
-const getCurrentWIBDateParts = () => {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-    });
-    const parts = formatter.formatToParts(now);
-    const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0');
-    return {
-        year: getPart('year'),
-        month: getPart('month') - 1, // 0-indexed
-        day: getPart('day')
-    };
-};
-
-const createWIBDate = (year: number, month: number, day: number, isEnd: boolean = false) => {
-    // 00:00 WIB = -7h UTC
-    // 23:59:59 WIB = 16:59:59 UTC
-    const hour = isEnd ? 16 : -7;
-    const minute = isEnd ? 59 : 0;
-    const second = isEnd ? 59 : 0;
-    const ms = isEnd ? 999 : 0;
-    return new Date(Date.UTC(year, month, day, hour, minute, second, ms));
-};
-
-const formatWIBDateForInput = (date: Date | undefined) => {
-    if (!date) return '';
-    return new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).format(date);
-};
-
-const parseWIBDateFromInput = (dateStr: string, isEnd: boolean = false) => {
-    if (!dateStr) return undefined;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return createWIBDate(year, month - 1, day, isEnd);
-};
+const formatDateDisplay = formatWIBDateDisplay;
 
 type KasTransaksiUI = KasTransaksi & {
   __optimistic?: boolean
@@ -126,14 +69,23 @@ const KasirPage = () => {
     setEndDate(end);
   }, []);
   const [quickRange, setQuickRange] = useState('this_year');
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<KasTransaksi | null>(null);
-  const [detailTransaction, setDetailTransaction] = useState<KasTransaksi | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [openDelete, setOpenDelete] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    editingTransaction,
+    setEditingTransaction,
+    isDetailOpen,
+    setIsDetailOpen,
+    detailTransaction,
+    setDetailTransaction,
+    openDelete,
+    setOpenDelete,
+    deleteId,
+    setDeleteId,
+    viewImageUrl,
+    setViewImageUrl,
+  } = useKasirModalsState()
 
   // Auth & Admin features
   const { role, id: currentUserId } = useAuth();
@@ -1207,84 +1159,27 @@ const KasirPage = () => {
         </div>
       </div>
 
-      <AddTransaksiForm 
-        isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onConfirm={handleSaveTransaksi}
+      <KasirPageModals
+        isFormOpen={isFormOpen}
+        setIsFormOpen={setIsFormOpen}
+        editingTransaction={editingTransaction}
+        setEditingTransaction={setEditingTransaction}
         selectedDate={formatWIBDateForInput(endDate)}
-        initialData={editingTransaction}
-      />
-
-      <DetailTransaksiModal
-        isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
-        transaksi={detailTransaction}
+        onSaveTransaksi={handleSaveTransaksi}
+        isDetailOpen={isDetailOpen}
+        setIsDetailOpen={setIsDetailOpen}
+        detailTransaction={detailTransaction}
+        setDetailTransaction={setDetailTransaction}
         formatKeterangan={formatKeterangan}
         getPerusahaanTags={getPerusahaanTags}
-        onEdit={(trx) => {
-          setIsDetailOpen(false)
-          setEditingTransaction(trx)
-          setIsFormOpen(true)
-        }}
-        onDelete={(trx) => {
-          setIsDetailOpen(false)
-          handleDelete(trx.id)
-        }}
+        openDelete={openDelete}
+        setOpenDelete={setOpenDelete}
+        deleteId={deleteId}
+        setDeleteId={setDeleteId}
+        onConfirmDelete={handleConfirmDelete}
+        viewImageUrl={viewImageUrl}
+        setViewImageUrl={setViewImageUrl}
       />
-
-      <ConfirmationModal
-        isOpen={openDelete}
-        onClose={() => { setOpenDelete(false); setDeleteId(null); }}
-        onConfirm={handleConfirmDelete}
-        title="Konfirmasi Hapus Transaksi"
-        description="Apakah Anda yakin ingin menghapus transaksi ini? Tindakan tidak dapat dibatalkan."
-        variant="emerald"
-      />
-
-      <Dialog open={!!viewImageUrl} onOpenChange={(open) => !open && setViewImageUrl(null)}>
-        <DialogContent className="max-w-5xl w-[95vw] p-0 overflow-hidden border-none bg-white shadow-2xl [&>button.absolute]:hidden">
-          {viewImageUrl && (
-            <div className="flex flex-col h-full max-h-[90vh]">
-              <ModalHeader
-                title="Bukti Transaksi"
-                subtitle="Pratinjau lampiran gambar"
-                variant="emerald"
-                icon={<DocumentTextIcon className="h-5 w-5 text-white" />}
-                onClose={() => setViewImageUrl(null)}
-              />
-
-              {/* Image Content */}
-              <div className="flex-1 overflow-auto flex items-center justify-center p-4 md:p-8 min-h-0 bg-gray-50/50">
-                <img
-                  src={viewImageUrl}
-                  alt="Bukti Transaksi"
-                  className="max-w-full max-h-[65vh] md:max-h-[70vh] w-auto h-auto object-contain shadow-2xl rounded-md border border-gray-100"
-                />
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-center px-4 py-3 bg-gray-50 border-t border-gray-100">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9 rounded-md border border-white bg-white text-emerald-700 hover:bg-gray-50 hover:text-emerald-800 shadow-sm transition-colors"
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = viewImageUrl;
-                    link.download = `bukti-transaksi-${Date.now()}.jpg`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
-                  title="Download Gambar"
-                >
-                  <ArrowDownTrayIcon className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
       </div>
     </div>
   );
