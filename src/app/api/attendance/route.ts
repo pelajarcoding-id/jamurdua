@@ -3,12 +3,52 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFile } from '@/lib/storage'
 
+async function ensureAttendanceSelfieTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "AttendanceSelfie" (
+      "id" SERIAL PRIMARY KEY,
+      "userId" INTEGER NOT NULL,
+      "date" DATE NOT NULL,
+      "checkIn" TIMESTAMP(3),
+      "checkOut" TIMESTAMP(3),
+      "photoInUrl" TEXT,
+      "photoOutUrl" TEXT,
+      "latIn" DOUBLE PRECISION,
+      "longIn" DOUBLE PRECISION,
+      "latOut" DOUBLE PRECISION,
+      "longOut" DOUBLE PRECISION,
+      "locationIn" TEXT,
+      "locationOut" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'HADIR',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "AttendanceSelfie_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
+    );
+  `)
+
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "AttendanceSelfie_userId_date_key"
+      ON "AttendanceSelfie" ("userId", "date");
+  `)
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "AttendanceSelfie_userId_idx"
+      ON "AttendanceSelfie" ("userId");
+  `)
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "AttendanceSelfie_date_idx"
+      ON "AttendanceSelfie" ("date");
+  `)
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    await ensureAttendanceSelfieTable()
 
     const userId = Number(session.user.id)
     const formData = await req.formData()
@@ -102,6 +142,8 @@ export async function GET() {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    await ensureAttendanceSelfieTable()
 
     const userId = Number(session.user.id)
     const today = new Date()
