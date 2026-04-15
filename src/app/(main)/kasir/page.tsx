@@ -428,10 +428,13 @@ const KasirPage = () => {
                 method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
+                cache: 'no-store',
+                credentials: 'include',
             });
 
             if (!response.ok) {
-                throw new Error('Gagal menyimpan transaksi');
+                const errJson = await response.json().catch(() => ({} as any))
+                throw new Error(errJson?.error || 'Gagal menyimpan transaksi')
             }
 
             const serverData = await response.json().catch(() => null)
@@ -456,7 +459,18 @@ const KasirPage = () => {
 
         } catch (error) {
             console.error(error);
-            toast.error('Gagal menyimpan transaksi, mengembalikan perubahan.');
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'Gagal menyimpan transaksi'
+            const isNetworkError =
+              typeof message === 'string' &&
+              (message.toLowerCase().includes('failed to fetch') || message.toLowerCase().includes('networkerror'))
+            toast.error(
+              isNetworkError
+                ? 'Gagal menyimpan transaksi (koneksi bermasalah/offline).'
+                : `Gagal menyimpan transaksi: ${message}`
+            );
             setData(previousData); // Rollback
         }
     };

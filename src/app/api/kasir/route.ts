@@ -83,6 +83,20 @@ async function resolveKendaraanPlatNomorOrThrow(input?: string | null) {
   })
 
   if (!kendaraan) {
+    const normalized = raw.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (normalized) {
+      const rows = await prisma.$queryRaw<Array<{ platNomor: string }>>(
+        Prisma.sql`
+          SELECT "platNomor"
+          FROM "Kendaraan"
+          WHERE regexp_replace(lower("platNomor"), '[^a-z0-9]', '', 'g') = ${normalized}
+          LIMIT 1
+        `
+      )
+      if (rows.length > 0 && rows[0]?.platNomor) {
+        return rows[0].platNomor
+      }
+    }
     throw new Error('Plat kendaraan tidak ditemukan')
   }
 

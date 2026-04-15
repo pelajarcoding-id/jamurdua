@@ -456,7 +456,9 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
           
           const uploadRes = await fetch('/api/upload', {
               method: 'POST',
-              body: formData
+              body: formData,
+              cache: 'no-store',
+              credentials: 'include',
           });
 
           if (uploadRes.ok) {
@@ -596,7 +598,18 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
 
     } catch (error) {
       console.error(error);
-      toast.error('Gagal menyimpan transaksi.');
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Gagal menyimpan transaksi'
+      const isNetworkError =
+        typeof message === 'string' &&
+        (message.toLowerCase().includes('failed to fetch') || message.toLowerCase().includes('networkerror'))
+      toast.error(
+        isNetworkError
+          ? 'Gagal menyimpan transaksi (koneksi bermasalah/offline).'
+          : `Gagal menyimpan transaksi: ${message}`
+      );
     } finally {
       setIsSubmitting(false);
     }

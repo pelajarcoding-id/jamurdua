@@ -73,11 +73,41 @@ async function reverseGeocodeName(latitude: number, longitude: number) {
 export default function AttendancePage() {
   const webcamRef = useRef<Webcam>(null)
   const [imgSrc, setImgSrc] = useState<string | null>(null)
+  const [captureToken, setCaptureToken] = useState<number>(0)
+  const captureTokenRef = useRef<number>(0)
+  const captureTimeoutRef = useRef<number | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [locating, setLocating] = useState(false)
   const [attendance, setAttendance] = useState<any>(null)
   const [isCapturing, setIsCapturing] = useState(true)
+
+  useEffect(() => {
+    captureTokenRef.current = captureToken
+  }, [captureToken])
+
+  useEffect(() => {
+    if (captureTimeoutRef.current) {
+      window.clearTimeout(captureTimeoutRef.current)
+      captureTimeoutRef.current = null
+    }
+
+    if (!imgSrc || !captureToken) return
+
+    captureTimeoutRef.current = window.setTimeout(() => {
+      if (captureTokenRef.current !== captureToken) return
+      setImgSrc(null)
+      setIsCapturing(true)
+      toast.error('Foto absensi sudah kadaluarsa (lebih dari 30 menit). Silakan ambil foto ulang.')
+    }, 30 * 60 * 1000)
+
+    return () => {
+      if (captureTimeoutRef.current) {
+        window.clearTimeout(captureTimeoutRef.current)
+        captureTimeoutRef.current = null
+      }
+    }
+  }, [captureToken, imgSrc])
 
   // Fetch current status
   const fetchStatus = useCallback(async () => {
@@ -168,12 +198,14 @@ export default function AttendancePage() {
     const imageSrc = webcamRef.current?.getScreenshot()
     if (imageSrc) {
       setImgSrc(imageSrc)
+      setCaptureToken(Date.now())
       setIsCapturing(false)
     }
   }, [webcamRef])
 
   const retake = () => {
     setImgSrc(null)
+    setCaptureToken(0)
     setIsCapturing(true)
   }
 
@@ -234,6 +266,7 @@ export default function AttendancePage() {
       toast.success(type === 'IN' ? 'Berhasil Absen Masuk' : 'Berhasil Absen Pulang', { id: toastId })
       setAttendance(data.attendance)
       setImgSrc(null)
+      setCaptureToken(0)
       setIsCapturing(false)
       fetchStatus()
     } catch (error: any) {
