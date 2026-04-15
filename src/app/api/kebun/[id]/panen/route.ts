@@ -27,6 +27,7 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const statusGajian = searchParams.get('statusGajian');
 
     const whereClause: any = {
       kebunId: kebunId,
@@ -47,7 +48,12 @@ export async function GET(
             gte: new Date(startDate),
             lte: new Date(endDate),
           }
-        } : {})
+        } : {}),
+        ...(statusGajian === 'BELUM_DIGAJI'
+          ? { statusGajian: 'BELUM_DIPROSES' }
+          : statusGajian === 'SUDAH_DIGAJI'
+            ? { statusGajian: 'DIPROSES' }
+            : {}),
       },
       include: {
         pabrikSawit: {

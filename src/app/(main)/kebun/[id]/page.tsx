@@ -485,7 +485,7 @@ function GajianTab({ kebunId }: { kebunId: number }) {
 
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 font-semibold text-gray-700 text-sm">
-              Biaya Lain (Aktivitas Kebun)
+              Biaya Gaji & Borongan
             </div>
             <div className="md:hidden space-y-3 p-4">
               {previewLoading ? (

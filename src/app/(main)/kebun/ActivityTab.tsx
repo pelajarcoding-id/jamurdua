@@ -1014,7 +1014,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             const isUnpaid = isUpah && !isLocked
 
             return (
-            <div key={item.id} className="relative bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div key={item.id} className="relative bg-white p-4 pt-11 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="absolute top-3 left-3 h-6 min-w-6 px-2 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center">
                 {idx + 1}
               </div>

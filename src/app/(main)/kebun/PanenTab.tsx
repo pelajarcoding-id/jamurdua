@@ -40,6 +40,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
+  const [statusGajianFilter, setStatusGajianFilter] = useState<'ALL' | 'BELUM_DIGAJI' | 'SUDAH_DIGAJI'>('ALL');
   const [dateRange, setDateRange] = useState({
     start: new Date().toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
@@ -47,7 +48,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
 
   useEffect(() => {
     fetchPanen();
-  }, [kebunId, selectedDate, filterType, dateRange]);
+  }, [kebunId, selectedDate, filterType, dateRange, statusGajianFilter]);
 
   const fetchPanen = async () => {
     try {
@@ -68,7 +69,11 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
         end = endDate.toISOString();
       }
       
-      const res = await fetch(`/api/kebun/${kebunId}/panen?startDate=${start}&endDate=${end}`);
+      const params = new URLSearchParams({ startDate: start, endDate: end });
+      if (statusGajianFilter !== 'ALL') {
+        params.set('statusGajian', statusGajianFilter);
+      }
+      const res = await fetch(`/api/kebun/${kebunId}/panen?${params.toString()}`);
       if (!res.ok) throw new Error('Gagal mengambil data');
       const data = await res.json();
       setPanenData(data);
@@ -102,7 +107,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, selectedDate, dateRange.start, dateRange.end, perView, kebunId]);
+  }, [filterType, selectedDate, dateRange.start, dateRange.end, perView, kebunId, statusGajianFilter]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -148,6 +153,15 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
           <h3 className="text-lg font-bold text-gray-900 capitalize">Daftar Pengiriman Panen</h3>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full lg:w-auto">
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <select
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-auto flex-shrink-0"
+                value={statusGajianFilter}
+                onChange={(e) => setStatusGajianFilter(e.target.value as any)}
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="BELUM_DIGAJI">Belum Digaji</option>
+                <option value="SUDAH_DIGAJI">Sudah Digaji</option>
+              </select>
               <select 
                 className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-auto flex-shrink-0"
                 value={filterType}
