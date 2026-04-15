@@ -1,22 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DataTable } from '@/components/data-table'
 import { columns, NotaSawitData } from './columns'
 import type { ColumnDef } from '@tanstack/react-table'
-import ModalUbah from './modal'
-import ModalDetail from './detail-modal';
-import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import toast from 'react-hot-toast'
-import { UbahStatusModal } from './ubah-status-modal'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import ImageUpload from '@/components/ui/ImageUpload'
-import { ArrowDownTrayIcon, XMarkIcon, CalendarIcon, PlusIcon, ArrowPathIcon, ClipboardDocumentListIcon, DocumentTextIcon, PencilSquareIcon, TrashIcon, BanknotesIcon, PhotoIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { ArrowDownTrayIcon, CalendarIcon, ClipboardDocumentListIcon, PlusIcon, ArrowPathIcon, BanknotesIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -25,10 +18,10 @@ import { convertImageFileToWebp } from '@/lib/image-webp';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox'
-import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
-import { useDebounce } from '@/hooks/useDebounce'
 import { PembayaranTab } from './PembayaranTab'
 import { usePembayaranNotaSawit } from './usePembayaranNotaSawit'
+import NotaSawitPageModals from './NotaSawitPageModals'
+import { useNotaSawitModalsState } from './useNotaSawitModalsState'
 
 interface SummaryData {
   totalBerat: number;
@@ -55,61 +48,112 @@ export default function NotaSawitPage() {
   const [limit, setLimit] = useState(50);
   const [refreshToggle, setRefreshToggle] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
-  const [isBulkHargaOpen, setIsBulkHargaOpen] = useState(false)
-  const [bulkHargaValue, setBulkHargaValue] = useState('')
-  const [bulkHargaSubmitting, setBulkHargaSubmitting] = useState(false)
-  const [isBulkReconcileOpen, setIsBulkReconcileOpen] = useState(false)
-  const [reconcileSubmitting, setReconcileSubmitting] = useState(false)
-  const [reconcileTanggal, setReconcileTanggal] = useState('')
-  const [reconcileJumlahMasuk, setReconcileJumlahMasuk] = useState('')
-  const [reconcileAdminBank, setReconcileAdminBank] = useState('')
-  const [reconcileMetode, setReconcileMetode] = useState<'PROPORSIONAL' | 'RATA' | 'SATU_NOTA'>('PROPORSIONAL')
-  const [reconcileBebankanNotaId, setReconcileBebankanNotaId] = useState<string>('')
-  const [reconcileSetLunas, setReconcileSetLunas] = useState(true)
-  const [reconcileKeterangan, setReconcileKeterangan] = useState('')
-  const [reconcilePabrikId, setReconcilePabrikId] = useState<string>('')
-  const [reconcileNotas, setReconcileNotas] = useState<NotaSawitData[]>([])
-  const [reconcileGambarFile, setReconcileGambarFile] = useState<File | null>(null)
-  const [reconcileGambarPreview, setReconcileGambarPreview] = useState<string | null>(null)
-  const [reconcileRangeStart, setReconcileRangeStart] = useState<string>('')
-  const [reconcileRangeEnd, setReconcileRangeEnd] = useState<string>('')
-  const [reconcileRangeLoading, setReconcileRangeLoading] = useState(false)
-  const [reconcileRangeCandidates, setReconcileRangeCandidates] = useState<NotaSawitData[]>([])
-  const [isReconcileDetailOpen, setIsReconcileDetailOpen] = useState(false)
-  const [reconcileDetail, setReconcileDetail] = useState<any | null>(null)
-  const [isBuktiTransferOpen, setIsBuktiTransferOpen] = useState(false)
-  const [buktiTransferUrl, setBuktiTransferUrl] = useState<string | null>(null)
-  const [isReconcileEditOpen, setIsReconcileEditOpen] = useState(false)
-  const [reconcileEditSubmitting, setReconcileEditSubmitting] = useState(false)
-  const [reconcileEditingBatchId, setReconcileEditingBatchId] = useState<number | null>(null)
-  const [reconcileEditTanggal, setReconcileEditTanggal] = useState('')
-  const [reconcileEditJumlahMasuk, setReconcileEditJumlahMasuk] = useState('')
-  const [reconcileEditAdminBank, setReconcileEditAdminBank] = useState('')
-  const [reconcileEditKeterangan, setReconcileEditKeterangan] = useState('')
-  const [reconcileEditSetLunas, setReconcileEditSetLunas] = useState(true)
-  const [reconcileEditPabrikId, setReconcileEditPabrikId] = useState<string>('')
-  const [reconcileEditNotas, setReconcileEditNotas] = useState<any[]>([])
-  const [reconcileEditRangeStart, setReconcileEditRangeStart] = useState<string>('')
-  const [reconcileEditRangeEnd, setReconcileEditRangeEnd] = useState<string>('')
-  const [reconcileEditRangeLoading, setReconcileEditRangeLoading] = useState(false)
-  const [reconcileEditRangeCandidates, setReconcileEditRangeCandidates] = useState<any[]>([])
-  const [reconcileEditingBatch, setReconcileEditingBatch] = useState<any | null>(null)
-  const [reconcileEditGambarFile, setReconcileEditGambarFile] = useState<File | null>(null)
-  const [reconcileEditGambarPreview, setReconcileEditGambarPreview] = useState<string | null>(null)
-  const [reconcileEditGambarExistingUrl, setReconcileEditGambarExistingUrl] = useState<string | null>(null)
-  const [isReconcileDeleteConfirmOpen, setIsReconcileDeleteConfirmOpen] = useState(false)
-  const [reconcileDeletingBatchId, setReconcileDeletingBatchId] = useState<number | null>(null)
-  const [reconcileDeleteSubmitting, setReconcileDeleteSubmitting] = useState(false)
-  const [duplicateWarningOpen, setDuplicateWarningOpen] = useState(false)
-  const [duplicateCandidates, setDuplicateCandidates] = useState<any[]>([])
-  const [pendingDuplicatePayload, setPendingDuplicatePayload] = useState<any | null>(null)
-  const [submittingDuplicateProceed, setSubmittingDuplicateProceed] = useState(false)
-  const [isUbahStatusModalOpen, setIsUbahStatusModalOpen] = useState(false);
-  const [selectedNota, setSelectedNota] = useState<NotaSawitData | null>(null);
+  const {
+    isModalOpen,
+    setIsModalOpen,
+    isDetailModalOpen,
+    setIsDetailModalOpen,
+    isConfirmOpen,
+    setIsConfirmOpen,
+    isBulkDeleteConfirmOpen,
+    setIsBulkDeleteConfirmOpen,
+    isBulkHargaOpen,
+    setIsBulkHargaOpen,
+    bulkHargaValue,
+    setBulkHargaValue,
+    bulkHargaSubmitting,
+    setBulkHargaSubmitting,
+    isBulkReconcileOpen,
+    setIsBulkReconcileOpen,
+    reconcileSubmitting,
+    setReconcileSubmitting,
+    reconcileTanggal,
+    setReconcileTanggal,
+    reconcileJumlahMasuk,
+    setReconcileJumlahMasuk,
+    reconcileSetLunas,
+    setReconcileSetLunas,
+    reconcileKeterangan,
+    setReconcileKeterangan,
+    reconcilePabrikId,
+    setReconcilePabrikId,
+    reconcileNotas,
+    setReconcileNotas,
+    reconcileGambarFile,
+    setReconcileGambarFile,
+    reconcileGambarPreview,
+    setReconcileGambarPreview,
+    reconcileRangeStart,
+    setReconcileRangeStart,
+    reconcileRangeEnd,
+    setReconcileRangeEnd,
+    reconcileRangeLoading,
+    setReconcileRangeLoading,
+    reconcileRangeCandidates,
+    setReconcileRangeCandidates,
+    isReconcileDetailOpen,
+    setIsReconcileDetailOpen,
+    reconcileDetail,
+    setReconcileDetail,
+    isBuktiTransferOpen,
+    setIsBuktiTransferOpen,
+    buktiTransferUrl,
+    setBuktiTransferUrl,
+    isReconcileEditOpen,
+    setIsReconcileEditOpen,
+    reconcileEditSubmitting,
+    setReconcileEditSubmitting,
+    reconcileEditingBatchId,
+    setReconcileEditingBatchId,
+    reconcileEditTanggal,
+    setReconcileEditTanggal,
+    reconcileEditJumlahMasuk,
+    setReconcileEditJumlahMasuk,
+    reconcileEditKeterangan,
+    setReconcileEditKeterangan,
+    reconcileEditSetLunas,
+    setReconcileEditSetLunas,
+    reconcileEditPabrikId,
+    setReconcileEditPabrikId,
+    reconcileEditNotas,
+    setReconcileEditNotas,
+    reconcileEditRangeStart,
+    setReconcileEditRangeStart,
+    reconcileEditRangeEnd,
+    setReconcileEditRangeEnd,
+    reconcileEditRangeLoading,
+    setReconcileEditRangeLoading,
+    reconcileEditRangeCandidates,
+    setReconcileEditRangeCandidates,
+    reconcileEditGambarFile,
+    setReconcileEditGambarFile,
+    reconcileEditGambarPreview,
+    setReconcileEditGambarPreview,
+    reconcileEditGambarExistingUrl,
+    setReconcileEditGambarExistingUrl,
+    isReconcileDeleteConfirmOpen,
+    setIsReconcileDeleteConfirmOpen,
+    reconcileDeletingBatchId,
+    setReconcileDeletingBatchId,
+    reconcileDeleteSubmitting,
+    setReconcileDeleteSubmitting,
+    duplicateWarningOpen,
+    setDuplicateWarningOpen,
+    duplicateCandidates,
+    setDuplicateCandidates,
+    pendingDuplicatePayload,
+    setPendingDuplicatePayload,
+    submittingDuplicateProceed,
+    setSubmittingDuplicateProceed,
+    isUbahStatusModalOpen,
+    setIsUbahStatusModalOpen,
+    selectedNota,
+    setSelectedNota,
+    viewImageUrl,
+    setViewImageUrl,
+    viewImageError,
+    setViewImageError,
+  } = useNotaSawitModalsState()
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [rowSelection, setRowSelection] = useState({});
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
@@ -150,8 +194,6 @@ export default function NotaSawitPage() {
     defaultEndDate: endDate,
     defaultQuickRange: 'this_year',
   })
-  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
-  const [viewImageError, setViewImageError] = useState(false);
   const notaHasLoadedRef = useRef(false)
   const notaAbortRef = useRef<AbortController | null>(null)
   const refreshToastRef = useRef<string | null>(null)
@@ -203,13 +245,6 @@ export default function NotaSawitPage() {
     else params.delete('search')
     router.replace(`?${params.toString()}`, { scroll: false })
   }, [router, searchDraft, searchParams])
-
-  const selectedNotasForBulk = useMemo(() => {
-    const ids = Object.keys(rowSelection)
-    return ids
-      .map((index) => data[parseInt(index, 10)])
-      .filter(Boolean) as NotaSawitData[]
-  }, [data, rowSelection])
 
   const reconcileNotaIds = useMemo(() => {
     const ids = reconcileNotas.map((n: any) => Number(n?.id)).filter((n) => Number.isFinite(n) && n > 0)
@@ -743,48 +778,9 @@ export default function NotaSawitPage() {
     }
   }, [bulkHargaValue, data, pabrikList, refreshData, rowSelection])
 
-  const handleOpenBulkReconcileFromSelection = useCallback(() => {
-    if (selectedNotasForBulk.length === 0) {
-      toast.error('Tidak ada nota yang dipilih.')
-      return
-    }
-    const pabrikId = Number((selectedNotasForBulk[0] as any)?.pabrikSawitId)
-    if (!Number.isFinite(pabrikId) || pabrikId <= 0) {
-      toast.error('Pabrik nota tidak valid.')
-      return
-    }
-    const mismatch = selectedNotasForBulk.some((n: any) => Number(n?.pabrikSawitId) !== pabrikId)
-    if (mismatch) {
-      toast.error('Rekonsiliasi hanya bisa untuk nota dari pabrik yang sama.')
-      return
-    }
-    const totalTagihan = selectedNotasForBulk.reduce((sum, n: any) => {
-      const val = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
-      return sum + (Number.isFinite(val) ? val : 0)
-    }, 0)
-    setReconcileTanggal(toWibYmd(new Date()))
-    setReconcileAdminBank('')
-    setReconcileJumlahMasuk(String(Math.max(0, totalTagihan)))
-    setReconcileMetode('PROPORSIONAL')
-    setReconcileBebankanNotaId(String((selectedNotasForBulk[0] as any)?.id || ''))
-    setReconcileSetLunas(true)
-    setReconcileKeterangan('')
-    setReconcilePabrikId(String(pabrikId))
-    setReconcileGambarFile(null)
-    setReconcileGambarPreview(null)
-    setReconcileNotas(selectedNotasForBulk)
-    setReconcileRangeStart('')
-    setReconcileRangeEnd('')
-    setReconcileRangeCandidates([])
-    setIsBulkReconcileOpen(true)
-  }, [selectedNotasForBulk, toWibYmd])
-
   const handleOpenBulkReconcileEmpty = useCallback(() => {
     setReconcileTanggal(toWibYmd(new Date()))
-    setReconcileAdminBank('')
     setReconcileJumlahMasuk('')
-    setReconcileMetode('PROPORSIONAL')
-    setReconcileBebankanNotaId('')
     setReconcileSetLunas(true)
     setReconcileKeterangan('')
     setReconcilePabrikId(String(selectedPabrik || ''))
@@ -801,7 +797,6 @@ export default function NotaSawitPage() {
     const id = Number(b?.id)
     if (!Number.isFinite(id) || id <= 0) return
     setReconcileEditingBatchId(id)
-    setReconcileEditingBatch(b)
     setReconcileEditTanggal(toWibYmd(b?.tanggal ? new Date(b.tanggal) : new Date()))
     setReconcileEditJumlahMasuk(String(Math.max(0, Math.round(Number(b?.jumlahMasuk || 0)))))
     setReconcileEditKeterangan(String(b?.keterangan || ''))
@@ -868,7 +863,6 @@ export default function NotaSawitPage() {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan')
       setIsReconcileEditOpen(false)
-      setReconcileEditingBatch(null)
       setIsReconcileDetailOpen(false)
       setReconcileDetail(null)
       await pembayaran.fetchReconcileHistory({ soft: true })
@@ -1271,7 +1265,6 @@ export default function NotaSawitPage() {
 
     const selectedNotas = selectedIds.map(index => data[parseInt(index, 10)]);
     const jsPDF = (await import('jspdf')).default;
-    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF();
     let isFirstPage = true;
 
@@ -2338,1067 +2331,121 @@ export default function NotaSawitPage() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {isModalOpen && (
-        <ModalUbah
-          nota={selectedNota}
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          onSave={handleSave}
-        />
-      )}
-
-      <ConfirmationModal
-        isOpen={isConfirmOpen}
-        onClose={handleCloseConfirm}
-        onConfirm={handleDelete}
-        title="Konfirmasi Hapus"
-        description="Apakah Anda yakin ingin menghapus data ini?"
-        variant="emerald"
+      <NotaSawitPageModals
+        selectedNota={selectedNota}
+        isModalOpen={isModalOpen}
+        handleCloseModal={handleCloseModal}
+        handleSave={handleSave}
+        isConfirmOpen={isConfirmOpen}
+        handleCloseConfirm={handleCloseConfirm}
+        handleDelete={handleDelete}
+        isBulkDeleteConfirmOpen={isBulkDeleteConfirmOpen}
+        setIsBulkDeleteConfirmOpen={setIsBulkDeleteConfirmOpen}
+        handleBulkDelete={handleBulkDelete}
+        bulkSelectionCount={Object.keys(rowSelection).length}
+        isDetailModalOpen={isDetailModalOpen}
+        handleCloseDetailModal={handleCloseDetailModal}
+        handleEditFromDetail={handleEditFromDetail}
+        handleDeleteFromDetail={handleDeleteFromDetail}
+        isUbahStatusModalOpen={isUbahStatusModalOpen}
+        handleCloseUbahStatusModal={handleCloseUbahStatusModal}
+        handleSaveStatus={handleSaveStatus}
+        isBulkHargaOpen={isBulkHargaOpen}
+        setIsBulkHargaOpen={setIsBulkHargaOpen}
+        bulkHargaValue={bulkHargaValue}
+        setBulkHargaValue={setBulkHargaValue}
+        bulkHargaSubmitting={bulkHargaSubmitting}
+        handleBulkUpdateHarga={handleBulkUpdateHarga}
+        isBulkReconcileOpen={isBulkReconcileOpen}
+        setIsBulkReconcileOpen={setIsBulkReconcileOpen}
+        reconcileSubmitting={reconcileSubmitting}
+        reconcilePabrikId={reconcilePabrikId}
+        setReconcilePabrikId={setReconcilePabrikId}
+        pabrikList={pabrikList}
+        reconcileTanggal={reconcileTanggal}
+        setReconcileTanggal={setReconcileTanggal}
+        reconcileJumlahMasuk={reconcileJumlahMasuk}
+        setReconcileJumlahMasuk={setReconcileJumlahMasuk}
+        reconcileNotas={reconcileNotas}
+        reconcileNotaIds={reconcileNotaIds}
+        handleReconcileToggleNota={handleReconcileToggleNota}
+        reconcileRangeStart={reconcileRangeStart}
+        setReconcileRangeStart={setReconcileRangeStart}
+        reconcileRangeEnd={reconcileRangeEnd}
+        setReconcileRangeEnd={setReconcileRangeEnd}
+        reconcileRangeLoading={reconcileRangeLoading}
+        reconcileRangeCandidates={reconcileRangeCandidates}
+        handleReconcileFetchByRange={handleReconcileFetchByRange}
+        handleReconcileAddAllCandidates={handleReconcileAddAllCandidates}
+        reconcileSetLunas={reconcileSetLunas}
+        setReconcileSetLunas={setReconcileSetLunas}
+        reconcileKeterangan={reconcileKeterangan}
+        setReconcileKeterangan={setReconcileKeterangan}
+        reconcileGambarPreview={reconcileGambarPreview}
+        setReconcileGambarFile={setReconcileGambarFile}
+        setReconcileGambarPreview={setReconcileGambarPreview}
+        handleBulkReconcileSubmit={handleBulkReconcileSubmit}
+        formatNumber={formatNumber}
+        formatCurrency={formatCurrency}
+        isReconcileDetailOpen={isReconcileDetailOpen}
+        setIsReconcileDetailOpen={setIsReconcileDetailOpen}
+        reconcileDetail={reconcileDetail}
+        setReconcileDetail={setReconcileDetail}
+        handleExportPembayaranBatchPdf={handleExportPembayaranBatchPdf}
+        handleOpenEditReconcileBatch={handleOpenEditReconcileBatch}
+        handleOpenDeleteReconcileBatch={handleOpenDeleteReconcileBatch}
+        isBuktiTransferOpen={isBuktiTransferOpen}
+        setIsBuktiTransferOpen={setIsBuktiTransferOpen}
+        buktiTransferUrl={buktiTransferUrl}
+        setBuktiTransferUrl={setBuktiTransferUrl}
+        isReconcileEditOpen={isReconcileEditOpen}
+        setIsReconcileEditOpen={setIsReconcileEditOpen}
+        reconcileEditSubmitting={reconcileEditSubmitting}
+        reconcileEditingBatchId={reconcileEditingBatchId}
+        reconcileEditPabrikId={reconcileEditPabrikId}
+        setReconcileEditTanggal={setReconcileEditTanggal}
+        reconcileEditTanggal={reconcileEditTanggal}
+        reconcileEditJumlahMasuk={reconcileEditJumlahMasuk}
+        setReconcileEditJumlahMasuk={setReconcileEditJumlahMasuk}
+        reconcileEditNotas={reconcileEditNotas}
+        reconcileEditNotaIds={reconcileEditNotaIds}
+        handleReconcileEditToggleNota={handleReconcileEditToggleNota}
+        reconcileEditRangeStart={reconcileEditRangeStart}
+        setReconcileEditRangeStart={setReconcileEditRangeStart}
+        reconcileEditRangeEnd={reconcileEditRangeEnd}
+        setReconcileEditRangeEnd={setReconcileEditRangeEnd}
+        reconcileEditRangeLoading={reconcileEditRangeLoading}
+        reconcileEditRangeCandidates={reconcileEditRangeCandidates}
+        handleReconcileEditFetchByRange={handleReconcileEditFetchByRange}
+        handleReconcileEditAddAllCandidates={handleReconcileEditAddAllCandidates}
+        reconcileEditSetLunas={reconcileEditSetLunas}
+        setReconcileEditSetLunas={setReconcileEditSetLunas}
+        reconcileEditKeterangan={reconcileEditKeterangan}
+        setReconcileEditKeterangan={setReconcileEditKeterangan}
+        reconcileEditGambarPreview={reconcileEditGambarPreview}
+        setReconcileEditGambarFile={setReconcileEditGambarFile}
+        setReconcileEditGambarPreview={setReconcileEditGambarPreview}
+        setReconcileEditGambarExistingUrl={setReconcileEditGambarExistingUrl}
+        handleSubmitEditReconcileBatch={handleSubmitEditReconcileBatch}
+        isReconcileDeleteConfirmOpen={isReconcileDeleteConfirmOpen}
+        setIsReconcileDeleteConfirmOpen={setIsReconcileDeleteConfirmOpen}
+        reconcileDeleteSubmitting={reconcileDeleteSubmitting}
+        reconcileDeletingBatchId={reconcileDeletingBatchId}
+        handleConfirmDeleteReconcileBatch={handleConfirmDeleteReconcileBatch}
+        duplicateWarningOpen={duplicateWarningOpen}
+        setDuplicateWarningOpen={setDuplicateWarningOpen}
+        submittingDuplicateProceed={submittingDuplicateProceed}
+        duplicateCandidates={duplicateCandidates}
+        setDuplicateCandidates={setDuplicateCandidates}
+        pendingDuplicatePayload={pendingDuplicatePayload}
+        setPendingDuplicatePayload={setPendingDuplicatePayload}
+        handleViewDuplicateNota={handleViewDuplicateNota}
+        handleProceedDuplicateCreate={handleProceedDuplicateCreate}
+        viewImageUrl={viewImageUrl}
+        setViewImageUrl={setViewImageUrl}
+        viewImageError={viewImageError}
+        setViewImageError={setViewImageError}
       />
-
-      <ConfirmationModal
-        isOpen={isBulkDeleteConfirmOpen}
-        onClose={() => setIsBulkDeleteConfirmOpen(false)}
-        onConfirm={handleBulkDelete}
-        title="Konfirmasi Hapus Massal"
-        description={`Apakah Anda yakin ingin menghapus ${Object.keys(rowSelection).length} nota yang dipilih? Aksi ini tidak dapat dibatalkan.`}
-        variant="emerald"
-      />
-
-      {isDetailModalOpen && selectedNota && (
-        <ModalDetail
-          nota={selectedNota}
-          onClose={handleCloseDetailModal}
-          onEdit={handleEditFromDetail}
-          onDelete={handleDeleteFromDetail}
-        />
-      )}
-
-      <UbahStatusModal
-        isOpen={isUbahStatusModalOpen}
-        onClose={handleCloseUbahStatusModal}
-        nota={selectedNota}
-        onSave={handleSaveStatus}
-      />
-
-      {isBulkHargaOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-          <div className="bg-white w-[92vw] sm:w-full sm:max-w-[520px] max-h-[92vh] rounded-2xl overflow-hidden shadow-xl p-0 flex flex-col">
-            <ModalHeader
-              title="Update Harga Massal"
-              subtitle={`Set harga per kg untuk ${Object.keys(rowSelection).length} nota yang dipilih.`}
-              variant="emerald"
-              icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
-              onClose={() => { if (!bulkHargaSubmitting) setIsBulkHargaOpen(false) }}
-            />
-            <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Harga / Kg</Label>
-                  <Input
-                    inputMode="numeric"
-                    value={bulkHargaValue}
-                    onChange={(e) => setBulkHargaValue(e.target.value)}
-                    placeholder="contoh: 2000"
-                    className="rounded-xl"
-                    disabled={bulkHargaSubmitting}
-                  />
-                  <div className="text-xs text-gray-500">
-                    Catatan: jika ada nota yang sudah LUNAS, nilai pemasukan kas & jurnal akan disesuaikan otomatis.
-                  </div>
-                </div>
-              </div>
-            </ModalContentWrapper>
-            <ModalFooter className="sm:justify-end">
-              <Button variant="outline" className="rounded-full" onClick={() => setIsBulkHargaOpen(false)} disabled={bulkHargaSubmitting}>
-                Batal
-              </Button>
-              <Button className="rounded-full" onClick={handleBulkUpdateHarga} disabled={bulkHargaSubmitting}>
-                {bulkHargaSubmitting ? 'Menyimpan...' : 'Simpan'}
-              </Button>
-            </ModalFooter>
-          </div>
-        </div>
-      )}
-
-      <Dialog
-        open={isBulkReconcileOpen}
-        onOpenChange={(open) => {
-          if (!open && !reconcileSubmitting) setIsBulkReconcileOpen(false)
-        }}
-      >
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-[640px] max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
-          <ModalHeader
-            title="Rekonsiliasi Pembayaran"
-            subtitle={`Atur pembayaran aktual untuk ${reconcileNotaIds.length} nota.`}
-            variant="emerald"
-            icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
-            onClose={() => { if (!reconcileSubmitting) setIsBulkReconcileOpen(false) }}
-          />
-          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Pabrik</Label>
-                <select
-                  className="w-full input-style rounded-xl border-gray-200 h-10"
-                  value={reconcilePabrikId}
-                  onChange={(e) => setReconcilePabrikId(e.target.value)}
-                  disabled={reconcileSubmitting || reconcileNotaIds.length > 0}
-                >
-                  <option value="">Pilih Pabrik</option>
-                  {pabrikList.map((pabrik) => (
-                    <option key={pabrik.id} value={String(pabrik.id)}>
-                      {pabrik.name}
-                    </option>
-                  ))}
-                </select>
-                {reconcileNotaIds.length > 0 ? (
-                  <div className="text-xs text-gray-500">
-                    Pabrik dikunci karena sudah ada nota terpilih. Kosongkan pilihan nota jika ingin ganti pabrik.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Tanggal Dibayar/Ditransfer</Label>
-                  <Input
-                    type="date"
-                    value={reconcileTanggal}
-                    onChange={(e) => setReconcileTanggal(e.target.value)}
-                    className="rounded-xl"
-                    disabled={reconcileSubmitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Nominal Ditransfer (Rp)</Label>
-                  <Input
-                    inputMode="numeric"
-                    value={reconcileJumlahMasuk ? formatNumber(Math.round(Number(reconcileJumlahMasuk) || 0)) : ''}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, '')
-                      setReconcileJumlahMasuk(digits)
-                    }}
-                    placeholder="contoh: 12500000"
-                    className="rounded-xl"
-                    disabled={reconcileSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-gray-900">Nota Dipilih</div>
-                  <div className="text-xs text-gray-500">
-                    Jumlah: <span className="font-semibold text-gray-900">{formatNumber(reconcileNotas.length)}</span>
-                  </div>
-                </div>
-                {reconcileNotas.length === 0 ? (
-                  <div className="text-xs text-gray-500">Belum ada nota dipilih.</div>
-                ) : (
-                  <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
-                    <div className="divide-y divide-gray-100">
-                      {reconcileNotas.map((n: any) => {
-                        const id = Number(n?.id)
-                        const tagihan = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
-                        const kebunName = n?.kebun?.name || n?.timbangan?.kebun?.name || '-'
-                        const dateText = n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'
-                        const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
-                        const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
-                        const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
-                        const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
-                        const checked = reconcileNotaIds.includes(id)
-                        return (
-                          <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) => handleReconcileToggleNota(n, !!v)}
-                              disabled={reconcileSubmitting}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {kebunName} • {dateText} • {beratText} • {hargaText}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-xs text-gray-500">Tagihan Net</div>
-                              <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                <div className="text-sm font-semibold text-gray-900">Tambah Nota dari Rentang Tanggal</div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Dari</Label>
-                    <Input
-                      type="date"
-                      value={reconcileRangeStart}
-                      onChange={(e) => setReconcileRangeStart(e.target.value)}
-                      className="rounded-xl h-10 bg-white"
-                      disabled={reconcileSubmitting || reconcileRangeLoading}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Sampai</Label>
-                    <Input
-                      type="date"
-                      value={reconcileRangeEnd}
-                      onChange={(e) => setReconcileRangeEnd(e.target.value)}
-                      className="rounded-xl h-10 bg-white"
-                      disabled={reconcileSubmitting || reconcileRangeLoading}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      className="rounded-full w-full"
-                      variant="outline"
-                      onClick={handleReconcileFetchByRange}
-                      disabled={reconcileSubmitting || reconcileRangeLoading}
-                    >
-                      {reconcileRangeLoading ? 'Memuat...' : 'Cari Nota'}
-                    </Button>
-                  </div>
-                </div>
-
-                {reconcileRangeCandidates.length > 0 ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs text-gray-500">
-                        Ditemukan <span className="font-semibold text-gray-900">{reconcileRangeCandidates.length.toLocaleString('id-ID')}</span> nota (filter: BELUM LUNAS)
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={handleReconcileAddAllCandidates}
-                          disabled={reconcileSubmitting}
-                        >
-                          Tambah Semua
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
-                      <div className="divide-y divide-gray-100">
-                        {reconcileRangeCandidates.map((n: any) => {
-                          const id = Number(n?.id)
-                          const tagihan = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
-                          const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
-                          const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
-                          const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
-                          const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
-                          const checked = reconcileNotaIds.includes(id)
-                          return (
-                            <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(v) => handleReconcileToggleNota(n, !!v)}
-                                disabled={reconcileSubmitting}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  {n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {n?.kendaraanPlatNomor || '-'} • {n?.supir?.name || '-'} • {beratText} • {hargaText}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-gray-500">Tagihan Net</div>
-                                <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-500">
-                    Pilih rentang tanggal bongkar, lalu klik “Cari Nota” untuk menambahkan nota ke rekonsiliasi.
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={reconcileSetLunas}
-                  onCheckedChange={(v) => setReconcileSetLunas(!!v)}
-                  disabled={reconcileSubmitting}
-                />
-                <div className="text-sm text-gray-700">Set status pembayaran menjadi LUNAS</div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                {(() => {
-                  const parseMoney = (v: string) => Math.round(Number(String(v || '').replace(/[^\d.-]/g, '')) || 0)
-                  const jumlahMasuk = parseMoney(reconcileJumlahMasuk)
-                  const tagihan = reconcileNotas.reduce((sum, n: any) => sum + Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0), 0)
-                  const totalAktual = Math.max(0, jumlahMasuk)
-                  const selisih = Math.round(Number(totalAktual - tagihan) || 0)
-                  return (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                        <div>
-                          <div className="text-gray-500">Total Tagihan (Net)</div>
-                          <div className="font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
-                          <div className="text-xs text-gray-600 mt-0.5">
-                            Jumlah Nota: <span className="font-semibold text-gray-900">{reconcileNotas.length.toLocaleString('id-ID')}</span>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Total Aktual (Jumlah Ditransfer)</div>
-                          <div className="font-extrabold text-gray-900">{formatCurrency(totalAktual)}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Selisih</div>
-                          <div className={cn("font-extrabold", selisih === 0 ? "text-emerald-700" : selisih > 0 ? "text-emerald-700" : "text-rose-700")}>
-                            {formatCurrency(selisih)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Keterangan (opsional)</Label>
-                <Input
-                  value={reconcileKeterangan}
-                  onChange={(e) => setReconcileKeterangan(e.target.value)}
-                  placeholder="contoh: Transfer gabungan"
-                  className="rounded-xl"
-                  disabled={reconcileSubmitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Bukti Transfer (opsional)</Label>
-                <ImageUpload
-                  previewUrl={reconcileGambarPreview}
-                  onFileChange={(file) => {
-                    setReconcileGambarFile(file)
-                    setReconcileGambarPreview(file ? URL.createObjectURL(file) : null)
-                  }}
-                />
-              </div>
-            </div>
-          </ModalContentWrapper>
-          <ModalFooter className="sm:justify-end">
-            <Button variant="outline" className="rounded-full" onClick={() => setIsBulkReconcileOpen(false)} disabled={reconcileSubmitting}>
-              Batal
-            </Button>
-            <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleBulkReconcileSubmit} disabled={reconcileSubmitting}>
-              {reconcileSubmitting ? 'Menyimpan...' : 'Simpan'}
-            </Button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isReconcileDetailOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsReconcileDetailOpen(false)
-            setReconcileDetail(null)
-          }
-        }}
-      >
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-3xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
-          <ModalHeader
-            title="Detail Pembayaran Nota Sawit"
-            subtitle={reconcileDetail?.id ? `Batch #${reconcileDetail.id}` : 'Detail batch'}
-            variant="emerald"
-            icon={<ClipboardDocumentListIcon className="h-5 w-5 text-white" />}
-            onClose={() => {
-              setIsReconcileDetailOpen(false)
-              setReconcileDetail(null)
-            }}
-          />
-          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-            {!reconcileDetail ? (
-              <div className="text-sm text-gray-500">Tidak ada data batch.</div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-gray-900">Batch #{reconcileDetail.id}</div>
-                    <div className="text-sm font-semibold text-gray-700">
-                      {reconcileDetail?.tanggal
-                        ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
-                        : '-'}{' '}
-                      • <span className="font-extrabold text-gray-900">{reconcileDetail?.pabrikSawit?.name || '-'}</span> • <span className="font-extrabold text-gray-900">{formatNumber(Number(reconcileDetail?.count || 0))}</span> nota
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
-                    <div className="text-gray-500 font-semibold">Jumlah Dibayar/Ditransfer</div>
-                    <div className="text-lg font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(reconcileDetail?.jumlahMasuk || 0))}</div>
-                  </div>
-                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
-                    <div className="text-gray-500 font-semibold">Jumlah Sesuai Nota Sawit</div>
-                    <div className="text-lg font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(reconcileDetail?.totalTagihan || 0))}</div>
-                  </div>
-                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
-                    <div className="text-gray-500 font-semibold">Selisih Pembayaran</div>
-                    <div className={cn("text-lg font-extrabold tabular-nums", Number(reconcileDetail?.selisih || 0) === 0 ? "text-emerald-700" : Number(reconcileDetail?.selisih || 0) > 0 ? "text-emerald-700" : "text-rose-700")}>
-                      {formatCurrency(Number(reconcileDetail?.selisih || 0))}
-                    </div>
-                  </div>
-                </div>
-
-                {Array.isArray(reconcileDetail?.items) && reconcileDetail.items.length > 0 ? (
-                  <div className="rounded-xl border border-gray-100 overflow-hidden bg-white">
-                    <div className="px-3 py-2 text-[11px] font-semibold text-gray-500 bg-gray-50 border-b border-gray-100">
-                      NOTA DIBAYAR
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                      {(reconcileDetail.items as any[]).slice(0, 20).map((i: any) => {
-                        const nota = i?.nota
-                        const kebunName = nota?.kebun?.name || '-'
-                        const dateText = nota?.tanggalBongkar
-                          ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
-                          : '-'
-                        const beratAkhir = Math.round(Number(nota?.beratAkhir || 0) || 0)
-                        const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
-                        const hargaPerKg = Math.round(Number(nota?.hargaPerKg || 0) || 0)
-                        const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
-                        const amount = Math.round(Number(i?.tagihanNet || 0))
-                        return (
-                          <div key={String(i?.notaSawitId)} className="px-3 py-2 text-xs text-gray-700">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 text-gray-900 font-semibold truncate">
-                                Nota {kebunName} tanggal {dateText}
-                              </div>
-                              <div className="shrink-0 text-right text-gray-900 tabular-nums font-extrabold">
-                                {formatCurrency(amount)}
-                              </div>
-                            </div>
-                            <div className="mt-0.5 text-[11px] text-gray-500">
-                              Berat akhir: <span className="font-semibold text-gray-800">{beratText}</span> • Harga: <span className="font-semibold text-gray-800">{hargaText}</span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div className="px-3 py-2 text-xs bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                      <div className="text-gray-500">Total Jumlah</div>
-                      <div className="font-extrabold text-gray-900 tabular-nums">
-                        {formatCurrency(
-                          (reconcileDetail.items as any[]).reduce((sum: number, i: any) => sum + Math.round(Number(i?.tagihanNet || 0)), 0),
-                        )}
-                      </div>
-                    </div>
-                    {reconcileDetail.items.length > 20 ? (
-                      <div className="px-3 py-2 text-xs text-gray-500 bg-gray-50 border-t border-gray-100">
-                        +{formatNumber(reconcileDetail.items.length - 20)} nota lainnya
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {reconcileDetail?.gambarUrl ? (
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase text-gray-500">Bukti Transfer</div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBuktiTransferUrl(String(reconcileDetail.gambarUrl))
-                        setIsBuktiTransferOpen(true)
-                      }}
-                      className="block w-full text-left rounded-2xl border border-gray-100 overflow-hidden bg-white hover:bg-gray-50/50 transition-colors"
-                    >
-                      <img src={String(reconcileDetail.gambarUrl)} alt="Bukti Transfer" className="w-full max-h-[60vh] object-contain bg-white" />
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </ModalContentWrapper>
-          <ModalFooter className="sm:justify-end">
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={handleExportPembayaranBatchPdf}
-              disabled={!reconcileDetail?.id}
-            >
-              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-              Ekspor PDF
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => reconcileDetail && handleOpenEditReconcileBatch(reconcileDetail)}
-              disabled={!reconcileDetail}
-            >
-              <PencilSquareIcon className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              className="rounded-full"
-              onClick={() => handleOpenDeleteReconcileBatch(Number(reconcileDetail?.id))}
-              disabled={!reconcileDetail?.id}
-            >
-              <TrashIcon className="w-4 h-4 mr-2" />
-              Hapus
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                setIsReconcileDetailOpen(false)
-                setReconcileDetail(null)
-              }}
-            >
-              Tutup
-            </Button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isBuktiTransferOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsBuktiTransferOpen(false)
-            setBuktiTransferUrl(null)
-          }
-        }}
-      >
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-4xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
-          <ModalHeader
-            title="Bukti Transfer"
-            subtitle={reconcileDetail?.id ? `Batch #${reconcileDetail.id}` : 'Bukti transfer'}
-            variant="emerald"
-            icon={<PhotoIcon className="h-5 w-5 text-white" />}
-            onClose={() => {
-              setIsBuktiTransferOpen(false)
-              setBuktiTransferUrl(null)
-            }}
-          />
-          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-            {buktiTransferUrl ? (
-              <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
-                <img src={buktiTransferUrl} alt="Bukti Transfer" className="w-full max-h-[70vh] object-contain bg-white" />
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500">Tidak ada gambar.</div>
-            )}
-          </ModalContentWrapper>
-          <ModalFooter className="sm:justify-end">
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                if (!buktiTransferUrl) return
-                const link = document.createElement('a')
-                link.href = buktiTransferUrl
-                link.target = '_blank'
-                link.rel = 'noreferrer'
-                link.download = `bukti-transfer-batch-${reconcileDetail?.id || 'unknown'}`
-                document.body.appendChild(link)
-                link.click()
-                document.body.removeChild(link)
-              }}
-              disabled={!buktiTransferUrl}
-            >
-              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-              Download
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                setIsBuktiTransferOpen(false)
-                setBuktiTransferUrl(null)
-              }}
-            >
-              Tutup
-            </Button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isReconcileEditOpen}
-        onOpenChange={(open) => {
-          if (!open && !reconcileEditSubmitting) setIsReconcileEditOpen(false)
-        }}
-      >
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-[640px] max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
-          <ModalHeader
-            title="Edit Pembayaran Nota Sawit"
-            subtitle={reconcileEditingBatchId ? `Batch #${reconcileEditingBatchId}` : 'Edit pembayaran'}
-            variant="emerald"
-            icon={<PencilSquareIcon className="h-5 w-5 text-white" />}
-            onClose={() => { if (!reconcileEditSubmitting) setIsReconcileEditOpen(false) }}
-          />
-          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Pabrik</Label>
-                <select
-                  className="w-full input-style rounded-xl border-gray-200 h-10"
-                  value={reconcileEditPabrikId}
-                  onChange={(e) => setReconcileEditPabrikId(e.target.value)}
-                  disabled
-                >
-                  <option value="">Pilih Pabrik</option>
-                  {pabrikList.map((pabrik) => (
-                    <option key={pabrik.id} value={String(pabrik.id)}>
-                      {pabrik.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Tanggal Dibayar/Ditransfer</Label>
-                  <Input
-                    type="date"
-                    value={reconcileEditTanggal}
-                    onChange={(e) => setReconcileEditTanggal(e.target.value)}
-                    className="rounded-xl"
-                    disabled={reconcileEditSubmitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Nominal Ditransfer (Rp)</Label>
-                  <Input
-                    inputMode="numeric"
-                    value={reconcileEditJumlahMasuk ? formatNumber(Math.round(Number(reconcileEditJumlahMasuk) || 0)) : ''}
-                    onChange={(e) => setReconcileEditJumlahMasuk(e.target.value.replace(/\D/g, ''))}
-                    placeholder="contoh: 12500000"
-                    className="rounded-xl"
-                    disabled={reconcileEditSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-gray-900">Nota Dipilih</div>
-                  <div className="text-xs text-gray-500">
-                    Jumlah: <span className="font-semibold text-gray-900">{formatNumber(reconcileEditNotas.length)}</span>
-                  </div>
-                </div>
-                {reconcileEditNotas.length === 0 ? (
-                  <div className="text-xs text-gray-500">Belum ada nota dipilih.</div>
-                ) : (
-                  <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
-                    <div className="divide-y divide-gray-100">
-                      {reconcileEditNotas.map((n: any) => {
-                        const id = Number(n?.id)
-                        const tagihan = Math.round(Number(n?.tagihanNet ?? n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
-                        const kebunName = n?.kebun?.name || n?.timbangan?.kebun?.name || '-'
-                        const dateText = n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'
-                        const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
-                        const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
-                        const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
-                        const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
-                        const checked = reconcileEditNotaIds.includes(id)
-                        return (
-                          <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) => handleReconcileEditToggleNota(n, !!v)}
-                              disabled={reconcileEditSubmitting}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {kebunName} • {dateText} • {beratText} • {hargaText}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-xs text-gray-500">Tagihan Net</div>
-                              <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                <div className="text-sm font-semibold text-gray-900">Tambah Nota dari Rentang Tanggal</div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Dari</Label>
-                    <Input
-                      type="date"
-                      value={reconcileEditRangeStart}
-                      onChange={(e) => setReconcileEditRangeStart(e.target.value)}
-                      className="rounded-xl h-10 bg-white"
-                      disabled={reconcileEditSubmitting || reconcileEditRangeLoading}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Sampai</Label>
-                    <Input
-                      type="date"
-                      value={reconcileEditRangeEnd}
-                      onChange={(e) => setReconcileEditRangeEnd(e.target.value)}
-                      className="rounded-xl h-10 bg-white"
-                      disabled={reconcileEditSubmitting || reconcileEditRangeLoading}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      className="rounded-full w-full"
-                      variant="outline"
-                      onClick={handleReconcileEditFetchByRange}
-                      disabled={reconcileEditSubmitting || reconcileEditRangeLoading}
-                    >
-                      {reconcileEditRangeLoading ? 'Memuat...' : 'Cari Nota'}
-                    </Button>
-                  </div>
-                </div>
-
-                {reconcileEditRangeCandidates.length > 0 ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs text-gray-500">
-                        Ditemukan <span className="font-semibold text-gray-900">{reconcileEditRangeCandidates.length.toLocaleString('id-ID')}</span> nota (filter: BELUM LUNAS)
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={handleReconcileEditAddAllCandidates}
-                          disabled={reconcileEditSubmitting}
-                        >
-                          Tambah Semua
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100">
-                      <div className="divide-y divide-gray-100">
-                        {reconcileEditRangeCandidates.map((n: any) => {
-                          const id = Number(n?.id)
-                          const tagihan = Math.round(Number(n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0)
-                          const beratAkhir = Math.round(Number(n?.beratAkhir || 0) || 0)
-                          const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
-                          const hargaPerKg = Math.round(Number(n?.hargaPerKg || 0) || 0)
-                          const hargaText = hargaPerKg > 0 ? `${formatCurrency(hargaPerKg)}/Kg` : '-'
-                          const checked = reconcileEditNotaIds.includes(id)
-                          return (
-                            <div key={String(id)} className="flex items-center gap-3 px-3 py-2 bg-white">
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(v) => handleReconcileEditToggleNota(n, !!v)}
-                                disabled={reconcileEditSubmitting}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold text-gray-900">Nota #{id}</div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  {n?.tanggalBongkar ? new Date(n.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {n?.kendaraanPlatNomor || '-'} • {n?.supir?.name || '-'} • {beratText} • {hargaText}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-gray-500">Tagihan Net</div>
-                                <div className="text-sm font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-500">
-                    Pilih rentang tanggal bongkar, lalu klik “Cari Nota” untuk menambahkan nota ke pembayaran.
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={reconcileEditSetLunas}
-                  onCheckedChange={(v) => setReconcileEditSetLunas(!!v)}
-                  disabled={reconcileEditSubmitting}
-                />
-                <div className="text-sm text-gray-700">Set status pembayaran menjadi LUNAS</div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                {(() => {
-                  const parseMoney = (v: string) => Math.round(Number(String(v || '').replace(/[^\d.-]/g, '')) || 0)
-                  const jumlahMasuk = parseMoney(reconcileEditJumlahMasuk)
-                  const tagihan = reconcileEditNotas.reduce((sum: number, n: any) => sum + Math.round(Number(n?.tagihanNet ?? n?.pembayaranSetelahPph ?? n?.totalPembayaran ?? 0) || 0), 0)
-                  const totalAktual = Math.max(0, jumlahMasuk)
-                  const selisih = Math.round(Number(totalAktual - tagihan) || 0)
-                  return (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                        <div>
-                          <div className="text-gray-500">Total Tagihan (Net)</div>
-                          <div className="font-extrabold text-gray-900">{formatCurrency(tagihan)}</div>
-                          <div className="text-xs text-gray-600 mt-0.5">
-                            Jumlah Nota: <span className="font-semibold text-gray-900">{reconcileEditNotas.length.toLocaleString('id-ID')}</span>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Total Aktual (Jumlah Ditransfer)</div>
-                          <div className="font-extrabold text-gray-900">{formatCurrency(totalAktual)}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Selisih</div>
-                          <div className={cn("font-extrabold", selisih === 0 ? "text-emerald-700" : selisih > 0 ? "text-emerald-700" : "text-rose-700")}>
-                            {formatCurrency(selisih)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Keterangan (opsional)</Label>
-                <Input
-                  value={reconcileEditKeterangan}
-                  onChange={(e) => setReconcileEditKeterangan(e.target.value)}
-                  placeholder="contoh: Transfer gabungan"
-                  className="rounded-xl"
-                  disabled={reconcileEditSubmitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Bukti Transfer (opsional)</Label>
-                <ImageUpload
-                  previewUrl={reconcileEditGambarPreview}
-                  onFileChange={(file) => {
-                    setReconcileEditGambarFile(file)
-                    if (file) {
-                      const url = URL.createObjectURL(file)
-                      setReconcileEditGambarPreview(url)
-                      setReconcileEditGambarExistingUrl(null)
-                    } else {
-                      setReconcileEditGambarPreview(null)
-                      setReconcileEditGambarExistingUrl(null)
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          </ModalContentWrapper>
-          <ModalFooter className="sm:justify-end">
-            <Button variant="outline" className="rounded-full" onClick={() => setIsReconcileEditOpen(false)} disabled={reconcileEditSubmitting}>
-              Batal
-            </Button>
-            <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmitEditReconcileBatch} disabled={reconcileEditSubmitting || reconcileEditNotaIds.length === 0}>
-              {reconcileEditSubmitting ? 'Menyimpan...' : 'Simpan'}
-            </Button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isReconcileDeleteConfirmOpen}
-        onOpenChange={(open) => {
-          if (!open && !reconcileDeleteSubmitting) setIsReconcileDeleteConfirmOpen(false)
-        }}
-      >
-        <DialogContent className="w-[96vw] sm:w-full sm:max-w-md p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col gap-0 [&>button.absolute]:hidden">
-          <ModalHeader
-            title="Hapus Rekonsiliasi"
-            subtitle={reconcileDeletingBatchId ? `Batch #${reconcileDeletingBatchId}` : 'Hapus batch'}
-            variant="emerald"
-            icon={<TrashIcon className="h-5 w-5 text-white" />}
-            onClose={() => { if (!reconcileDeleteSubmitting) setIsReconcileDeleteConfirmOpen(false) }}
-          />
-          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto">
-            <div className="p-6 text-sm text-gray-700">
-              Batch ini akan dihapus, transaksi kas batch akan dibatalkan, dan nota di batch akan kembali menjadi BELUM LUNAS.
-            </div>
-          </ModalContentWrapper>
-          <ModalFooter className="sm:justify-end">
-            <Button variant="outline" className="rounded-full" onClick={() => setIsReconcileDeleteConfirmOpen(false)} disabled={reconcileDeleteSubmitting}>
-              Batal
-            </Button>
-            <Button variant="destructive" className="rounded-full" onClick={handleConfirmDeleteReconcileBatch} disabled={reconcileDeleteSubmitting}>
-              {reconcileDeleteSubmitting ? 'Menghapus...' : 'Hapus'}
-            </Button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={duplicateWarningOpen}
-        onOpenChange={(open) => {
-          if (!open && !submittingDuplicateProceed) {
-            setDuplicateWarningOpen(false)
-            setDuplicateCandidates([])
-            setPendingDuplicatePayload(null)
-          }
-        }}
-      >
-        <DialogContent className="w-[96vw] sm:w-full sm:max-w-2xl max-h-[92vh] p-0 overflow-hidden rounded-2xl shadow-2xl border-none flex flex-col [&>button.absolute]:hidden">
-          <ModalHeader
-            title="Peringatan Duplikasi Nota"
-            subtitle="Ditemukan nota lain dengan data identik. Pastikan ini bukan input ganda."
-            variant="emerald"
-            icon={<DocumentTextIcon className="h-5 w-5 text-white" />}
-            onClose={() => {
-              if (submittingDuplicateProceed) return
-              setDuplicateWarningOpen(false)
-              setDuplicateCandidates([])
-              setPendingDuplicatePayload(null)
-            }}
-          />
-          <ModalContentWrapper className="flex-1 min-h-0 overflow-y-auto">
-            <div className="space-y-3">
-              <div className="text-sm text-gray-700">
-                Sistem menemukan nota dengan kombinasi yang sama: Tanggal Bongkar, Pabrik, Supir, Kendaraan, Bruto, Tara, Netto, Potongan, dan Berat Akhir.
-              </div>
-              <div className="space-y-2">
-                {(duplicateCandidates || []).length === 0 ? (
-                  <div className="text-sm text-gray-500">Tidak ada kandidat.</div>
-                ) : (
-                  duplicateCandidates.map((d: any) => (
-                    <div key={String(d?.id)} className="rounded-xl border border-gray-100 bg-white p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-semibold text-gray-900">Nota #{d?.id}</div>
-                          <div className="text-xs text-gray-500">
-                            {d?.tanggalBongkar ? new Date(d.tanggalBongkar).toLocaleDateString('id-ID') : '-'} • {d?.kebunName || '-'} • {d?.pabrikSawit?.name || '-'} • {d?.supir?.name || '-'} • {d?.kendaraanPlatNomor || '-'}
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="rounded-full"
-                          onClick={() => {
-                            handleViewDuplicateNota(Number(d?.id))
-                          }}
-                        >
-                          Lihat
-                        </Button>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                        <div className="rounded-lg bg-gray-50 px-2 py-1">
-                          <div className="text-gray-500">Bruto</div>
-                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.bruto || 0))}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 px-2 py-1">
-                          <div className="text-gray-500">Tara</div>
-                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.tara || 0))}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 px-2 py-1">
-                          <div className="text-gray-500">Netto</div>
-                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.netto || 0))}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 px-2 py-1">
-                          <div className="text-gray-500">Potongan</div>
-                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.potongan || 0))}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 px-2 py-1">
-                          <div className="text-gray-500">Berat Akhir</div>
-                          <div className="font-semibold text-gray-900">{formatNumber(Number(d?.beratAkhir || 0))}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </ModalContentWrapper>
-          <ModalFooter className="sm:justify-between">
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                if (submittingDuplicateProceed) return
-                setDuplicateWarningOpen(false)
-                setDuplicateCandidates([])
-                setPendingDuplicatePayload(null)
-              }}
-              disabled={submittingDuplicateProceed}
-            >
-              Batal
-            </Button>
-            <Button
-              className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={handleProceedDuplicateCreate}
-              disabled={submittingDuplicateProceed || !pendingDuplicatePayload}
-            >
-              {submittingDuplicateProceed ? 'Menyimpan...' : 'Tetap Simpan'}
-            </Button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!viewImageUrl} onOpenChange={(open) => !open && setViewImageUrl(null)}>
-        <DialogContent className="max-w-5xl w-[95vw] p-0 overflow-hidden border-none bg-white shadow-2xl [&>button.absolute]:hidden">
-          {viewImageUrl && (
-            <div className="flex flex-col h-full max-h-[90vh]">
-              <ModalHeader
-                title="Pratinjau Nota"
-                subtitle="Gambar lampiran nota sawit"
-                variant="emerald"
-                icon={<DocumentTextIcon className="h-5 w-5 text-white" />}
-                onClose={() => { setViewImageUrl(null); setViewImageError(false); }}
-              />
-
-              {/* Image Content */}
-              <div className="flex-1 overflow-auto flex items-center justify-center p-4 md:p-8 min-h-0 bg-gray-50/50">
-                {!viewImageError ? (
-                  <img
-                    src={viewImageUrl}
-                    alt="Bukti Nota"
-                    className="max-w-full max-h-[65vh] md:max-h-[70vh] w-auto h-auto object-contain shadow-2xl rounded-md border border-gray-100"
-                    onError={() => setViewImageError(true)}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center w-full h-[40vh]">
-                    <div className="px-4 py-3 rounded-md bg-white shadow text-gray-700">
-                      Gambar tidak ditemukan atau tidak dapat dimuat.
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              {!viewImageError && (
-                <ModalFooter className="sm:justify-center">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-9 w-9 rounded-md border border-white bg-white text-emerald-600 hover:bg-gray-50 hover:text-emerald-700 shadow-sm transition-colors"
-                    onClick={() => {
-                      const link = document.createElement('a');
-                      link.href = viewImageUrl;
-                      link.download = `Nota-Sawit-${Date.now()}.jpg`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }}
-                    title="Download Gambar"
-                  >
-                    <ArrowDownTrayIcon className="w-4 h-4" />
-                  </Button>
-                </ModalFooter>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
     </main>
   )

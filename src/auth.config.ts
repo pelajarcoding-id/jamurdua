@@ -17,11 +17,29 @@ export const authConfig = {
         const url = nextUrl.clone()
         const xfHost = request.headers.get('x-forwarded-host')
         const xfProto = request.headers.get('x-forwarded-proto')
-        if (xfHost) {
-          url.host = xfHost.split(',')[0].trim()
+        const xfPort = request.headers.get('x-forwarded-port')
+        const proto = (xfProto ? xfProto.split(',')[0].trim() : '').toLowerCase()
+        if (proto === 'http' || proto === 'https') {
+          url.protocol = `${proto}:`
         }
-        if (xfProto) {
-          url.protocol = `${xfProto.split(',')[0].trim()}:`
+
+        if (xfHost) {
+          const raw = xfHost.split(',')[0].trim()
+          const isSafeHost = /^[a-z0-9.-]+(?::\d+)?$/i.test(raw)
+          if (isSafeHost) {
+            const idx = raw.lastIndexOf(':')
+            const hostOnly = idx > -1 ? raw.slice(0, idx) : raw
+            const hostPort = idx > -1 ? raw.slice(idx + 1) : ''
+            url.hostname = hostOnly
+
+            if (url.protocol === 'https:') {
+              url.port = ''
+            } else {
+              const portHeader = xfPort ? xfPort.split(',')[0].trim() : ''
+              const portCandidate = /^\d+$/.test(portHeader) ? portHeader : (/^\d+$/.test(hostPort) ? hostPort : '')
+              url.port = portCandidate
+            }
+          }
         }
         url.pathname = pathname
         url.search = ''
