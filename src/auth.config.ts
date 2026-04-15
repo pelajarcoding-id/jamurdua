@@ -18,27 +18,37 @@ export const authConfig = {
         const xfHost = request.headers.get('x-forwarded-host')
         const xfProto = request.headers.get('x-forwarded-proto')
         const xfPort = request.headers.get('x-forwarded-port')
-        const proto = (xfProto ? xfProto.split(',')[0].trim() : '').toLowerCase()
-        if (proto === 'http' || proto === 'https') {
-          url.protocol = `${proto}:`
+        const hostHeader = request.headers.get('host')
+        const cfVisitor = request.headers.get('cf-visitor')
+
+        const protoFromForwarded = (xfProto ? xfProto.split(',')[0].trim() : '').toLowerCase()
+        const protoFromCf =
+          cfVisitor && cfVisitor.toLowerCase().includes('"scheme":"https"') ? 'https' : ''
+        const proto = (protoFromForwarded || protoFromCf || url.protocol.replace(':', '')).toLowerCase()
+        if (proto === 'http' || proto === 'https') url.protocol = `${proto}:`
+
+        const pickHost = () => {
+          const safe = (raw: string) => /^[a-z0-9.-]+(?::\d+)?$/i.test(raw)
+          const fromXf = xfHost ? xfHost.split(',')[0].trim() : ''
+          if (fromXf && safe(fromXf)) return fromXf
+          const fromHost = hostHeader ? hostHeader.split(',')[0].trim() : ''
+          if (fromHost && safe(fromHost)) return fromHost
+          return ''
         }
 
-        if (xfHost) {
-          const raw = xfHost.split(',')[0].trim()
-          const isSafeHost = /^[a-z0-9.-]+(?::\d+)?$/i.test(raw)
-          if (isSafeHost) {
-            const idx = raw.lastIndexOf(':')
-            const hostOnly = idx > -1 ? raw.slice(0, idx) : raw
-            const hostPort = idx > -1 ? raw.slice(idx + 1) : ''
-            url.hostname = hostOnly
+        const pickedHost = pickHost()
+        if (pickedHost) {
+          const idx = pickedHost.lastIndexOf(':')
+          const hostname = idx > -1 ? pickedHost.slice(0, idx) : pickedHost
+          const hostPort = idx > -1 ? pickedHost.slice(idx + 1) : ''
+          url.hostname = hostname
 
-            if (url.protocol === 'https:') {
-              url.port = ''
-            } else {
-              const portHeader = xfPort ? xfPort.split(',')[0].trim() : ''
-              const portCandidate = /^\d+$/.test(portHeader) ? portHeader : (/^\d+$/.test(hostPort) ? hostPort : '')
-              url.port = portCandidate
-            }
+          if (url.protocol === 'https:') {
+            url.port = ''
+          } else {
+            const portHeader = xfPort ? xfPort.split(',')[0].trim() : ''
+            const portCandidate = /^\d+$/.test(portHeader) ? portHeader : (/^\d+$/.test(hostPort) ? hostPort : '')
+            url.port = portCandidate
           }
         }
         url.pathname = pathname

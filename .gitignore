@@ -19,3 +19,4 @@ prisma/dev.db
 *.db
 public/uploads/
 .vscode/
+docs/refactor-pattern.md
