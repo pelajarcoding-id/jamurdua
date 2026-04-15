@@ -52,6 +52,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loading, pathname, router, session])
 
   useEffect(() => {
+    if (loading) return
+    if (!session?.user) return
+    const role = String((session.user as any)?.role || '').toUpperCase()
+    if (!role) return
+    const allowed = ['ADMIN', 'PEMILIK', 'KASIR', 'MANAGER']
+    if (allowed.includes(role)) return
+    if (pathname !== '/attendance') {
+      router.replace('/attendance')
+    }
+  }, [loading, pathname, router, session])
+
+  useEffect(() => {
     const onNavStart = () => {
       const start = performance.now();
       setNavStart(start);

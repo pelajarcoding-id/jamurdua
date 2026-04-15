@@ -3,6 +3,16 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFile } from '@/lib/storage'
 
+function getWibTodayDateForDb() {
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+  return new Date(`${ymd}T00:00:00.000Z`)
+}
+
 async function ensureAttendanceSelfieTable() {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "AttendanceSelfie" (
@@ -72,8 +82,7 @@ export async function POST(req: Request) {
       folder: 'attendance'
     })
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = getWibTodayDateForDb()
 
     const existingAttendance = await (prisma as any).attendanceSelfie.findUnique({
       where: {
@@ -146,8 +155,7 @@ export async function GET() {
     await ensureAttendanceSelfieTable()
 
     const userId = Number(session.user.id)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = getWibTodayDateForDb()
 
     const attendance = await (prisma as any).attendanceSelfie.findUnique({
       where: {

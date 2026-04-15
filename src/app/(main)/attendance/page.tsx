@@ -14,6 +14,35 @@ const videoConstraints = {
   facingMode: "user"
 }
 
+const formatWibTime = (value: string | null | undefined) => {
+  if (!value) return '--:--'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '--:--'
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+}
+
+function dataUrlToFile(dataUrl: string, filename: string) {
+  const parts = dataUrl.split(',')
+  if (parts.length < 2) {
+    throw new Error('Format foto tidak valid')
+  }
+
+  const mimeMatch = parts[0].match(/data:(.*?);base64/)
+  const mime = mimeMatch?.[1] || 'image/jpeg'
+  const binary = atob(parts[1])
+  const bytes = new Uint8Array(binary.length)
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+
+  return new File([bytes], filename, { type: mime })
+}
+
 export default function AttendancePage() {
   const webcamRef = useRef<Webcam>(null)
   const [imgSrc, setImgSrc] = useState<string | null>(null)
@@ -102,10 +131,8 @@ export default function AttendancePage() {
     setLoading(true)
     const toastId = toast.loading('Sedang memproses absensi...')
     try {
-      // Convert base64 to file
-      const response = await fetch(imgSrc)
-      const blob = await response.blob()
-      const file = new File([blob], "attendance.jpg", { type: "image/jpeg" })
+      // Convert data URL screenshot to file without network fetch
+      const file = dataUrlToFile(imgSrc, "attendance.jpg")
 
       // Compress and convert to WebP
       let compressedFile: File
@@ -173,14 +200,14 @@ export default function AttendancePage() {
         <div className="text-center">
           <p className="text-xs text-gray-400 uppercase font-semibold">Masuk</p>
           <p className="font-medium text-gray-700">
-            {attendance?.checkIn ? new Date(attendance.checkIn).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+            {formatWibTime(attendance?.checkIn)}
           </p>
         </div>
         <div className="h-8 w-px bg-gray-100"></div>
         <div className="text-center">
           <p className="text-xs text-gray-400 uppercase font-semibold">Pulang</p>
           <p className="font-medium text-gray-700">
-            {attendance?.checkOut ? new Date(attendance.checkOut).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+            {formatWibTime(attendance?.checkOut)}
           </p>
         </div>
         <div className="h-8 w-px bg-gray-100"></div>

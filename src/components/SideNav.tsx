@@ -33,6 +33,10 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
 
   const visibleLinks: NavLink[] = links.filter((link) => {
     const userRole = role?.toUpperCase() || '';
+
+    if (userRole && !['ADMIN', 'PEMILIK', 'KASIR', 'MANAGER'].includes(userRole)) {
+      return link.name === 'Absensi'
+    }
     
     // Menu Akun Pengguna hanya untuk ADMIN dan PEMILIK
     if (link.name === 'Akun Pengguna') {
@@ -45,6 +49,10 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
 
     if (link.name === 'Hutang Bank') {
       return userRole === 'ADMIN' || userRole === 'PEMILIK';
+    }
+
+    if (link.name === 'Monitoring Absensi') {
+      return userRole === 'ADMIN' || userRole === 'PEMILIK' || userRole === 'KASIR';
     }
 
     // Role SUPIR memiliki batasan akses menu tertentu
@@ -163,7 +171,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
               )}
               {visibleLinks.map((link) => {
                 const LinkIcon = link.icon;
-                const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
+                const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(`${link.href}/`));
 
                 if (link.subLinks) {
                   return (
