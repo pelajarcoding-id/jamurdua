@@ -181,6 +181,8 @@ export default function NotaSawitPage() {
   const [viewImageError, setViewImageError] = useState(false);
   const notaHasLoadedRef = useRef(false)
   const notaAbortRef = useRef<AbortController | null>(null)
+  const refreshToastRef = useRef<string | null>(null)
+  const manualRefreshRef = useRef(false)
   const reconcileHistoryHasLoadedRef = useRef(false)
   const reconcileHistoryAbortRef = useRef<AbortController | null>(null)
 
@@ -254,12 +256,67 @@ export default function NotaSawitPage() {
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     try {
+      manualRefreshRef.current = true
+      refreshToastRef.current = toast.loading('Memperbarui data...')
       refreshData();
-      toast.success('Data diperbarui');
     } finally {
-      setTimeout(() => setRefreshing(false), 500);
+      setTimeout(() => {
+        if (!manualRefreshRef.current) setRefreshing(false)
+      }, 500);
     }
   }, [refreshData]);
+
+  const computeSummaryFromNotas = useCallback((rows: any[]): SummaryData => {
+    const totalNota = rows.length
+    const totalBerat = rows.reduce((sum, r) => {
+      const v = Number(r?.beratAkhir || 0)
+      return sum + (Number.isFinite(v) ? v : 0)
+    }, 0)
+    const totalPembayaran = rows.reduce((sum, r) => {
+      const v = Number(r?.pembayaranAktual ?? r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
+      return sum + (Number.isFinite(v) ? v : 0)
+    }, 0)
+    const lunasCount = rows.filter((r) => String(r?.statusPembayaran) === 'LUNAS').length
+    const belumLunasCount = rows.filter((r) => String(r?.statusPembayaran) === 'BELUM_LUNAS').length
+    const totalPembayaranLunas = rows.reduce((sum, r) => {
+      if (String(r?.statusPembayaran) !== 'LUNAS') return sum
+      const v = Number(r?.pembayaranAktual ?? r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
+      return sum + (Number.isFinite(v) ? v : 0)
+    }, 0)
+    const totalPembayaranBelumLunas = rows.reduce((sum, r) => {
+      if (String(r?.statusPembayaran) !== 'BELUM_LUNAS') return sum
+      const v = Number(r?.pembayaranAktual ?? r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
+      return sum + (Number.isFinite(v) ? v : 0)
+    }, 0)
+
+    const tonaseByKebunMap = rows.reduce((acc, r) => {
+      const kebun = r?.kebun || r?.timbangan?.kebun || null
+      const kebunId = kebun?.id ? Number(kebun.id) : null
+      const kebunName = kebun?.name ? String(kebun.name) : null
+      if (!kebunId || !kebunName) return acc
+      const beratAkhir = Number(r?.beratAkhir || 0)
+      const add = Number.isFinite(beratAkhir) ? beratAkhir : 0
+      const prev = acc.get(kebunId)
+      acc.set(kebunId, { kebunId, name: kebunName, totalBerat: (prev?.totalBerat || 0) + add })
+      return acc
+    }, new Map<number, { kebunId: number; name: string; totalBerat: number }>())
+
+    const tonaseRaw = Array.from(tonaseByKebunMap.values()) as Array<{ kebunId: number; name: string; totalBerat: number }>
+    const tonaseByKebun = tonaseRaw
+      .map((r) => ({ ...r, totalBerat: Math.round(Number(r.totalBerat) || 0) }))
+      .sort((a, b) => b.totalBerat - a.totalBerat)
+
+    return {
+      totalNota,
+      totalBerat: Math.round(totalBerat),
+      tonaseByKebun,
+      totalPembayaran: Math.round(totalPembayaran),
+      lunasCount,
+      belumLunasCount,
+      totalPembayaranLunas: Math.round(totalPembayaranLunas),
+      totalPembayaranBelumLunas: Math.round(totalPembayaranBelumLunas),
+    }
+  }, [])
 
   const handleOpenModal = useCallback((nota: NotaSawitData) => {
     setSelectedNota(nota);
@@ -1737,33 +1794,49 @@ export default function NotaSawitPage() {
 
         const queryString = params.toString();
 
-        const [dataRes, summaryRes] = await Promise.all([
-          fetch(`/api/nota-sawit?${queryString}`, { cache: 'no-store', signal: controller.signal }),
-          fetch(`/api/nota-sawit/summary?${queryString}`, { cache: 'no-store', signal: controller.signal }),
-        ]);
-
-        if (!dataRes.ok || !summaryRes.ok) {
-          throw new Error('Failed to fetch data');
-        }
-
-        const dataPayload = await dataRes.json();
-        const summaryPayload = await summaryRes.json();
+        const dataRes = await fetch(`/api/nota-sawit?${queryString}`, { cache: 'no-store', signal: controller.signal })
+        if (!dataRes.ok) throw new Error('Failed to fetch data')
+        const dataPayload = await dataRes.json()
 
         if (ignore) return;
 
         setData(dataPayload.data);
         setTotalNotas(dataPayload.total);
-        setSummary(summaryPayload);
         setNextCursor(dataPayload.nextCursor || null);
+
+        try {
+          const summaryRes = await fetch(`/api/nota-sawit/summary?${queryString}`, { cache: 'no-store', signal: controller.signal })
+          if (!summaryRes.ok) throw new Error('Failed to fetch summary')
+          const summaryPayload = await summaryRes.json()
+          if (ignore) return
+          setSummary(summaryPayload)
+        } catch {
+          if (ignore) return
+          setSummary(computeSummaryFromNotas(Array.isArray(dataPayload.data) ? dataPayload.data : []))
+        }
       } catch (error) {
         if ((error as any)?.name === 'AbortError') return
         if (ignore) return;
+        if (manualRefreshRef.current && refreshToastRef.current) {
+          toast.error('Gagal memuat data.', { id: refreshToastRef.current })
+          refreshToastRef.current = null
+          manualRefreshRef.current = false
+          setRefreshing(false)
+          return
+        }
         toast.error('Gagal memuat data.');
       } finally {
         if (ignore) return
         notaHasLoadedRef.current = true
         if (soft) setNotaSoftLoading(false)
         else setLoading(false)
+
+        if (manualRefreshRef.current && refreshToastRef.current) {
+          toast.success('Data diperbarui', { id: refreshToastRef.current })
+          refreshToastRef.current = null
+          manualRefreshRef.current = false
+          setRefreshing(false)
+        }
       }
     };
 

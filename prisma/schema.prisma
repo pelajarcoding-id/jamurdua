@@ -902,6 +902,7 @@ model InvoiceTbs {
   year          Int
   month         Int
   number        String              @unique
+  tanggalSurat  DateTime?           @db.Date
   status        String              @default("DRAFT")
   letterName    String              @default("CV. SARAKAN JAYA")
   letterAddress String?

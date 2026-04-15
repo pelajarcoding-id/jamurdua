@@ -21,6 +21,9 @@ async function ensureInvoiceColumns() {
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE "InvoiceTbs" ADD COLUMN IF NOT EXISTS "signedPdfUrl" TEXT`);
   } catch {}
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "InvoiceTbs" ADD COLUMN IF NOT EXISTS "tanggalSurat" DATE`);
+  } catch {}
 }
 
  export async function GET(request: Request) {
@@ -128,6 +131,7 @@ async function ensureInvoiceColumns() {
       signedPdfUrl,
       rows = [],
       number, // optional: if provided use as-is
+      tanggalSurat,
     } = body || {}
  
      if (!pabrikId || !year || !month) {
@@ -178,6 +182,7 @@ async function ensureInvoiceColumns() {
         year: Number(year),
         month: Number(month),
         number: invoiceNumber,
+        tanggalSurat: tanggalSurat ? new Date(tanggalSurat) : null,
         status: String(status),
         perihal: perihal ?? 'Permohonan Pembayaran',
         letterName: pName ?? 'CV. SARAKAN JAYA',

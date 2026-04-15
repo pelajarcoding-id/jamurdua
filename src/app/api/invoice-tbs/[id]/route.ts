@@ -44,7 +44,8 @@ import { requireAuth, requireRole } from '@/lib/route-auth'
        jabatanTtd,
       detailMode,
       signedPdfUrl,
-       rows,
+      rows,
+      tanggalSurat,
      } = body || {}
  
      const existing = await prisma.invoiceTbs.findUnique({ where: { id }, include: { items: true } })
@@ -84,7 +85,8 @@ import { requireAuth, requireRole } from '@/lib/route-auth'
          jabatanTtd: jabatanTtd ?? undefined,
         detailMode: detailMode ?? undefined,
         signedPdfUrl: signedPdfUrl ?? undefined,
-         totalKg,
+        tanggalSurat: tanggalSurat ? new Date(tanggalSurat) : undefined,
+        totalKg,
          totalRp,
          totalPpn,
          totalPph22,

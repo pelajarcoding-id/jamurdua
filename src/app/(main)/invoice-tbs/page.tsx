@@ -106,6 +106,7 @@ const toTerbilang = (num: number) => {
   const [perihal, setPerihal] = useState<string>('Permohonan Pembayaran')
   const [ditujukanKe, setDitujukanKe] = useState<string>('')
   const [lokasiTujuan, setLokasiTujuan] = useState<string>('')
+  const [tanggalSurat, setTanggalSurat] = useState<string>('')
   const [ppnPct, setPpnPct] = useState<number>(10)
   const [pph22Pct, setPph22Pct] = useState<number>(0.25)
   const [bankInfo, setBankInfo] = useState<string>('BSI KC.Langsa no rek 93.93.93.03.03 a.n CV SARAKAN JAYA')
@@ -311,6 +312,7 @@ const toTerbilang = (num: number) => {
       setPerihal(data.perihal)
       setDitujukanKe(data.tujuan || '')
       setLokasiTujuan(data.lokasiTujuan || '')
+      setTanggalSurat(data.tanggalSurat ? new Date(data.tanggalSurat).toISOString().split('T')[0] : '')
       setDetailMode((data.detailMode as any) || 'per_hari')
       setPpnPct(data.ppnPct)
       setPph22Pct(data.pph22Pct)
@@ -374,6 +376,7 @@ const toTerbilang = (num: number) => {
     letterEmail: string,
     letterLogoUrl: string,
     noSurat: string,
+    tanggalSurat: string,
     perihal: string,
     ditujukanKe: string,
     lokasiTujuan: string,
@@ -405,7 +408,7 @@ const toTerbilang = (num: number) => {
               fr.onload = () => resolve(fr.result as string)
               fr.readAsDataURL(img)
             })
-            doc.addImage(reader, 'PNG', margin, 10, 20, 20)
+            doc.addImage(reader, 'PNG', margin + 10, 10, 20, 20)
           }
         }
       } catch {}
@@ -416,46 +419,57 @@ const toTerbilang = (num: number) => {
 
       doc.setFontSize(18)
       doc.setFont('helvetica', 'bold')
+      doc.setTextColor(30, 41, 59) // Slate 800
       doc.text(params.letterName || 'CV. SARAKAN JAYA', textStartX, 16, { align: textAlignCenter })
       
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
+      doc.setTextColor(71, 85, 105) // Slate 600
       
-      let currentYHeader = 22
+      let currentYHeader = 21
       if (params.letterAddress) {
-        const splitAddress = doc.splitTextToSize(params.letterAddress, contentWidth - 40)
+        const splitAddress = doc.splitTextToSize(params.letterAddress, contentWidth - 80) // Lebih sempit agar kompak
         doc.text(splitAddress, textStartX, currentYHeader, { align: textAlignCenter })
         currentYHeader += (splitAddress.length * 5)
       }
       
       if (params.letterEmail) {
         doc.text(`Email: ${params.letterEmail}`, textStartX, currentYHeader, { align: textAlignCenter })
+        currentYHeader += 5.5
       }
       
-      doc.setDrawColor(0)
-      doc.setLineWidth(0.5)
-      doc.line(margin, 32, pageWidth - margin, 32)
+      const lineY = Math.max(currentYHeader + 1.5, 31)
+      doc.setDrawColor(0, 0, 0) // Hitam pekat
+      doc.setLineWidth(0.8) // Garis satu penuh
+      doc.line(margin, lineY, pageWidth - margin, lineY) // Garis lurus horizontal
       
-      doc.setFontSize(11)
+      doc.setTextColor(30, 41, 59)
+      doc.setFontSize(10)
       autoTable(doc, {
         body: [
           ['Nomor', `: ${params.noSurat}`],
           ['Hal', `: ${params.perihal}`],
         ],
-        startY: 36,
+        startY: lineY + 4,
         margin: { left: margin, right: margin },
-        styles: { halign: 'left', fontSize: 11, cellPadding: 1 },
+        styles: { halign: 'left', fontSize: 10, cellPadding: 1, textColor: [30, 41, 59] },
         theme: 'plain',
+        columnStyles: { 
+          0: { cellWidth: 15 }, // Perkecil lebar kolom label agar titik dua lebih dekat
+          1: { cellWidth: contentWidth - 15 } 
+        },
       })
       
       const currentY = (doc as any).lastAutoTable.finalY + 8
+      doc.setFont('helvetica', 'bold')
       doc.text(`Kepada Yth. ${params.ditujukanKe}`, margin, currentY)
-      doc.text(`Di ${params.lokasiTujuan}`, margin, currentY + 6)
-      doc.text('Dengan Hormat,', margin, currentY + 16)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Di ${params.lokasiTujuan}`, margin, currentY + 5)
+      doc.text('Dengan Hormat,', margin, currentY + 13)
       
       const introText = `Dengan surat ini kami memohon pembayaran TBS ke ${params.pabrikName} periode ${params.periodLabel} dengan rincian:`
       const splitIntro = doc.splitTextToSize(introText, contentWidth)
-      doc.text(splitIntro, margin, currentY + 24)
+      doc.text(splitIntro, margin, currentY + 19)
       
       let tableRows = params.rows
       if (params.detailMode === 'group_harga') {
@@ -498,40 +512,63 @@ const toTerbilang = (num: number) => {
       
       autoTable(doc, {
         head: [['No', 'Bulan/Tahun', 'Jumlah (Kg)', 'Harga (Rp)', 'Jumlah (Rp)']],
-        body: [...tableBody, [{ content: 'TOTAL', colSpan: 2, styles: { fontStyle: 'bold' } }, formatNumber(params.totals.totalKg), '', formatCurrency(params.totals.totalRp)]],
-        startY: currentY + 24 + (splitIntro.length * 7),
+        body: [...tableBody, [{ content: 'TOTAL', colSpan: 2, styles: { fontStyle: 'bold', halign: 'left' } }, { content: formatNumber(params.totals.totalKg), styles: { fontStyle: 'bold', halign: 'left' } }, '', { content: formatCurrency(params.totals.totalRp), styles: { fontStyle: 'bold', halign: 'left' } }]],
+        startY: currentY + 25 + (splitIntro.length * 4.5),
         margin: { left: margin, right: margin },
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [0, 0, 0] },
+        styles: { fontSize: 10, cellPadding: 3, overflow: 'linebreak', halign: 'left' },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'left' },
+          1: { cellWidth: 50, halign: 'left' },
+          2: { cellWidth: 35, halign: 'left' },
+          3: { cellWidth: 40, halign: 'left' },
+          4: { cellWidth: 35, halign: 'left' },
+        },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
       })
       
+      const summaryStartY = (doc as any).lastAutoTable.finalY + 2
       autoTable(doc, {
         body: [
           ['Ditambah : PPN', formatCurrency(params.totals.ppn)],
           ['Dikurangi PPH Pasal 22', formatCurrency(params.totals.pph22)],
-          ['Total Pembayaran', formatCurrency(params.totals.grand)],
+          [{ content: 'Total Pembayaran', styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } }, { content: formatCurrency(params.totals.grand), styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } }],
         ],
-        startY: (doc as any).lastAutoTable.finalY + 6,
+        startY: summaryStartY,
         margin: { left: margin, right: margin },
-        styles: { fontSize: 11 },
-        theme: 'grid',
-        columnStyles: { 0: { cellWidth: contentWidth - 50 }, 1: { halign: 'left' } },
+        styles: { fontSize: 10, cellPadding: 3, halign: 'left' }, // Padding disamakan (3) agar teks Rp sejajar vertikal
+        theme: 'plain', // Menghilangkan border kotak agar lebih modern dan konsisten
+        columnStyles: { 
+          0: { cellWidth: 135, halign: 'left' }, 
+          1: { cellWidth: 35, halign: 'left' } 
+        },
       })
       
       const footerY = (doc as any).lastAutoTable.finalY + 10
-      doc.setFontSize(11)
-      const terbilangText = `Terbilang: "${toTerbilang(params.totals.grand)}"`
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0) // Hitam pekat
+      doc.setFont('helvetica', 'bold') // Bold
+      const terbilangText = `Terbilang: "${toTerbilang(params.totals.grand)} Rupiah"`
       const splitTerbilang = doc.splitTextToSize(terbilangText, contentWidth)
       doc.text(splitTerbilang, margin, footerY)
       
-      const nextFooterY = footerY + (splitTerbilang.length * 6)
+      doc.setFont('helvetica', 'normal') // Reset ke normal untuk teks berikutnya
+      doc.setTextColor(30, 41, 59)
+      const nextFooterY = footerY + (splitTerbilang.length * 6) + 4
+      doc.setFont('helvetica', 'italic')
       doc.text(`Pembayaran dapat ditransfer ke ${params.bankInfo}`, margin, nextFooterY)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Atas kerja sama yang baik kami ucapkan terima kasih.', margin, nextFooterY + 6)
       
-      const tgl = format(new Date(params.y, params.m - 1, 1), 'dd MMMM yyyy', { locale: idLocale })
-      doc.text(`Langsa, ${tgl}`, margin, nextFooterY + 12)
-      doc.text(params.letterName || 'CV. SARAKAN JAYA', margin, nextFooterY + 18)
-      doc.text(params.penandatangan, margin, nextFooterY + 55)
-      doc.text(params.jabatanTtd, margin, nextFooterY + 61)
+      const tglY = nextFooterY + 18
+      const tgl = params.tanggalSurat ? format(new Date(params.tanggalSurat), 'dd MMMM yyyy', { locale: idLocale }) : format(new Date(params.y, params.m - 1, 1), 'dd MMMM yyyy', { locale: idLocale })
+      doc.text(`Langsa, ${tgl}`, margin, tglY)
+      doc.text(params.letterName || 'CV. SARAKAN JAYA', margin, tglY + 6)
+      
+      doc.setFont('helvetica', 'bold')
+      doc.text(params.penandatangan, margin, tglY + 45) // Ditinggikan untuk ruang materai 10rb
+      doc.setFont('helvetica', 'normal')
+      doc.text(params.jabatanTtd, margin, tglY + 51)
       
       doc.save(`invoice-tbs-${params.pabrikName}-${params.y}-${String(params.m).padStart(2, '0')}.pdf`)
     } catch (e) {
@@ -552,11 +589,11 @@ const toTerbilang = (num: number) => {
      
       await generatePdf({
        letterName, letterAddress, letterEmail, letterLogoUrl,
-       noSurat: nomorLabel, perihal, ditujukanKe, lokasiTujuan,
+       noSurat: nomorLabel, tanggalSurat, perihal, ditujukanKe, lokasiTujuan,
         pabrikName, periodLabel, rows, detailMode, totals, bankInfo,
        penandatangan, jabatanTtd, y, m
      })
-  }, [selectedPabrikId, month, data, pabrikList, totals, noSurat, perihal, ditujukanKe, lokasiTujuan, bankInfo, penandatangan, jabatanTtd, rows, letterName, letterAddress, letterEmail, letterLogoUrl, generatePdf, detailMode])
+  }, [selectedPabrikId, month, data, pabrikList, totals, noSurat, tanggalSurat, perihal, ditujukanKe, lokasiTujuan, bankInfo, penandatangan, jabatanTtd, rows, letterName, letterAddress, letterEmail, letterLogoUrl, generatePdf, detailMode])
 
   const handleExportSpecificPdf = useCallback(async (inv: any) => {
     try {
@@ -589,6 +626,7 @@ const toTerbilang = (num: number) => {
         letterEmail: data.letterEmail || '',
         letterLogoUrl: data.letterLogoUrl || '',
         noSurat: data.number,
+        tanggalSurat: data.tanggalSurat || '',
         perihal: data.perihal,
         ditujukanKe: data.tujuan || '',
         lokasiTujuan: data.lokasiTujuan || '',
@@ -845,9 +883,13 @@ const toTerbilang = (num: number) => {
               <Input value={noSurat} onChange={(e) => setNoSurat(e.target.value)} className="rounded-xl border-gray-200 h-11" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-gray-500 uppercase ml-1">Perihal</label>
-              <Input value={perihal} onChange={(e) => setPerihal(e.target.value)} className="rounded-xl border-gray-200 h-11" />
+              <label className="text-xs font-bold text-gray-500 uppercase ml-1">Tanggal Surat</label>
+              <Input type="date" value={tanggalSurat} onChange={(e) => setTanggalSurat(e.target.value)} className="rounded-xl border-gray-200 h-11" />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Perihal</label>
+            <Input value={perihal} onChange={(e) => setPerihal(e.target.value)} className="rounded-xl border-gray-200 h-11" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -890,17 +932,30 @@ const toTerbilang = (num: number) => {
               <CalendarIcon className="h-5 w-5 text-emerald-500" />
               Rincian Item Invoice
             </h3>
-            <div className="mt-3 flex items-center gap-3">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mode Rincian PDF</span>
-              <Select value={detailMode} onValueChange={(v: 'per_hari' | 'group_harga') => setDetailMode(v)}>
-                <SelectTrigger className="w-56 h-9 rounded-xl border-gray-200 focus:ring-blue-500/20 transition-all">
-                  <SelectValue placeholder="Pilih mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="per_hari">Tampilkan Per Hari (Detail)</SelectItem>
-                  <SelectItem value="group_harga">Gabung Harga Sama (Jumlahkan KG)</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Mode Rincian PDF</span>
+              <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+                <button
+                  onClick={() => setDetailMode('per_hari')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    detailMode === 'per_hari'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Per Hari
+                </button>
+                <button
+                  onClick={() => setDetailMode('group_harga')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    detailMode === 'group_harga'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Gabungan
+                </button>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto flex-1">
@@ -997,6 +1052,7 @@ const toTerbilang = (num: number) => {
                   year: yy,
                   month: mm,
                   status: 'DRAFT',
+                  tanggalSurat: tanggalSurat || undefined,
                   perihal,
                   letterName,
                   letterAddress,
@@ -1034,6 +1090,7 @@ const toTerbilang = (num: number) => {
                   year: yy,
                   month: mm,
                   status: 'FINALIZED',
+                  tanggalSurat: tanggalSurat || undefined,
                   perihal,
                   letterName,
                   letterAddress,
