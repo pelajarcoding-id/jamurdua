@@ -193,7 +193,8 @@ export default function AttendanceMonitorPage() {
     title: '',
     row: null,
   })
-  const [confirmDelete, setConfirmDelete] = useState<AttendanceRow | null>(null)
+  const [cancelPickerId, setCancelPickerId] = useState<number | null>(null)
+  const [confirmCancel, setConfirmCancel] = useState<{ row: AttendanceRow; mode: 'in' | 'out' | 'both' } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const debouncedSearch = useDebounce(search, 450)
@@ -392,19 +393,19 @@ export default function AttendanceMonitorPage() {
     }
   }, [buildParams, periodLabel])
 
-  const handleDeleteAttendance = useCallback(async () => {
-    if (!confirmDelete?.id) return
+  const handleCancelAttendance = useCallback(async () => {
+    if (!confirmCancel?.row?.id) return
     try {
       setDeleting(true)
-      const res = await fetch(`/api/attendance/admin?id=${confirmDelete.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/attendance/admin?id=${confirmCancel.row.id}&mode=${confirmCancel.mode}`, { method: 'PATCH' })
       const json = await res.json().catch(() => ({} as any))
       if (!res.ok) throw new Error(json?.error || 'Gagal membatalkan absensi')
-      setConfirmDelete(null)
+      setConfirmCancel(null)
       fetchData()
     } finally {
       setDeleting(false)
     }
-  }, [confirmDelete, fetchData])
+  }, [confirmCancel, fetchData])
 
   useEffect(() => {
     fetchData()
@@ -611,13 +612,52 @@ export default function AttendanceMonitorPage() {
 
                   {canCancelAttendance ? (
                     <div className="flex justify-end">
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-red-200 text-red-600 hover:bg-red-50"
-                        onClick={() => setConfirmDelete(row)}
-                      >
-                        Batalkan Absensi
-                      </Button>
+                      <Popover open={cancelPickerId === row.id} onOpenChange={(open) => setCancelPickerId(open ? row.id : null)}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="rounded-full border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            Batalkan Absensi
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56 p-2" align="end">
+                          <div className="grid gap-2">
+                            <Button
+                              variant="outline"
+                              className="justify-start"
+                              disabled={!row.checkIn}
+                              onClick={() => {
+                                setCancelPickerId(null)
+                                setConfirmCancel({ row, mode: 'in' })
+                              }}
+                            >
+                              Batalkan Absen Masuk
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="justify-start"
+                              disabled={!row.checkOut}
+                              onClick={() => {
+                                setCancelPickerId(null)
+                                setConfirmCancel({ row, mode: 'out' })
+                              }}
+                            >
+                              Batalkan Absen Pulang
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="justify-start border-red-200 text-red-600 hover:bg-red-50"
+                              onClick={() => {
+                                setCancelPickerId(null)
+                                setConfirmCancel({ row, mode: 'both' })
+                              }}
+                            >
+                              Batalkan Keduanya
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   ) : null}
 
@@ -757,11 +797,13 @@ export default function AttendanceMonitorPage() {
       </Dialog>
 
       <ConfirmationModal
-        isOpen={!!confirmDelete}
-        onClose={() => setConfirmDelete(null)}
-        onConfirm={handleDeleteAttendance}
+        isOpen={!!confirmCancel}
+        onClose={() => setConfirmCancel(null)}
+        onConfirm={handleCancelAttendance}
         title="Batalkan Absensi"
-        description={`Yakin ingin membatalkan absensi ${confirmDelete?.userName || ''} pada tanggal ${confirmDelete ? formatDateOnly(confirmDelete.date) : ''}?`}
+        description={`Yakin ingin membatalkan ${
+          confirmCancel?.mode === 'in' ? 'absen masuk' : confirmCancel?.mode === 'out' ? 'absen pulang' : 'absen masuk & pulang'
+        } ${confirmCancel?.row?.userName || ''} pada tanggal ${confirmCancel ? formatDateOnly(confirmCancel.row.date) : ''}?`}
         variant="emerald"
         confirmLabel={deleting ? 'Membatalkan...' : 'Ya, Batalkan'}
         confirmDisabled={deleting}

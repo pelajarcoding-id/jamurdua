@@ -273,6 +273,7 @@ model Kendaraan {
   sesiUangJalan       SesiUangJalan[]
   timbangan           Timbangan[]
   kebunInventoryItems KebunInventoryItem[]
+  pekerjaanKebun      PekerjaanKebun[]
 }
 
 model RiwayatDokumen {
@@ -493,6 +494,7 @@ model PekerjaanKebun {
   id             Int      @id @default(autoincrement())
   kebunId        Int
   userId         Int?
+  kendaraanPlatNomor String?
   date           DateTime @default(now())
   jenisPekerjaan String
   keterangan     String?
@@ -507,10 +509,12 @@ model PekerjaanKebun {
   updatedAt      DateTime @updatedAt
   kebun          Kebun    @relation(fields: [kebunId], references: [id], onDelete: Cascade)
   user           User?    @relation(fields: [userId], references: [id])
+  kendaraan      Kendaraan? @relation(fields: [kendaraanPlatNomor], references: [platNomor])
   gajian         Gajian?  @relation(fields: [gajianId], references: [id], onDelete: SetNull)
 
   @@index([kebunId, date])
   @@index([gajianId])
+  @@index([kendaraanPlatNomor])
 }
 
 model WorkLocation {
@@ -1023,4 +1027,3 @@ model AttendanceSelfie {
   @@index([userId])
   @@index([date])
 }
-

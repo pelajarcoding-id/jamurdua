@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from 'sonner';
-import { ArrowDownTrayIcon, ClipboardDocumentListIcon, UserIcon, BanknotesIcon, CalendarIcon, PlusIcon, CheckIcon, ChevronUpDownIcon, XMarkIcon, PencilSquareIcon, EyeIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, ClipboardDocumentListIcon, UserIcon, BanknotesIcon, CalendarIcon, PlusIcon, CheckIcon, ChevronUpDownIcon, XMarkIcon, PencilSquareIcon, EyeIcon, TrashIcon, TruckIcon } from "@heroicons/react/24/outline";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import ImageUpload from '@/components/ui/ImageUpload';
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
@@ -27,16 +27,26 @@ type Pekerjaan = {
   jumlah?: number | null;
   satuan?: string | null;
   hargaSatuan?: number | null;
+  kendaraanPlatNomor?: string | null;
+  kendaraan?: { platNomor: string; merk: string; jenis: string } | null;
   user: { id: number; name: string } | null;
   users?: { id: number; name: string }[];
   paidCount?: number;
   totalCount?: number;
+  inGajianCount?: number;
+  finalizedCount?: number;
 };
 
 type User = {
   id: number;
   name: string;
 };
+
+type Kendaraan = {
+  platNomor: string
+  merk: string
+  jenis: string
+}
 
 const formatWibYmd = (date: Date) =>
   new Intl.DateTimeFormat('en-CA', {
@@ -112,9 +122,10 @@ const FormattedNumberInput = ({
   );
 };
 
-export default function ActivityTab({ kebunId }: { kebunId: number }) {
+export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?: 'aktivitas' | 'borongan' }) {
   const [activities, setActivity] = useState<Pekerjaan[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [kendaraanList, setKendaraanList] = useState<Kendaraan[]>([])
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -127,19 +138,22 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
   const [detailImageError, setDetailImageError] = useState(false);
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     date: formatWibYmd(new Date()),
     jenisPekerjaan: '',
     keterangan: '',
     biaya: 0,
-    upahBorongan: false,
+    upahBorongan: mode === 'borongan',
+    kendaraanPlatNomor: '',
     jumlah: 0,
     satuan: '',
     hargaSatuan: 0,
-  });
+  }));
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [openUserSelect, setOpenUserSelect] = useState(false);
   const [userQuery, setUserQuery] = useState('');
+  const [openKendaraanSelect, setOpenKendaraanSelect] = useState(false)
+  const [kendaraanQuery, setKendaraanQuery] = useState('')
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailExporting, setDetailExporting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -147,21 +161,28 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
   const [selectedActivity, setSelectedActivity] = useState<Pekerjaan | null>(null);
   const [editUserQuery, setEditUserQuery] = useState('');
   const [openEditUserSelect, setOpenEditUserSelect] = useState(false);
-  const [editForm, setEditForm] = useState({
+  const [openEditKendaraanSelect, setOpenEditKendaraanSelect] = useState(false)
+  const [editKendaraanQuery, setEditKendaraanQuery] = useState('')
+  const [editForm, setEditForm] = useState(() => ({
     date: formatWibYmd(new Date()),
     jenisPekerjaan: '',
     keterangan: '',
     biaya: 0,
-    upahBorongan: false,
+    upahBorongan: mode === 'borongan',
     jumlah: 0,
     satuan: '',
     hargaSatuan: 0,
     userId: '',
-  });
+    kendaraanPlatNomor: '',
+  }));
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
-  const [activityFilter, setActivityFilter] = useState<'all' | 'upah' | 'aktivitas'>('all');
+  const [activityFilter, setActivityFilter] = useState<'all' | 'upah' | 'aktivitas'>(() => {
+    if (mode === 'borongan') return 'upah'
+    if (mode === 'aktivitas') return 'aktivitas'
+    return 'all'
+  });
   const [dateRange, setDateRange] = useState({
     start: formatWibYmd(new Date()),
     end: formatWibYmd(new Date())
@@ -169,11 +190,47 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
 
   useEffect(() => {
     fetchActivities();
-  }, [kebunId, selectedDate, filterType, dateRange]);
+  }, [kebunId, selectedDate, filterType, dateRange, activityFilter]);
+
+  useEffect(() => {
+    if (mode === 'borongan') setActivityFilter('upah')
+    if (mode === 'aktivitas') setActivityFilter('aktivitas')
+  }, [mode]);
 
   useEffect(() => {
     fetchUsers();
   }, [kebunId]);
+
+  useEffect(() => {
+    const fetchKendaraan = async () => {
+      try {
+        const res = await fetch('/api/kendaraan/list', { cache: 'no-store' })
+        if (!res.ok) {
+          setKendaraanList([])
+          return
+        }
+        const data = await res.json()
+        const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+        const filtered: Kendaraan[] = list
+          .map((k: any) => ({
+            platNomor: String(k?.platNomor || ''),
+            merk: String(k?.merk || ''),
+            jenis: String(k?.jenis || ''),
+          }))
+          .filter((k: Kendaraan) => k.platNomor && ['Mobil Truck', 'Alat Berat'].includes(k.jenis))
+          .sort((a: Kendaraan, b: Kendaraan) => {
+            const rank = (x: Kendaraan) => (x.jenis === 'Alat Berat' ? 0 : 1)
+            const r = rank(a) - rank(b)
+            if (r !== 0) return r
+            return a.platNomor.localeCompare(b.platNomor)
+          })
+        setKendaraanList(filtered)
+      } catch {
+        setKendaraanList([])
+      }
+    }
+    fetchKendaraan()
+  }, [])
 
   const fetchActivities = async () => {
     try {
@@ -197,7 +254,12 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
         endYmd = dateRange.end
       }
       
-      const res = await fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startYmd)}&endDate=${encodeURIComponent(endYmd)}`);
+      const baseUrl = new URL(`/api/kebun/${kebunId}/pekerjaan`, window.location.origin)
+      baseUrl.searchParams.set('startDate', startYmd)
+      baseUrl.searchParams.set('endDate', endYmd)
+      if (activityFilter === 'upah') baseUrl.searchParams.set('upahBorongan', '1')
+      if (activityFilter === 'aktivitas') baseUrl.searchParams.set('aktivitas', '1')
+      const res = await fetch(baseUrl.toString());
       if (!res.ok) throw new Error('Gagal mengambil data');
       const data = await res.json();
       const grouped = new Map<string, Pekerjaan>();
@@ -205,6 +267,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
         const dateKey = item.date ? formatWibYmd(new Date(item.date)) : '';
       const key = `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${item.biaya || 0}|${item.jumlah || 0}|${item.satuan || ''}|${item.hargaSatuan || 0}|${(item as any).imageUrl || ''}`;
         const isPaid = !!(item.upahBorongan && item.gajianStatus === 'FINALIZED')
+        const isInGajian = !!(item.upahBorongan && item.gajianId)
         if (!grouped.has(key)) {
           grouped.set(key, {
             ...item,
@@ -212,6 +275,8 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
             users: item.user ? [item.user] : [],
             paidCount: isPaid ? 1 : 0,
             totalCount: 1,
+            inGajianCount: isInGajian ? 1 : 0,
+            finalizedCount: isPaid ? 1 : 0,
           });
         } else {
           const existing = grouped.get(key)!;
@@ -221,6 +286,8 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
           }
           existing.totalCount = (existing.totalCount || 0) + 1
           existing.paidCount = (existing.paidCount || 0) + (isPaid ? 1 : 0)
+          existing.inGajianCount = (existing.inGajianCount || 0) + (isInGajian ? 1 : 0)
+          existing.finalizedCount = (existing.finalizedCount || 0) + (isPaid ? 1 : 0)
         }
       });
       setActivity(Array.from(grouped.values()));
@@ -280,15 +347,20 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
         imageUrl = upJson.url;
       }
 
-      const totalBiaya = formData.upahBorongan ? Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0) : 0;
+      const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : formData.upahBorongan
+      const totalBiaya = effectiveUpahBorongan ? Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0) : 0;
       const res = await fetch(`/api/kebun/${kebunId}/pekerjaan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          upahBorongan: effectiveUpahBorongan,
           biaya: totalBiaya,
           userIds: selectedUserIds,
           imageUrl,
+          jumlah: mode === 'aktivitas' ? formData.jumlah : formData.jumlah,
+          satuan: mode === 'aktivitas' ? formData.satuan : formData.satuan,
+          kendaraanPlatNomor: (formData as any).kendaraanPlatNomor || undefined,
         }),
       });
 
@@ -300,7 +372,8 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
         jenisPekerjaan: '',
         keterangan: '',
         biaya: 0,
-        upahBorongan: false,
+        upahBorongan: mode === 'borongan',
+        kendaraanPlatNomor: '',
         jumlah: 0,
         satuan: '',
         hargaSatuan: 0,
@@ -429,11 +502,12 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
       jenisPekerjaan: item.jenisPekerjaan,
       keterangan: item.keterangan || '',
       biaya: item.biaya || 0,
-      upahBorongan: item.upahBorongan ?? (item.biaya || 0) > 0,
+      upahBorongan: mode === 'borongan' ? true : mode === 'aktivitas' ? false : item.upahBorongan ?? (item.biaya || 0) > 0,
       jumlah: item.jumlah || 0,
       satuan: item.satuan || '',
       hargaSatuan: item.hargaSatuan || 0,
       userId: userIds.length === 1 ? String(userIds[0]) : '',
+      kendaraanPlatNomor: item.kendaraan?.platNomor || item.kendaraanPlatNomor || '',
     });
     setEditOpen(true);
   };
@@ -448,7 +522,8 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
     const loadingToast = toast.loading('Menyimpan perubahan...');
     try {
       const ids = selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id];
-      const totalBiaya = editForm.upahBorongan ? Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0) : 0;
+      const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : editForm.upahBorongan
+      const totalBiaya = effectiveUpahBorongan ? Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0) : 0;
       let imageUrl: string | undefined = undefined;
       if (editBuktiFile) {
         const fd = new FormData();
@@ -464,6 +539,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
         body: JSON.stringify({
           ids,
           ...editForm,
+          upahBorongan: effectiveUpahBorongan,
           biaya: totalBiaya,
           ...(typeof imageUrl !== 'undefined' ? { imageUrl } : {}),
         }),
@@ -546,8 +622,14 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h2 className="text-lg font-bold text-gray-900 capitalize">Aktivitas & Pekerjaan</h2>
-          <p className="text-sm text-gray-500">Catat pekerjaan harian dan pengeluaran kebun</p>
+          <h2 className="text-lg font-bold text-gray-900 capitalize">
+            {mode === 'borongan' ? 'Borongan' : mode === 'aktivitas' ? 'Aktivitas' : 'Aktivitas & Pekerjaan'}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {mode === 'borongan'
+              ? 'Pekerjaan borongan yang masuk pengajuan gajian'
+              : 'Catatan kegiatan di kebun'}
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full lg:w-auto">
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -599,56 +681,60 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                 />
               </div>
             )}
-            <select
-              className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48"
-              value={activityFilter}
-              onChange={(e) => setActivityFilter(e.target.value as 'all' | 'upah' | 'aktivitas')}
-            >
-              <option value="all">Semua aktivitas</option>
-              <option value="upah">Upah borongan</option>
-              <option value="aktivitas">Aktivitas biasa</option>
-            </select>
+            {!mode ? (
+              <select
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48"
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value as 'all' | 'upah' | 'aktivitas')}
+              >
+                <option value="all">Semua aktivitas</option>
+                <option value="upah">Upah borongan</option>
+                <option value="aktivitas">Aktivitas biasa</option>
+              </select>
+            ) : null}
           </div>
 
           <Button onClick={() => setShowForm(!showForm)} className="whitespace-nowrap rounded-full bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
             <PlusIcon className="w-4 h-4 mr-2" />
-            Catat Pekerjaan
+            {mode === 'borongan' ? 'Catat Borongan' : 'Catat Aktivitas'}
           </Button>
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-            <BanknotesIcon className="h-5 w-5" />
+      {mode === 'borongan' || !mode ? (
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <BanknotesIcon className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Statistik Total Upah</p>
+              <p className="text-xs text-gray-500">Ringkasan biaya berdasarkan filter periode</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Statistik Total Upah</p>
-            <p className="text-xs text-gray-500">Ringkasan biaya berdasarkan filter periode</p>
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3 w-full sm:w-1/2 lg:w-1/4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Total</p>
-            <p className="text-lg font-bold mt-1 text-emerald-900">{formatCurrency(stats.totalSemua)}</p>
-            <p className="text-xs text-emerald-700/80 mt-1">{stats.jumlahItem.toLocaleString('id-ID')} item</p>
-            <div className="mt-3 border-t border-emerald-100 pt-3 space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-emerald-700/90">Upah sudah dibayar</span>
-                <span className="font-semibold text-emerald-900">
-                  {formatCurrency(Math.round(stats.upahSudahDibayar || 0))} ({(stats.upahSudahDibayarItem || 0).toLocaleString('id-ID')})
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-emerald-700/90">Upah belum dibayar</span>
-                <span className="font-semibold text-emerald-900">
-                  {formatCurrency(Math.round(stats.upahBelumDibayar || 0))} ({(stats.upahBelumDibayarItem || 0).toLocaleString('id-ID')})
-                </span>
+          <div className="mt-4">
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3 w-full sm:w-1/2 lg:w-1/4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Total</p>
+              <p className="text-lg font-bold mt-1 text-emerald-900">{formatCurrency(stats.totalSemua)}</p>
+              <p className="text-xs text-emerald-700/80 mt-1">{stats.jumlahItem.toLocaleString('id-ID')} item</p>
+              <div className="mt-3 border-t border-emerald-100 pt-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-emerald-700/90">Upah sudah dibayar</span>
+                  <span className="font-semibold text-emerald-900">
+                    {formatCurrency(Math.round(stats.upahSudahDibayar || 0))} ({(stats.upahSudahDibayarItem || 0).toLocaleString('id-ID')})
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-emerald-700/90">Upah belum dibayar</span>
+                  <span className="font-semibold text-emerald-900">
+                    {formatCurrency(Math.round(stats.upahBelumDibayar || 0))} ({(stats.upahBelumDibayarItem || 0).toLocaleString('id-ID')})
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-4 animate-in slide-in-from-top-2">
@@ -664,15 +750,75 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
               />
             </div>
             <div>
-              <Label>Jenis Pekerjaan</Label>
+              <Label>{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
               <Input 
-                placeholder="Contoh: Pemupukan, Panen..." 
+                placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'} 
                 value={formData.jenisPekerjaan}
                 onChange={e => setFormData({...formData, jenisPekerjaan: e.target.value})}
                 required
                 className="bg-white"
               />
             </div>
+            {mode === 'aktivitas' ? (
+              <div>
+                <Label>Kendaraan</Label>
+                <Popover open={openKendaraanSelect} onOpenChange={setOpenKendaraanSelect}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-expanded={openKendaraanSelect}
+                      className="w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between"
+                    >
+                      {(formData as any).kendaraanPlatNomor
+                        ? (kendaraanList.find(k => k.platNomor === (formData as any).kendaraanPlatNomor)?.platNomor || (formData as any).kendaraanPlatNomor)
+                        : 'Pilih kendaraan'}
+                      <ChevronUpDownIcon className="h-4 w-4 text-gray-400" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-3" align="start">
+                    <Input
+                      placeholder="Cari plat / merk..."
+                      value={kendaraanQuery}
+                      onChange={(e) => setKendaraanQuery(e.target.value)}
+                      className="mb-2 rounded-lg"
+                    />
+                    <div className="max-h-56 overflow-y-auto space-y-1">
+                      {kendaraanList
+                        .filter((k) => {
+                          const q = kendaraanQuery.trim().toLowerCase()
+                          if (!q) return true
+                          return k.platNomor.toLowerCase().includes(q) || k.merk.toLowerCase().includes(q)
+                        })
+                        .map((k) => {
+                          const checked = (formData as any).kendaraanPlatNomor === k.platNomor
+                          return (
+                            <button
+                              key={k.platNomor}
+                              type="button"
+                              onClick={() => {
+                                setFormData((prev: any) => ({ ...prev, kendaraanPlatNomor: checked ? '' : k.platNomor }))
+                                setOpenKendaraanSelect(false)
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${checked ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                            >
+                              <span className="truncate">{k.platNomor} <span className="text-gray-500">({k.merk} • {k.jenis})</span></span>
+                              {checked ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                            </button>
+                          )
+                        })}
+                      {kendaraanList.filter((k) => {
+                        const q = kendaraanQuery.trim().toLowerCase()
+                        if (!q) return true
+                        return k.platNomor.toLowerCase().includes(q) || k.merk.toLowerCase().includes(q)
+                      }).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">Kendaraan tidak ditemukan</div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-gray-500 mt-1">Boleh dikosongkan. Hanya alat berat dan mobil truck.</p>
+              </div>
+            ) : null}
             <div>
               <Label>Karyawan (Bisa pilih lebih dari satu)</Label>
               <Popover open={openUserSelect} onOpenChange={setOpenUserSelect}>
@@ -748,20 +894,46 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                 </div>
               )}
             </div>
-            <div>
-              <Label>Upah Borongan</Label>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  id="upahBorongan"
-                  type="checkbox"
-                  checked={formData.upahBorongan}
-                  onChange={(e) => setFormData({ ...formData, upahBorongan: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <label htmlFor="upahBorongan" className="text-sm text-gray-700">Masukkan ke penggajian</label>
+            {mode === 'aktivitas' ? (
+              <>
+                <div>
+                  <Label>Jumlah</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formData.jumlah}
+                    onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })}
+                    className="bg-white"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label>Satuan</Label>
+                  <Input
+                    value={formData.satuan}
+                    onChange={(e) => setFormData({ ...formData, satuan: e.target.value })}
+                    className="bg-white"
+                    placeholder="Contoh: Liter, Kg, Rit"
+                  />
+                </div>
+              </>
+            ) : null}
+            {!mode ? (
+              <div>
+                <Label>Upah Borongan</Label>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    id="upahBorongan"
+                    type="checkbox"
+                    checked={formData.upahBorongan}
+                    onChange={(e) => setFormData({ ...formData, upahBorongan: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <label htmlFor="upahBorongan" className="text-sm text-gray-700">Masukkan ke penggajian</label>
+                </div>
               </div>
-            </div>
-            {formData.upahBorongan && (
+            ) : null}
+            {(mode === 'borongan' || formData.upahBorongan) && (
               <>
                 <div>
                   <Label>Jumlah</Label>
@@ -839,7 +1011,17 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
         ) : filteredActivities.length === 0 ? (
           <p className="text-center text-gray-500 py-4 bg-gray-50 rounded-lg border border-dashed">Belum ada riwayat pekerjaan</p>
         ) : (
-          filteredActivities.map((item) => (
+          filteredActivities.map((item) => {
+            const isUpah = !!item.upahBorongan
+            const totalCount = Number(item.totalCount || 0) || 1
+            const inGajianCount = Number(item.inGajianCount || 0)
+            const finalizedCount = Number(item.finalizedCount || 0)
+            const isLocked = isUpah && inGajianCount > 0
+            const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
+            const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+            const isUnpaid = isUpah && !isLocked
+
+            return (
             <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-3">
                 <div className="order-1">
@@ -850,9 +1032,19 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                         Upah Borongan
                       </span>
                     )}
-                    {item.upahBorongan && (item.paidCount || 0) > 0 && (item.paidCount || 0) === (item.totalCount || 0) && (
+                    {isPaid && (
                       <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
-                        Sudah dibayar
+                        Dibayar
+                      </span>
+                    )}
+                    {isInGajian && (
+                      <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-xs font-semibold">
+                        Masuk penggajian
+                      </span>
+                    )}
+                    {mode === 'borongan' && isUnpaid && (
+                      <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs font-semibold">
+                        Belum dibayar
                       </span>
                     )}
                   </div>
@@ -860,6 +1052,12 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                     <CalendarIcon className="w-3 h-3" />
                     {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
+                  {mode === 'aktivitas' && item.kendaraan ? (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                      <TruckIcon className="w-3 h-3" />
+                      <span>{item.kendaraan.platNomor} • {item.kendaraan.merk} • {item.kendaraan.jenis}</span>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="hidden sm:flex items-center gap-2 w-full sm:w-auto sm:justify-end order-2">
                   {item.biaya > 0 && (
@@ -872,7 +1070,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                     <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
                       <EyeIcon className="h-4 w-4" />
                     </Button>
-                    {!(item.upahBorongan && (item.paidCount || 0) > 0 && (item.paidCount || 0) === (item.totalCount || 0)) && (
+                    {!isLocked && (
                       <>
                         <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
                           <PencilSquareIcon className="h-4 w-4" />
@@ -915,7 +1113,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                   <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
                     <EyeIcon className="h-4 w-4" />
                   </Button>
-                  {!(item.upahBorongan && (item.paidCount || 0) > 0 && (item.paidCount || 0) === (item.totalCount || 0)) && (
+                  {!isLocked && (
                     <>
                       <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
                         <PencilSquareIcon className="h-4 w-4" />
@@ -928,7 +1126,7 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                 </div>
               </div>
             </div>
-          ))
+          )})
         )}
       </div>
 
@@ -1094,14 +1292,94 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                 />
               </div>
               <div>
-                <Label>Jenis Pekerjaan</Label>
+                <Label>{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
                 <Input
                   value={editForm.jenisPekerjaan}
                   onChange={(e) => setEditForm({ ...editForm, jenisPekerjaan: e.target.value })}
                   className="bg-white"
-                  placeholder="Contoh: Pemupukan, Penyemprotan"
+                  placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'}
                 />
               </div>
+              {mode === 'aktivitas' ? (
+                <div>
+                  <Label>Kendaraan</Label>
+                  <Popover open={openEditKendaraanSelect} onOpenChange={setOpenEditKendaraanSelect}>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-left text-sm flex items-center justify-between">
+                        {editForm.kendaraanPlatNomor
+                          ? (kendaraanList.find(k => k.platNomor === editForm.kendaraanPlatNomor)?.platNomor || editForm.kendaraanPlatNomor)
+                          : 'Pilih kendaraan'}
+                        <ChevronUpDownIcon className="h-4 w-4 text-gray-400" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[320px] p-3" align="start">
+                      <Input
+                        placeholder="Cari plat / merk..."
+                        value={editKendaraanQuery}
+                        onChange={(e) => setEditKendaraanQuery(e.target.value)}
+                        className="mb-2 rounded-lg"
+                      />
+                      <div className="max-h-56 overflow-y-auto space-y-1">
+                        {kendaraanList
+                          .filter((k) => {
+                            const q = editKendaraanQuery.trim().toLowerCase()
+                            if (!q) return true
+                            return k.platNomor.toLowerCase().includes(q) || k.merk.toLowerCase().includes(q)
+                          })
+                          .map((k) => {
+                            const checked = editForm.kendaraanPlatNomor === k.platNomor
+                            return (
+                              <button
+                                key={k.platNomor}
+                                type="button"
+                                onClick={() => {
+                                  setEditForm((prev) => ({ ...prev, kendaraanPlatNomor: checked ? '' : k.platNomor }))
+                                  setOpenEditKendaraanSelect(false)
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${checked ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                              >
+                                <span className="truncate">{k.platNomor} <span className="text-gray-500">({k.merk} • {k.jenis})</span></span>
+                                {checked ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                              </button>
+                            )
+                          })}
+                        {kendaraanList.filter((k) => {
+                          const q = editKendaraanQuery.trim().toLowerCase()
+                          if (!q) return true
+                          return k.platNomor.toLowerCase().includes(q) || k.merk.toLowerCase().includes(q)
+                        }).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">Kendaraan tidak ditemukan</div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                <p className="text-xs text-gray-500 mt-1">Boleh dikosongkan. Hanya alat berat dan mobil truck.</p>
+                </div>
+              ) : null}
+              {mode === 'aktivitas' ? (
+                <>
+                  <div>
+                    <Label>Jumlah</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={editForm.jumlah}
+                      onChange={(e) => setEditForm({ ...editForm, jumlah: Number(e.target.value) })}
+                      className="bg-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label>Satuan</Label>
+                    <Input
+                      value={editForm.satuan}
+                      onChange={(e) => setEditForm({ ...editForm, satuan: e.target.value })}
+                      className="bg-white"
+                      placeholder="Contoh: Liter, Kg, Rit"
+                    />
+                  </div>
+                </>
+              ) : null}
               <div>
                 <Label>Karyawan</Label>
                 <Popover open={openEditUserSelect} onOpenChange={setOpenEditUserSelect}>
@@ -1145,20 +1423,22 @@ export default function ActivityTab({ kebunId }: { kebunId: number }) {
                 </Popover>
                 <p className="text-xs text-gray-500 mt-1">Karyawan boleh dikosongkan.</p>
               </div>
-              <div>
-                <Label>Upah Borongan</Label>
-                <div className="mt-2 flex items-center gap-2">
-                  <input
-                    id="editUpahBorongan"
-                    type="checkbox"
-                    checked={editForm.upahBorongan}
-                    onChange={(e) => setEditForm({ ...editForm, upahBorongan: e.target.checked })}
-                    className="h-4 w-4"
-                  />
-                  <label htmlFor="editUpahBorongan" className="text-sm text-gray-700">Masukkan ke penggajian</label>
+              {!mode ? (
+                <div>
+                  <Label>Upah Borongan</Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      id="editUpahBorongan"
+                      type="checkbox"
+                      checked={editForm.upahBorongan}
+                      onChange={(e) => setEditForm({ ...editForm, upahBorongan: e.target.checked })}
+                      className="h-4 w-4"
+                    />
+                    <label htmlFor="editUpahBorongan" className="text-sm text-gray-700">Masukkan ke penggajian</label>
+                  </div>
                 </div>
-              </div>
-              {editForm.upahBorongan && (
+              ) : null}
+              {(mode === 'borongan' || editForm.upahBorongan) && (
                 <>
                   <div>
                     <Label>Jumlah</Label>

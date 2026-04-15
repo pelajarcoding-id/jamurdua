@@ -52,6 +52,9 @@ async function ensureAbsensiHarianTable() {
   `)
 }
 
+const attendanceEffectiveDateSql = (alias: string) =>
+  Prisma.sql`COALESCE(${Prisma.raw(`${alias}."checkIn"`)}::date, ${Prisma.raw(`${alias}."date"`)})`
+
 export async function GET(request: Request) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR'])
@@ -86,12 +89,12 @@ export async function GET(request: Request) {
 
     if (startDate) {
       if (/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-        whereParts.push(Prisma.sql`COALESCE(a."checkIn"::date, a."date") >= to_date(${startDate}, 'YYYY-MM-DD')`)
+        whereParts.push(Prisma.sql`${attendanceEffectiveDateSql('a')} >= to_date(${startDate}, 'YYYY-MM-DD')`)
       }
     }
     if (endDate) {
       if (/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-        whereParts.push(Prisma.sql`COALESCE(a."checkIn"::date, a."date") <= to_date(${endDate}, 'YYYY-MM-DD')`)
+        whereParts.push(Prisma.sql`${attendanceEffectiveDateSql('a')} <= to_date(${endDate}, 'YYYY-MM-DD')`)
       }
     }
 
@@ -141,7 +144,7 @@ export async function GET(request: Request) {
           ka."locationId" AS "locationId",
           wl."name" AS "locationName",
           wl."type" AS "locationType",
-          COALESCE(a."checkIn"::date, a."date")::text AS "date",
+          ${attendanceEffectiveDateSql('a')}::text AS "date",
           a."checkIn",
           a."checkOut",
           a."photoInUrl",
@@ -162,14 +165,14 @@ export async function GET(request: Request) {
           FROM "KaryawanAssignment" ka
           WHERE ka."userId" = a."userId"
             AND ka."status" = 'AKTIF'
-            AND ka."startDate"::date <= COALESCE(a."checkIn"::date, a."date")
-            AND (ka."endDate" IS NULL OR ka."endDate"::date >= COALESCE(a."checkIn"::date, a."date"))
+            AND ka."startDate"::date <= ${attendanceEffectiveDateSql('a')}
+            AND (ka."endDate" IS NULL OR ka."endDate"::date >= ${attendanceEffectiveDateSql('a')})
           ORDER BY ka."startDate" DESC
           LIMIT 1
         ) ka ON true
         LEFT JOIN "WorkLocation" wl ON wl."id" = ka."locationId"
         ${whereClause}
-        ORDER BY COALESCE(a."checkIn"::date, a."date") DESC, a."checkIn" DESC NULLS LAST, a."id" DESC
+        ORDER BY ${attendanceEffectiveDateSql('a')} DESC, a."checkIn" DESC NULLS LAST, a."id" DESC
         LIMIT ${limit}
         OFFSET ${skip}
       `
@@ -185,8 +188,8 @@ export async function GET(request: Request) {
           FROM "KaryawanAssignment" ka
           WHERE ka."userId" = a."userId"
             AND ka."status" = 'AKTIF'
-            AND ka."startDate"::date <= COALESCE(a."checkIn"::date, a."date")
-            AND (ka."endDate" IS NULL OR ka."endDate"::date >= COALESCE(a."checkIn"::date, a."date"))
+            AND ka."startDate"::date <= ${attendanceEffectiveDateSql('a')}
+            AND (ka."endDate" IS NULL OR ka."endDate"::date >= ${attendanceEffectiveDateSql('a')})
           ORDER BY ka."startDate" DESC
           LIMIT 1
         ) ka ON true
@@ -212,8 +215,8 @@ export async function GET(request: Request) {
           FROM "KaryawanAssignment" ka
           WHERE ka."userId" = a."userId"
             AND ka."status" = 'AKTIF'
-            AND ka."startDate"::date <= COALESCE(a."checkIn"::date, a."date")
-            AND (ka."endDate" IS NULL OR ka."endDate"::date >= COALESCE(a."checkIn"::date, a."date"))
+            AND ka."startDate"::date <= ${attendanceEffectiveDateSql('a')}
+            AND (ka."endDate" IS NULL OR ka."endDate"::date >= ${attendanceEffectiveDateSql('a')})
           ORDER BY ka."startDate" DESC
           LIMIT 1
         ) ka ON true
@@ -258,6 +261,118 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error('Error fetching admin attendance list:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const guard = await requireRole(['ADMIN', 'PEMILIK'])
+    if (guard.response) return guard.response
+
+    const { searchParams } = new URL(request.url)
+    const id = Number(searchParams.get('id') || '')
+    const modeRaw = String(searchParams.get('mode') || '').toLowerCase()
+    const mode = modeRaw === 'in' || modeRaw === 'out' || modeRaw === 'both' ? modeRaw : null
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'ID absensi tidak valid' }, { status: 400 })
+    }
+    if (!mode) {
+      return NextResponse.json({ error: 'Mode pembatalan tidak valid' }, { status: 400 })
+    }
+
+    await ensureAttendanceSelfieTable()
+    await ensureAbsensiHarianTable()
+
+    const existing = await (prisma as any).attendanceSelfie.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        checkIn: true,
+        checkOut: true,
+      },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Data absensi tidak ditemukan' }, { status: 404 })
+    }
+
+    const effectiveDate: Date = (existing.checkIn || existing.date) as Date
+
+    await prisma.$transaction(async (tx) => {
+      if (mode === 'both') {
+        await tx.$executeRaw(
+          Prisma.sql`
+            UPDATE "AbsensiHarian"
+            SET
+              "kerja" = FALSE,
+              "libur" = FALSE,
+              "jumlah" = 0,
+              "updatedAt" = NOW()
+            WHERE "karyawanId" = ${existing.userId}
+              AND "date" = ${effectiveDate}::date
+          `
+        )
+
+        await (tx as any).attendanceSelfie.delete({ where: { id } })
+        return
+      }
+
+      const attendanceUpdate: any = { updatedAt: new Date() }
+      if (mode === 'in') {
+        attendanceUpdate.checkIn = null
+        attendanceUpdate.photoInUrl = null
+        attendanceUpdate.latIn = null
+        attendanceUpdate.longIn = null
+        attendanceUpdate.locationIn = null
+      }
+      if (mode === 'out') {
+        attendanceUpdate.checkOut = null
+        attendanceUpdate.photoOutUrl = null
+        attendanceUpdate.latOut = null
+        attendanceUpdate.longOut = null
+        attendanceUpdate.locationOut = null
+      }
+
+      const updated = await (tx as any).attendanceSelfie.update({
+        where: { id },
+        data: attendanceUpdate,
+        select: { checkIn: true, checkOut: true, userId: true, date: true },
+      })
+
+      const stillHasCheckIn = Boolean(updated.checkIn)
+      if (!stillHasCheckIn) {
+        await tx.$executeRaw(
+          Prisma.sql`
+            UPDATE "AbsensiHarian"
+            SET
+              "kerja" = FALSE,
+              "libur" = FALSE,
+              "jumlah" = 0,
+              "updatedAt" = NOW()
+            WHERE "karyawanId" = ${existing.userId}
+              AND "date" = ${effectiveDate}::date
+          `
+        )
+      } else {
+        await tx.$executeRaw(
+          Prisma.sql`
+            UPDATE "AbsensiHarian"
+            SET
+              "kerja" = TRUE,
+              "libur" = FALSE,
+              "updatedAt" = NOW()
+            WHERE "karyawanId" = ${existing.userId}
+              AND "date" = ${effectiveDate}::date
+          `
+        )
+      }
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Error patching admin attendance:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

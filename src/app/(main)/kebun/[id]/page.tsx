@@ -169,9 +169,9 @@ function GajianTab({ kebunId }: { kebunId: number }) {
   const fetchPreview = useCallback(async () => {
     setPreviewLoading(true)
     try {
-      const [unpaidRes, actRes, notaRes, potonganRes, defaultBiayaRes] = await Promise.all([
+        const [unpaidRes, actRes, notaRes, potonganRes, defaultBiayaRes] = await Promise.all([
         fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`, { cache: 'no-store' }),
-        fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`),
+          fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1&upahBorongan=1`),
         fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?startDate=${startDate}&endDate=${endDate}`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/default-biaya`),
@@ -849,12 +849,16 @@ export default function KebunDetailPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="activity" className="w-full space-y-8">
+        <Tabs defaultValue="aktivitas" className="w-full space-y-8">
             <div className="w-full overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
               <TabsList className="w-max min-w-full justify-start h-12 rounded-2xl bg-gray-50 border border-gray-100 p-1 gap-1">
-                <TabsTrigger value="activity" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="aktivitas" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <ClipboardDocumentListIcon className="h-4 w-4 mr-2" />
                   Aktivitas
+                </TabsTrigger>
+                <TabsTrigger value="borongan" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
+                  <BanknotesIcon className="h-4 w-4 mr-2" />
+                  Borongan
                 </TabsTrigger>
                 <TabsTrigger value="permintaan" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <ShoppingCartIcon className="h-4 w-4 mr-2" />
@@ -885,8 +889,12 @@ export default function KebunDetailPage() {
               </TabsList>
             </div>
             
-            <TabsContent value="activity" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <ActivityTab kebunId={kebunId} />
+            <TabsContent value="aktivitas" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <ActivityTab kebunId={kebunId} mode="aktivitas" />
+            </TabsContent>
+
+            <TabsContent value="borongan" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <ActivityTab kebunId={kebunId} mode="borongan" />
             </TabsContent>
 
             <TabsContent value="permintaan" className="mt-0 focus-visible:outline-none animate-in fade-in slide-in-from-bottom-4 duration-500">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFile } from '@/lib/storage'
+import { parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
 
 function getWibTodayYmd() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -93,26 +94,49 @@ async function ensureAbsensiHarianTable() {
   }
 }
 
-async function syncSelfieToCalendarKerja(params: { userId: number; date: Date }) {
-  await ensureAbsensiHarianTable()
-
+async function resolveKebunIdsForCalendar(userId: number, ymd: string) {
   const kebunCandidates = await prisma.$queryRaw<Array<{ kebunId: number }>>`
     SELECT DISTINCT "kebunId"
     FROM "AbsensiDefaultHarian"
-    WHERE "karyawanId" = ${params.userId}
+    WHERE "karyawanId" = ${userId}
   `
+  if (kebunCandidates.length > 0) return kebunCandidates.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
 
-  const fallbackKebun = kebunCandidates.length
-    ? kebunCandidates
-    : await prisma.$queryRaw<Array<{ kebunId: number }>>`
-        SELECT DISTINCT "kebunId"
-        FROM "AbsensiHarian"
-        WHERE "karyawanId" = ${params.userId}
-      `
+  const parsed = parseWibYmd(ymd)
+  if (parsed) {
+    const dayStartUtc = wibStartUtc(parsed)
+    const dayEndExclusiveUtc = wibEndExclusiveUtc(parsed)
+    const assignmentRows = await prisma.$queryRaw<Array<{ kebunId: number }>>`
+      SELECT DISTINCT wl."kebunId" AS "kebunId"
+      FROM "KaryawanAssignment" ka
+      INNER JOIN "WorkLocation" wl ON wl."id" = ka."locationId"
+      WHERE ka."userId" = ${userId}
+        AND ka."status" = 'AKTIF'
+        AND wl."type" = 'KEBUN'
+        AND wl."kebunId" IS NOT NULL
+        AND ka."startDate" < ${dayEndExclusiveUtc}
+        AND (ka."endDate" IS NULL OR ka."endDate" >= ${dayStartUtc})
+      ORDER BY wl."kebunId" ASC
+    `
+    if (assignmentRows.length > 0) {
+      return assignmentRows.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
+    }
+  }
 
-  for (const row of fallbackKebun) {
-    const kebunId = Number(row.kebunId)
-    if (!Number.isFinite(kebunId)) continue
+  const fallbackKebun = await prisma.$queryRaw<Array<{ kebunId: number }>>`
+    SELECT DISTINCT "kebunId"
+    FROM "AbsensiHarian"
+    WHERE "karyawanId" = ${userId}
+  `
+  return fallbackKebun.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
+}
+
+async function syncSelfieToCalendarKerja(params: { userId: number; date: Date; ymd: string }) {
+  await ensureAbsensiHarianTable()
+
+  const kebunIds = await resolveKebunIdsForCalendar(params.userId, params.ymd)
+  for (const kebunId of kebunIds) {
+    if (!Number.isFinite(kebunId) || kebunId <= 0) continue
     await (prisma as any).absensiHarian.upsert({
       where: {
         kebunId_karyawanId_date: {
@@ -169,6 +193,7 @@ export async function POST(req: Request) {
     })
 
     const today = getWibTodayDateForDb()
+    const todayYmd = getWibTodayYmd()
 
     const existingAttendance = await (prisma as any).attendanceSelfie.findUnique({
       where: {
@@ -224,7 +249,9 @@ export async function POST(req: Request) {
       })
     }
 
-    await syncSelfieToCalendarKerja({ userId, date: today })
+    if (type === 'IN') {
+      await syncSelfieToCalendarKerja({ userId, date: today, ymd: todayYmd })
+    }
 
     return NextResponse.json({ ok: true, attendance })
   } catch (error: any) {
