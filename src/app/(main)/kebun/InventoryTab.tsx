@@ -61,6 +61,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
   const [search, setSearch] = useState('')
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [trxType, setTrxType] = useState<'IN' | 'OUT'>('OUT')
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -98,6 +99,8 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
   const [updatingItem, setUpdatingItem] = useState(false)
   const [deleteItemOpen, setDeleteItemOpen] = useState(false)
   const [deleteItemTarget, setDeleteItemTarget] = useState<InventoryItem | null>(null)
+  const [deleteTrxOpen, setDeleteTrxOpen] = useState(false)
+  const [deleteTrxTarget, setDeleteTrxTarget] = useState<InventoryTransaction | null>(null)
   const [viewImageUrl, setViewImageUrl] = useState<string | null>(null)
   const [viewImageError, setViewImageError] = useState(false)
   const [newItem, setNewItem] = useState({
@@ -137,7 +140,8 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       const res = await fetch(`/api/kebun/${kebunId}/inventory/transactions?limit=20`)
       if (!res.ok) throw new Error('Gagal memuat riwayat')
       const data = await res.json()
-      setTransactions(data.data || [])
+      const rows = Array.isArray(data?.data) ? data.data : []
+      setTransactions(rows.filter((x: any) => String(x?.type || '').toUpperCase() === 'OUT'))
     } catch (error: any) {
       toast.error(error.message || 'Gagal memuat riwayat')
     } finally {
@@ -166,6 +170,18 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
 
   const openOutModal = (item: InventoryItem) => {
     setSelectedItem(item)
+    setTrxType('OUT')
+    setQuantity('')
+    setNotes('')
+    setDate(format(new Date(), 'yyyy-MM-dd'))
+    setTrxFile(null)
+    setTrxPreview(null)
+    setIsModalOpen(true)
+  }
+
+  const openInModal = (item: InventoryItem) => {
+    setSelectedItem(item)
+    setTrxType('IN')
     setQuantity('')
     setNotes('')
     setDate(format(new Date(), 'yyyy-MM-dd'))
@@ -211,7 +227,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       return
     }
     setSaving(true)
-    const loadingToast = toast.loading('Menyimpan transaksi...')
+    const loadingToast = toast.loading(trxType === 'IN' ? 'Menambah stok...' : 'Menyimpan transaksi...')
     try {
       let imageUrl: string | undefined = undefined
       if (trxFile) {
@@ -227,7 +243,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           itemId: selectedItem.id,
-          type: 'OUT',
+          type: trxType,
           quantity: qty,
           date,
           notes,
@@ -236,9 +252,9 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data?.error || 'Gagal menyimpan pengeluaran')
+        throw new Error(data?.error || (trxType === 'IN' ? 'Gagal menambah stok' : 'Gagal menyimpan pengeluaran'))
       }
-      toast.success('Transaksi berhasil disimpan', { id: loadingToast })
+      toast.success(trxType === 'IN' ? 'Stok berhasil ditambahkan' : 'Transaksi berhasil disimpan', { id: loadingToast })
       setIsModalOpen(false)
       setSelectedItem(null)
       setTrxFile(null)
@@ -249,6 +265,26 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       toast.error(error.message || 'Gagal menyimpan transaksi', { id: loadingToast })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteTrx = async () => {
+    if (!deleteTrxTarget) return
+    const loadingToast = toast.loading('Menghapus pengeluaran...')
+    try {
+      const res = await fetch(`/api/kebun/${kebunId}/inventory/transactions?id=${deleteTrxTarget.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Gagal menghapus pengeluaran')
+      toast.success('Pengeluaran dihapus', { id: loadingToast })
+      setDeleteTrxOpen(false)
+      setDeleteTrxTarget(null)
+      fetchItems()
+      fetchTransactions()
+      if (detailItem) {
+        openDetailModal(detailItem)
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal menghapus pengeluaran', { id: loadingToast })
     }
   }
 
@@ -608,6 +644,14 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                 <Button
                   variant="outline"
                   className="w-full rounded-full"
+                  onClick={() => openInModal(item)}
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Tambah Stock
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full rounded-full"
                   onClick={() => openDetailModal(item)}
                 >
                   <EyeIcon className="h-4 w-4 mr-2" />
@@ -665,6 +709,17 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                     >
                       <PencilSquareIcon className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="outline"
+                      className="h-8 w-8 p-0 rounded-full text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        setDeleteTrxTarget(trx)
+                        setDeleteTrxOpen(true)
+                      }}
+                      title="Hapus"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -676,7 +731,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden [&>button.absolute]:hidden">
           <ModalHeader
-            title="Pengeluaran Barang"
+            title={trxType === 'IN' ? 'Tambah Stock' : 'Pengeluaran Barang'}
             variant="emerald"
             icon={<ArchiveBoxIcon className="h-5 w-5 text-white" />}
             onClose={() => setIsModalOpen(false)}
@@ -705,7 +760,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
               <Input
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Contoh: pemupukan blok A"
+                placeholder={trxType === 'IN' ? 'Contoh: pembelian stok' : 'Contoh: pemupukan blok A'}
                 className="rounded-xl"
               />
             </div>
@@ -736,6 +791,21 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
           </ModalFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationModal
+        isOpen={deleteTrxOpen}
+        onClose={() => {
+          setDeleteTrxOpen(false)
+          setDeleteTrxTarget(null)
+        }}
+        onConfirm={handleDeleteTrx}
+        title="Hapus Pengeluaran"
+        description={`Yakin ingin menghapus pengeluaran ${deleteTrxTarget?.item?.name || ''} tanggal ${
+          deleteTrxTarget?.date ? format(new Date(deleteTrxTarget.date), 'dd MMM yyyy', { locale: idLocale }) : ''
+        }? Stok akan dikembalikan.`}
+        variant="emerald"
+        confirmLabel="Ya, Hapus"
+      />
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden [&>button.absolute]:hidden">

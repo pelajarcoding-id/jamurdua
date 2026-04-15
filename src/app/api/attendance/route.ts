@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFile } from '@/lib/storage'
-import { parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
 
 function getWibTodayYmd() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -94,7 +93,7 @@ async function ensureAbsensiHarianTable() {
   }
 }
 
-async function resolveKebunIdsForCalendar(userId: number, ymd: string) {
+async function resolveKebunIdsForCalendar(userId: number) {
   const kebunCandidates = await prisma.$queryRaw<Array<{ kebunId: number }>>`
     SELECT DISTINCT "kebunId"
     FROM "AbsensiDefaultHarian"
@@ -102,41 +101,22 @@ async function resolveKebunIdsForCalendar(userId: number, ymd: string) {
   `
   if (kebunCandidates.length > 0) return kebunCandidates.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
 
-  const parsed = parseWibYmd(ymd)
-  if (parsed) {
-    const dayStartUtc = wibStartUtc(parsed)
-    const dayEndExclusiveUtc = wibEndExclusiveUtc(parsed)
-    const assignmentRows = await prisma.$queryRaw<Array<{ kebunId: number }>>`
-      SELECT DISTINCT wl."kebunId" AS "kebunId"
-      FROM "KaryawanAssignment" ka
-      INNER JOIN "WorkLocation" wl ON wl."id" = ka."locationId"
-      WHERE ka."userId" = ${userId}
-        AND ka."status" = 'AKTIF'
-        AND wl."type" = 'KEBUN'
-        AND wl."kebunId" IS NOT NULL
-        AND ka."startDate" < ${dayEndExclusiveUtc}
-        AND (ka."endDate" IS NULL OR ka."endDate" >= ${dayStartUtc})
-      ORDER BY wl."kebunId" ASC
-    `
-    if (assignmentRows.length > 0) {
-      return assignmentRows.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
-    }
-  }
-
   const fallbackKebun = await prisma.$queryRaw<Array<{ kebunId: number }>>`
     SELECT DISTINCT "kebunId"
     FROM "AbsensiHarian"
     WHERE "karyawanId" = ${userId}
   `
-  return fallbackKebun.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
+  const ids = fallbackKebun.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
+  if (ids.length > 0) return ids
+  return [0]
 }
 
-async function syncSelfieToCalendarKerja(params: { userId: number; date: Date; ymd: string }) {
+async function syncSelfieToCalendarKerja(params: { userId: number; date: Date }) {
   await ensureAbsensiHarianTable()
 
-  const kebunIds = await resolveKebunIdsForCalendar(params.userId, params.ymd)
+  const kebunIds = await resolveKebunIdsForCalendar(params.userId)
   for (const kebunId of kebunIds) {
-    if (!Number.isFinite(kebunId) || kebunId <= 0) continue
+    if (!Number.isFinite(kebunId) || kebunId < 0) continue
     await (prisma as any).absensiHarian.upsert({
       where: {
         kebunId_karyawanId_date: {
@@ -193,7 +173,6 @@ export async function POST(req: Request) {
     })
 
     const today = getWibTodayDateForDb()
-    const todayYmd = getWibTodayYmd()
 
     const existingAttendance = await (prisma as any).attendanceSelfie.findUnique({
       where: {
@@ -250,7 +229,7 @@ export async function POST(req: Request) {
     }
 
     if (type === 'IN') {
-      await syncSelfieToCalendarKerja({ userId, date: today, ymd: todayYmd })
+      await syncSelfieToCalendarKerja({ userId, date: today })
     }
 
     return NextResponse.json({ ok: true, attendance })
@@ -260,7 +239,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -271,6 +250,9 @@ export async function GET() {
 
     const userId = Number(session.user.id)
     const today = getWibTodayDateForDb()
+    const { searchParams } = new URL(req.url)
+    const limit = Math.min(60, Math.max(1, Number(searchParams.get('limit') || '7')))
+    const history = searchParams.get('history') === '1'
 
     const attendance = await (prisma as any).attendanceSelfie.findUnique({
       where: {
@@ -281,7 +263,27 @@ export async function GET() {
       },
     })
 
-    return NextResponse.json({ attendance })
+    if (!history) {
+      return NextResponse.json({ attendance })
+    }
+
+    const rows = await (prisma as any).attendanceSelfie.findMany({
+      where: { userId },
+      orderBy: { date: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        date: true,
+        checkIn: true,
+        checkOut: true,
+        locationIn: true,
+        locationOut: true,
+        photoInUrl: true,
+        photoOutUrl: true,
+      },
+    })
+
+    return NextResponse.json({ attendance, history: rows })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

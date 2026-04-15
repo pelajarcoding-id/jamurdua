@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/auth'
-import { parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
+import { parseWibYmd } from '@/lib/wib'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,26 +107,6 @@ const ensureTable = async () => {
   }
 }
 
-const isAssignedToKebunOnDate = async (karyawanId: number, kebunId: number, dateKey: string) => {
-  if (kebunId === 0) return true
-  const ymd = parseWibYmd(dateKey)
-  if (!ymd) return true
-  const dayStartUtc = wibStartUtc(ymd)
-  const dayEndExclusiveUtc = wibEndExclusiveUtc(ymd)
-  const assignmentCount = await prisma.karyawanAssignment.count({ where: { userId: karyawanId } })
-  if (assignmentCount === 0) return true
-  const assignment = await prisma.karyawanAssignment.findFirst({
-    where: {
-      userId: karyawanId,
-      startDate: { lt: dayEndExclusiveUtc },
-      OR: [{ endDate: null }, { endDate: { gt: dayStartUtc } }],
-      location: { type: 'KEBUN', kebunId },
-    },
-    select: { id: true },
-  })
-  return !!assignment
-}
-
 export async function GET(request: Request) {
   try {
     await ensureTable()
@@ -190,25 +170,54 @@ export async function GET(request: Request) {
     const karyawanIdParam = searchParams.get('karyawanId')
     if (karyawanIdParam) {
       const karyawanId = Number(karyawanIdParam)
-      const records = await prisma.$queryRaw<Array<{ 
-        date: string; 
-        jumlah: number; 
-        kerja: boolean; 
-        libur: boolean; 
-        note: string | null;
-        jamKerja: number | null;
-        ratePerJam: number | null;
-        uangMakan: number | null;
-        useHourly: boolean | null;
-      }>>`
-        SELECT TO_CHAR("date", 'YYYY-MM-DD') as "date", "jumlah", "kerja", "libur", "note", "jamKerja", "ratePerJam", "uangMakan", "useHourly"
-        FROM "AbsensiHarian"
-        WHERE "kebunId" = ${kebunId}
-          AND "karyawanId" = ${karyawanId}
-          AND "date" >= ${startKey}::DATE
-          AND "date" <= ${endKey}::DATE
-        ORDER BY "date" ASC
-      `
+      const records = kebunId === 0
+        ? await prisma.$queryRaw<Array<{
+            date: string
+            jumlah: number
+            kerja: boolean
+            libur: boolean
+            note: string | null
+            jamKerja: number | null
+            ratePerJam: number | null
+            uangMakan: number | null
+            useHourly: boolean | null
+          }>>`
+            SELECT
+              TO_CHAR("date", 'YYYY-MM-DD') as "date",
+              COALESCE(SUM("jumlah"), 0) as "jumlah",
+              BOOL_OR("kerja") as "kerja",
+              BOOL_OR("libur") as "libur",
+              MAX("note") as "note",
+              MAX("jamKerja") as "jamKerja",
+              MAX("ratePerJam") as "ratePerJam",
+              MAX("uangMakan") as "uangMakan",
+              MAX("useHourly") as "useHourly"
+            FROM "AbsensiHarian"
+            WHERE "karyawanId" = ${karyawanId}
+              AND "date" >= ${startKey}::DATE
+              AND "date" <= ${endKey}::DATE
+            GROUP BY "date"
+            ORDER BY "date" ASC
+          `
+        : await prisma.$queryRaw<Array<{
+            date: string
+            jumlah: number
+            kerja: boolean
+            libur: boolean
+            note: string | null
+            jamKerja: number | null
+            ratePerJam: number | null
+            uangMakan: number | null
+            useHourly: boolean | null
+          }>>`
+            SELECT TO_CHAR("date", 'YYYY-MM-DD') as "date", "jumlah", "kerja", "libur", "note", "jamKerja", "ratePerJam", "uangMakan", "useHourly"
+            FROM "AbsensiHarian"
+            WHERE "kebunId" = ${kebunId}
+              AND "karyawanId" = ${karyawanId}
+              AND "date" >= ${startKey}::DATE
+              AND "date" <= ${endKey}::DATE
+            ORDER BY "date" ASC
+          `
       return NextResponse.json({ data: records })
     }
 
@@ -249,12 +258,6 @@ export async function POST(request: Request) {
 
     if (dateKeys.length > 0) {
       const uniqueKeys = Array.from(new Set(dateKeys))
-      for (const dk of uniqueKeys) {
-        const ok = await isAssignedToKebunOnDate(Number(karyawanId), kebunIdNum, dk)
-        if (!ok) {
-          return NextResponse.json({ error: `Tanggal ${dk} karyawan tidak terdaftar lagi di kebun ini.` }, { status: 409 })
-        }
-      }
       const paid = await prisma.$queryRaw<Array<{ date: string }>>(
         Prisma.sql`SELECT TO_CHAR("date", 'YYYY-MM-DD') as "date"
                    FROM "AbsensiGajiHarian"
@@ -334,11 +337,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'date tidak valid' }, { status: 400 })
     }
     const dateKey = `${String(dateYmd.y).padStart(4, '0')}-${String(dateYmd.m).padStart(2, '0')}-${String(dateYmd.d).padStart(2, '0')}`
-
-    const okAssignment = await isAssignedToKebunOnDate(karyawanId, kebunId, dateKey)
-    if (!okAssignment) {
-      return NextResponse.json({ error: `Tanggal ${dateKey} bukan periode penugasan karyawan di kebun ini.` }, { status: 409 })
-    }
 
     // Check if paid
     const paid = await prisma.$queryRaw<Array<{ id: number }>>`

@@ -201,3 +201,53 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  try {
+    const kebunId = Number(params.id)
+    if (Number.isNaN(kebunId)) {
+      return NextResponse.json({ error: 'Invalid kebunId' }, { status: 400 })
+    }
+    const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANDOR', 'MANAGER'])
+    if (guard.response) return guard.response
+    const allowed = await ensureKebunAccess(guard.id, guard.role, kebunId)
+    if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const { searchParams } = new URL(request.url)
+    const id = Number(searchParams.get('id') || '')
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'ID transaksi tidak valid' }, { status: 400 })
+    }
+
+    const existing = await (prisma as any).kebunInventoryTransaction.findFirst({
+      where: { id, kebunId },
+      select: { id: true, itemId: true, type: true, quantity: true },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 })
+    }
+    if (existing.type !== 'OUT') {
+      return NextResponse.json({ error: 'Hanya transaksi pengeluaran yang bisa dihapus' }, { status: 400 })
+    }
+
+    const item = await (prisma as any).kebunInventoryItem.findFirst({ where: { id: existing.itemId, kebunId } })
+    if (!item) return NextResponse.json({ error: 'Item tidak ditemukan' }, { status: 404 })
+
+    const result = await prisma.$transaction(async (tx) => {
+      const currentStock = Number(item?.stock || 0)
+      const oldQty = Number(existing.quantity || 0)
+      const newStock = currentStock + oldQty
+      const stock = await (tx as any).kebunInventoryItem.update({
+        where: { id: existing.itemId },
+        data: { stock: newStock },
+      })
+      await (tx as any).kebunInventoryTransaction.delete({ where: { id: existing.id } })
+      return { stock }
+    })
+
+    return NextResponse.json({ ok: true, ...result })
+  } catch (error) {
+    console.error('DELETE /api/kebun/[id]/inventory/transactions error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

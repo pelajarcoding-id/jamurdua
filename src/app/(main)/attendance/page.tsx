@@ -81,6 +81,13 @@ export default function AttendancePage() {
   const [locating, setLocating] = useState(false)
   const [attendance, setAttendance] = useState<any>(null)
   const [isCapturing, setIsCapturing] = useState(true)
+  const [historyRows, setHistoryRows] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [photoModal, setPhotoModal] = useState<{ open: boolean; url: string | null; title: string }>({
+    open: false,
+    url: null,
+    title: '',
+  })
 
   useEffect(() => {
     captureTokenRef.current = captureToken
@@ -122,10 +129,25 @@ export default function AttendancePage() {
     }
   }, [])
 
+  const fetchHistory = useCallback(async () => {
+    try {
+      setHistoryLoading(true)
+      const res = await fetch('/api/attendance?history=1&limit=7', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok) return
+      setHistoryRows(Array.isArray(data?.history) ? data.history : [])
+    } catch {
+      setHistoryRows([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchStatus()
+    fetchHistory()
     getLocation()
-  }, [fetchStatus])
+  }, [fetchStatus, fetchHistory])
 
   const getLocation = async () => {
     setLocating(true)
@@ -269,6 +291,7 @@ export default function AttendancePage() {
       setCaptureToken(0)
       setIsCapturing(false)
       fetchStatus()
+      fetchHistory()
     } catch (error: any) {
       toast.error(error.message || 'Gagal melakukan absensi', { id: toastId })
     } finally {
@@ -406,6 +429,102 @@ export default function AttendancePage() {
           <p className="text-sm font-medium">Anda sudah menyelesaikan absensi hari ini. Terima kasih!</p>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl shadow-sm border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-900">Riwayat Absensi (7 Hari)</h2>
+          <button
+            type="button"
+            onClick={fetchHistory}
+            className="text-xs text-blue-600 font-medium"
+            disabled={historyLoading}
+          >
+            {historyLoading ? 'Memuat...' : 'Refresh'}
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500">
+                <th className="py-2 pr-3">Tanggal</th>
+                <th className="py-2 pr-3">Masuk</th>
+                <th className="py-2 pr-3">Pulang</th>
+                <th className="py-2 pr-3">Foto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {historyRows.length === 0 ? (
+                <tr>
+                  <td className="py-3 text-gray-500" colSpan={4}>
+                    {historyLoading ? 'Memuat...' : 'Belum ada riwayat.'}
+                  </td>
+                </tr>
+              ) : (
+                historyRows.map((r) => {
+                  const dateText = r?.date
+                    ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium' }).format(new Date(r.date))
+                    : '-'
+                  return (
+                    <tr key={r.id}>
+                      <td className="py-2 pr-3 text-gray-700">{dateText}</td>
+                      <td className="py-2 pr-3 text-gray-700">{formatWibTime(r.checkIn)}</td>
+                      <td className="py-2 pr-3 text-gray-700">{formatWibTime(r.checkOut)}</td>
+                      <td className="py-2 pr-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="text-xs text-blue-600 disabled:text-gray-300"
+                            disabled={!r.photoInUrl}
+                            onClick={() => setPhotoModal({ open: true, url: r.photoInUrl, title: 'Foto Masuk' })}
+                          >
+                            Masuk
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-blue-600 disabled:text-gray-300"
+                            disabled={!r.photoOutUrl}
+                            onClick={() => setPhotoModal({ open: true, url: r.photoOutUrl, title: 'Foto Pulang' })}
+                          >
+                            Pulang
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {photoModal.open && photoModal.url ? (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPhotoModal({ open: false, url: null, title: '' })}
+        >
+          <div
+            className="bg-white rounded-2xl overflow-hidden max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="text-sm font-semibold text-gray-900">{photoModal.title}</div>
+              <button
+                type="button"
+                className="text-sm text-gray-500"
+                onClick={() => setPhotoModal({ open: false, url: null, title: '' })}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="p-3 bg-gray-50">
+              <img src={photoModal.url} alt={photoModal.title} className="w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -265,7 +265,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       const grouped = new Map<string, Pekerjaan>();
       (Array.isArray(data) ? data : []).forEach((item: Pekerjaan) => {
         const dateKey = item.date ? formatWibYmd(new Date(item.date)) : '';
-      const key = `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${item.biaya || 0}|${item.jumlah || 0}|${item.satuan || ''}|${item.hargaSatuan || 0}|${(item as any).imageUrl || ''}`;
+      const key = item.upahBorongan
+        ? `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${item.biaya || 0}|${item.jumlah || 0}|${item.satuan || ''}|${item.hargaSatuan || 0}|${(item as any).imageUrl || ''}`
+        : `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${(item as any).imageUrl || ''}`;
         const isPaid = !!(item.upahBorongan && item.gajianStatus === 'FINALIZED')
         const isInGajian = !!(item.upahBorongan && item.gajianId)
         if (!grouped.has(key)) {
@@ -349,19 +351,25 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
       const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : formData.upahBorongan
       const totalBiaya = effectiveUpahBorongan ? Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0) : 0;
+      const payload: any = {
+        ...formData,
+        upahBorongan: effectiveUpahBorongan,
+        biaya: totalBiaya,
+        userIds: selectedUserIds,
+        imageUrl,
+      }
+      if (mode === 'aktivitas') {
+        delete payload.jumlah
+        delete payload.satuan
+        delete payload.hargaSatuan
+        payload.kendaraanPlatNomor = (formData as any).kendaraanPlatNomor || undefined
+      } else {
+        delete payload.kendaraanPlatNomor
+      }
       const res = await fetch(`/api/kebun/${kebunId}/pekerjaan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          upahBorongan: effectiveUpahBorongan,
-          biaya: totalBiaya,
-          userIds: selectedUserIds,
-          imageUrl,
-          jumlah: mode === 'aktivitas' ? formData.jumlah : formData.jumlah,
-          satuan: mode === 'aktivitas' ? formData.satuan : formData.satuan,
-          kendaraanPlatNomor: (formData as any).kendaraanPlatNomor || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('Gagal menyimpan');
@@ -524,6 +532,19 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       const ids = selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id];
       const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : editForm.upahBorongan
       const totalBiaya = effectiveUpahBorongan ? Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0) : 0;
+      const payload: any = {
+        ids,
+        ...editForm,
+        upahBorongan: effectiveUpahBorongan,
+        biaya: totalBiaya,
+      }
+      if (mode === 'aktivitas') {
+        delete payload.jumlah
+        delete payload.satuan
+        delete payload.hargaSatuan
+      } else {
+        delete payload.kendaraanPlatNomor
+      }
       let imageUrl: string | undefined = undefined;
       if (editBuktiFile) {
         const fd = new FormData();
@@ -533,16 +554,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         if (!up.ok || !upJson?.success) throw new Error(upJson?.error || 'Upload gambar gagal');
         imageUrl = upJson.url;
       }
+      if (typeof imageUrl !== 'undefined') payload.imageUrl = imageUrl
       const res = await fetch(`/api/kebun/${kebunId}/pekerjaan`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ids,
-          ...editForm,
-          upahBorongan: effectiveUpahBorongan,
-          biaya: totalBiaya,
-          ...(typeof imageUrl !== 'undefined' ? { imageUrl } : {}),
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Gagal memperbarui');
       toast.success('Pekerjaan diperbarui', { id: loadingToast });
@@ -894,30 +910,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 </div>
               )}
             </div>
-            {mode === 'aktivitas' ? (
-              <>
-                <div>
-                  <Label>Jumlah</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.jumlah}
-                    onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })}
-                    className="bg-white"
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label>Satuan</Label>
-                  <Input
-                    value={formData.satuan}
-                    onChange={(e) => setFormData({ ...formData, satuan: e.target.value })}
-                    className="bg-white"
-                    placeholder="Contoh: Liter, Kg, Rit"
-                  />
-                </div>
-              </>
-            ) : null}
             {!mode ? (
               <div>
                 <Label>Upah Borongan</Label>
@@ -1191,12 +1183,12 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-100 bg-white p-3">
-              <div className="flex items-start gap-2">
-                <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5" />
-                <div className="min-w-0 w-full">
-                  <div className="text-xs font-black tracking-wider text-gray-400 uppercase">Biaya</div>
-                  {selectedActivity?.upahBorongan ? (
+            {selectedActivity?.upahBorongan ? (
+              <div className="rounded-xl border border-gray-100 bg-white p-3">
+                <div className="flex items-start gap-2">
+                  <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5" />
+                  <div className="min-w-0 w-full">
+                    <div className="text-xs font-black tracking-wider text-gray-400 uppercase">Biaya</div>
                     <div className="mt-1 space-y-1 text-sm text-gray-800">
                       <div className="flex items-center justify-between">
                         <span className="text-gray-500">Jumlah</span>
@@ -1211,14 +1203,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         <span className="font-black text-emerald-700">Rp {(selectedActivity?.biaya || 0).toLocaleString('id-ID')}</span>
                       </div>
                     </div>
-                  ) : (
-                    <div className="mt-1 text-sm font-black text-emerald-700">
-                      Rp {(selectedActivity?.biaya || 0).toLocaleString('id-ID')}
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="rounded-xl border border-gray-100 bg-white p-3">
               <div className="flex items-start gap-2">
@@ -1355,30 +1343,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   </Popover>
                 <p className="text-xs text-gray-500 mt-1">Boleh dikosongkan. Hanya alat berat dan mobil truck.</p>
                 </div>
-              ) : null}
-              {mode === 'aktivitas' ? (
-                <>
-                  <div>
-                    <Label>Jumlah</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={editForm.jumlah}
-                      onChange={(e) => setEditForm({ ...editForm, jumlah: Number(e.target.value) })}
-                      className="bg-white"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label>Satuan</Label>
-                    <Input
-                      value={editForm.satuan}
-                      onChange={(e) => setEditForm({ ...editForm, satuan: e.target.value })}
-                      className="bg-white"
-                      placeholder="Contoh: Liter, Kg, Rit"
-                    />
-                  </div>
-                </>
               ) : null}
               <div>
                 <Label>Karyawan</Label>
