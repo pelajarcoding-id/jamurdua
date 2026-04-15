@@ -19,6 +19,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         if (!name || !email || !role) {
             return NextResponse.json({ error: 'Nama, Email, dan Role harus diisi' }, { status: 400 });
         }
+        const normalizedEmail = String(email).trim().toLowerCase()
+        if (!normalizedEmail) {
+            return NextResponse.json({ error: 'Email tidak valid' }, { status: 400 });
+        }
         if (role === 'MANDOR' && !kebunId) {
             return NextResponse.json({ error: 'Kebun wajib dipilih untuk role MANDOR' }, { status: 400 });
         }
@@ -28,7 +32,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
         const updateData: any = { 
             name, 
-            email, 
+            email: normalizedEmail, 
             role,
             jobType: jenisPekerjaan || null,
             kebunId: (role === 'MANDOR') ? Number(kebunId) : null,
@@ -37,6 +41,19 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         const existingUserBeforeUpdate = await prisma.user.findUnique({ where: { id } });
         if (!existingUserBeforeUpdate) {
             return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 });
+        }
+
+        if (String(existingUserBeforeUpdate.email || '').toLowerCase() !== normalizedEmail) {
+            const exists = await prisma.user.findFirst({
+                where: {
+                    email: { equals: normalizedEmail, mode: 'insensitive' },
+                    NOT: { id },
+                },
+                select: { id: true },
+            })
+            if (exists) {
+                return NextResponse.json({ error: 'Email sudah terdaftar' }, { status: 409 })
+            }
         }
 
         if (photoUrl !== undefined) {

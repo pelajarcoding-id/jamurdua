@@ -141,7 +141,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Minimal 1 kebun harus dipilih untuk role MANAGER' }, { status: 400 });
         }
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const normalizedEmail = String(email).trim().toLowerCase()
+        if (!normalizedEmail) {
+            return NextResponse.json({ error: 'Email tidak valid' }, { status: 400 });
+        }
+
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                email: {
+                    equals: normalizedEmail,
+                    mode: 'insensitive',
+                },
+            },
+            select: { id: true },
+        });
         if (existingUser) {
             return NextResponse.json({ error: 'Email sudah terdaftar' }, { status: 409 });
         }
@@ -151,7 +164,7 @@ export async function POST(request: Request) {
         const newUser = await prisma.user.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 role,
                 jobType: jenisPekerjaan || null,
                 passwordHash,

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import RoleGate from '@/components/RoleGate';
-import { ArchiveBoxIcon, BuildingOfficeIcon, TruckIcon, UsersIcon, ArrowDownTrayIcon, ChevronDownIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, BuildingOfficeIcon, TruckIcon, UsersIcon, ArrowDownTrayIcon, ChevronDownIcon, EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -27,6 +27,8 @@ export default function CostCenterPage() {
     const [selectedKebunId, setSelectedKebunId] = useState<string>('all');
     const [selectedKendaraan, setSelectedKendaraan] = useState<string>('all');
     const [selectedPerusahaanId, setSelectedPerusahaanId] = useState<string>('all');
+    const [searchQuery, setSearchQuery] = useState<string>('')
+    const [searchDraft, setSearchDraft] = useState<string>('')
     const [tab, setTab] = useState<'kebun' | 'perusahaan' | 'kendaraan' | 'gaji'>('kebun');
     const [kendaraanKasPage, setKendaraanKasPage] = useState(1)
     const [kebunKasPage, setKebunKasPage] = useState(1)
@@ -72,6 +74,17 @@ export default function CostCenterPage() {
         }
     }
 
+    const applySearch = () => {
+        const trimmed = String(searchDraft || '').trim()
+        if (trimmed && trimmed.length < 2) return
+        setSearchQuery(trimmed)
+        setKendaraanKasPage(1)
+        setKebunKasPage(1)
+        setPerusahaanKasPage(1)
+        setPerusahaanBiayaPage(1)
+        setGajianPage(1)
+    }
+
     useEffect(() => {
         const loadFilters = async () => {
             try {
@@ -114,13 +127,14 @@ export default function CostCenterPage() {
         setPerusahaanKasPage(1)
         setPerusahaanBiayaPage(1)
         setGajianPage(1)
-    }, [endDate, selectedKendaraan, selectedKebunId, selectedPerusahaanId, startDate])
+    }, [endDate, searchQuery, selectedKendaraan, selectedKebunId, selectedPerusahaanId, startDate])
 
     const kendaraanKasParams = new URLSearchParams()
     kendaraanKasParams.set('startDate', startDate)
     kendaraanKasParams.set('endDate', endDate)
     kendaraanKasParams.set('tagScope', 'kendaraan')
     if (selectedKendaraan !== 'all') kendaraanKasParams.set('kendaraanPlatNomor', selectedKendaraan)
+    if (searchQuery) kendaraanKasParams.set('search', searchQuery)
     kendaraanKasParams.set('page', String(kendaraanKasPage))
     kendaraanKasParams.set('pageSize', String(pageSize))
 
@@ -129,6 +143,7 @@ export default function CostCenterPage() {
     kebunKasParams.set('endDate', endDate)
     kebunKasParams.set('tagScope', 'kebun')
     if (selectedKebunId !== 'all') kebunKasParams.set('kebunId', selectedKebunId)
+    if (searchQuery) kebunKasParams.set('search', searchQuery)
     kebunKasParams.set('page', String(kebunKasPage))
     kebunKasParams.set('pageSize', String(pageSize))
 
@@ -137,6 +152,7 @@ export default function CostCenterPage() {
     perusahaanKasParams.set('endDate', endDate)
     perusahaanKasParams.set('tagScope', 'perusahaan')
     if (selectedPerusahaanId !== 'all') perusahaanKasParams.set('perusahaanId', selectedPerusahaanId)
+    if (searchQuery) perusahaanKasParams.set('search', searchQuery)
     perusahaanKasParams.set('page', String(perusahaanKasPage))
     perusahaanKasParams.set('pageSize', String(pageSize))
 
@@ -144,6 +160,7 @@ export default function CostCenterPage() {
     perusahaanBiayaParams.set('startDate', startDate)
     perusahaanBiayaParams.set('endDate', endDate)
     if (selectedPerusahaanId !== 'all') perusahaanBiayaParams.set('perusahaanId', selectedPerusahaanId)
+    if (searchQuery) perusahaanBiayaParams.set('search', searchQuery)
     perusahaanBiayaParams.set('page', String(perusahaanBiayaPage))
     perusahaanBiayaParams.set('pageSize', String(pageSize))
 
@@ -151,6 +168,7 @@ export default function CostCenterPage() {
     karyawanGajiParams.set('startDate', startDate)
     karyawanGajiParams.set('endDate', endDate)
     if (selectedKebunId !== 'all') karyawanGajiParams.set('kebunId', selectedKebunId)
+    if (searchQuery) karyawanGajiParams.set('search', searchQuery)
     karyawanGajiParams.set('page', String(gajianPage))
     karyawanGajiParams.set('pageSize', String(pageSize))
 
@@ -967,6 +985,41 @@ export default function CostCenterPage() {
                                 />
                             </>
                         ) : null}
+                    </div>
+                </div>
+
+                <div className="bg-white border border-gray-100 rounded-2xl p-4">
+                    <div className="relative w-full md:max-w-md">
+                        <Input
+                            placeholder="Cari deskripsi/kategori/plat/nama..."
+                            value={searchDraft}
+                            onChange={(e) => {
+                                const next = e.target.value
+                                setSearchDraft(next)
+                                if (!String(next || '').trim()) {
+                                    setSearchQuery('')
+                                    setKendaraanKasPage(1)
+                                    setKebunKasPage(1)
+                                    setPerusahaanKasPage(1)
+                                    setPerusahaanBiayaPage(1)
+                                    setGajianPage(1)
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    applySearch()
+                                }
+                            }}
+                            className="rounded-full h-10 pr-10"
+                        />
+                        <button
+                            type="button"
+                            onClick={applySearch}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            aria-label="Cari"
+                        >
+                            <MagnifyingGlassIcon className="h-5 w-5" />
+                        </button>
                     </div>
                 </div>
 

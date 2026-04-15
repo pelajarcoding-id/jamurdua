@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { CalendarIcon, ChartBarIcon, CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, ChartBarIcon, CheckIcon, ChevronUpDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -178,6 +178,8 @@ export default function LaporanNotaSawitPage() {
   const [selectedKendaraan, setSelectedKendaraan] = useState('');
   const [selectedPerusahaan, setSelectedPerusahaan] = useState('');
   const [selectedStatusPembayaran, setSelectedStatusPembayaran] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(true);
   const [detailNota, setDetailNota] = useState<NotaSawitData | null>(null);
@@ -285,6 +287,7 @@ export default function LaporanNotaSawitPage() {
         if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
         if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
         if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
+        if (searchQuery) params.append('search', searchQuery);
 
         const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data tabel');
@@ -299,7 +302,7 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchData();
-  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, toYmd]);
+  }, [startDate, endDate, page, limit, searchQuery, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, toYmd]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -324,6 +327,7 @@ export default function LaporanNotaSawitPage() {
         if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
         if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
         if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
+        if (searchQuery) params.append('search', searchQuery);
         params.append('groupBy', groupBy);
 
         const res = await fetch(`/api/laporan-nota-sawit/statistik?${params.toString()}`, { cache: 'no-store' });
@@ -341,7 +345,7 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchStats();
-  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, groupBy, toYmd]);
+  }, [startDate, endDate, searchQuery, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, groupBy, toYmd]);
 
   const growthKebunOptions = useMemo(() => {
     return Array.from(new Set((monthlyDataPerGroup || []).map((k) => k.groupName))).sort((a, b) => a.localeCompare(b))
@@ -377,6 +381,8 @@ export default function LaporanNotaSawitPage() {
       if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
       if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
       if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
+      if (searchQuery) params.append('search', searchQuery);
+      if (searchQuery) params.append('search', searchQuery);
 
       const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data untuk ekspor');
@@ -495,6 +501,13 @@ export default function LaporanNotaSawitPage() {
     }
   };
 
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+    setPage(1)
+  }, [searchDraft])
+
   const resetFilters = useCallback(() => {
     const today = new Date()
     const start = new Date(today.getFullYear(), 0, 1)
@@ -509,6 +522,8 @@ export default function LaporanNotaSawitPage() {
     setSelectedPabrik('')
     setSelectedKendaraan('')
     setSelectedStatusPembayaran('')
+    setSearchQuery('')
+    setSearchDraft('')
     setGroupBy('kebun')
     setSelectedGrowthGroup('total')
     setPage(1)
@@ -535,6 +550,9 @@ export default function LaporanNotaSawitPage() {
     setSelectedKendaraan(sp.get('kendaraanPlatNomor') || '')
     const st = (sp.get('statusPembayaran') || '').toUpperCase()
     setSelectedStatusPembayaran(st === 'LUNAS' || st === 'BELUM_LUNAS' ? st : '')
+    const s = sp.get('search') || ''
+    setSearchQuery(s)
+    setSearchDraft(s)
     const gb = (sp.get('groupBy') || '').toLowerCase()
     setGroupBy((gb === 'kebun' || gb === 'perusahaan' || gb === 'pabrik') ? (gb as any) : 'kebun')
     const p = Number(sp.get('page') || '1')
@@ -558,6 +576,7 @@ export default function LaporanNotaSawitPage() {
     if (selectedPabrik) params.set('pabrikId', selectedPabrik)
     if (selectedKendaraan) params.set('kendaraanPlatNomor', selectedKendaraan)
     if (selectedStatusPembayaran) params.set('statusPembayaran', selectedStatusPembayaran)
+    if (searchQuery) params.set('search', searchQuery)
     if (groupBy) params.set('groupBy', groupBy)
     params.set('page', String(page))
     params.set('limit', String(limit))
@@ -575,6 +594,7 @@ export default function LaporanNotaSawitPage() {
     selectedPabrik,
     selectedKendaraan,
     selectedStatusPembayaran,
+    searchQuery,
     groupBy,
     page,
     limit,
@@ -812,6 +832,38 @@ export default function LaporanNotaSawitPage() {
                 </Popover>
             </div>
             
+            <div className="flex flex-col space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Cari</Label>
+              <div className="relative">
+                <Input
+                  placeholder="Cari nota/supir/plat..."
+                  value={searchDraft}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setSearchDraft(next)
+                    if (!String(next || '').trim()) {
+                      setSearchQuery('')
+                      setPage(1)
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      applySearch()
+                    }
+                  }}
+                  className="w-full bg-white border-gray-300 rounded-xl pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={applySearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Cari"
+                >
+                  <MagnifyingGlassIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Filter per Kebun</Label>
               <SearchableFilter

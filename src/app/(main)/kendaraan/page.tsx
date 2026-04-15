@@ -48,15 +48,14 @@ export default function KendaraanPage() {
   const [jenisFilter, setJenisFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [jenisOptions, setJenisOptions] = useState<string[]>([])
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
-    if (q !== searchQuery) setSearchQuery(q);
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev) => (prev === q ? prev : q))
+  }, [searchParams]);
 
   useEffect(() => {
     const j = searchParams.get('jenis') || 'all'
@@ -88,7 +87,7 @@ export default function KendaraanPage() {
       const params = new URLSearchParams()
       params.set('page', String(page))
       params.set('limit', String(limit))
-      if (debouncedSearchQuery) params.set('search', debouncedSearchQuery)
+      if (searchQuery) params.set('search', searchQuery)
       if (jenisFilter && jenisFilter !== 'all') params.set('jenis', jenisFilter)
       if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter)
       const res = await fetch(`/api/kendaraan?${params.toString()}`, { cache: 'no-store' });
@@ -101,7 +100,7 @@ export default function KendaraanPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, jenisFilter, statusFilter]);
+  }, [page, limit, searchQuery, jenisFilter, statusFilter]);
 
   useEffect(() => {
     fetchData();
@@ -232,10 +231,12 @@ export default function KendaraanPage() {
 
   const handleSearchChange = useCallback((value: SetStateAction<string>) => {
     const next = typeof value === 'function' ? value(searchQuery) : value;
-    setSearchQuery(next);
+    const q = String(next || '').trim()
+    setSearchQuery(q);
+    setPage(1)
     const params = new URLSearchParams(searchParams.toString());
-    if (next) {
-      params.set('search', next as string);
+    if (q) {
+      params.set('search', q);
     } else {
       params.delete('search');
     }

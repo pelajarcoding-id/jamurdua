@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   try {
     await ensureTable()
     const body = await request.json()
-    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const email = typeof body?.email === 'string' ? body.email.trim() : ''
     const token = typeof body?.token === 'string' ? body.token.trim() : ''
     const password = typeof body?.password === 'string' ? body.password : ''
 
@@ -32,8 +32,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Data tidak valid' }, { status: 400 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
       select: { id: true },
     })
     if (!user) {

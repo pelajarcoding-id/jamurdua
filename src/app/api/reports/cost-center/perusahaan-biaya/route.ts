@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const monthRange = range ? null : getWibMonthRangeUtc(searchParams.get('month') || defaultMonthKey())
     if (!range && !monthRange) return NextResponse.json({ error: 'month tidak valid' }, { status: 400 })
     const perusahaanIdParam = searchParams.get('perusahaanId')
+    const search = (searchParams.get('search') || '').trim()
     const pageRaw = Number(searchParams.get('page') || 1)
     const pageSizeRaw = Number(searchParams.get('pageSize') || 20)
     const page = Number.isFinite(pageRaw) ? Math.max(pageRaw, 1) : 1
@@ -35,6 +36,10 @@ export async function GET(request: Request) {
       Prisma.sql`"date" <= ${endKey}::date`,
     ]
     if (perusahaanId) filters.push(Prisma.sql`"perusahaanId" = ${perusahaanId}`)
+    if (search) {
+      const like = `%${search}%`
+      filters.push(Prisma.sql`("kategori" ILIKE ${like} OR "deskripsi" ILIKE ${like} OR "type" ILIKE ${like})`)
+    }
     const whereSql = Prisma.join(filters, ' AND ')
 
     const [countRows, sumRows, data] = await Promise.all([

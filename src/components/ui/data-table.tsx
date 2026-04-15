@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { Input } from './input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 // Define the new props interface
 interface DataTableProps<TData, TValue> {
@@ -34,7 +35,9 @@ interface DataTableProps<TData, TValue> {
   pageSizeOptions?: number[];
   showFooter?: boolean;
   searchQuery: string;
-  onSearchChange: Dispatch<SetStateAction<string>>;
+  onSearchChange: (value: string) => void;
+  searchMode?: 'instant' | 'submit';
+  searchMinLength?: number;
   startDate?: Date;
   onStartDateChange?: (date: Date | undefined) => void;
   endDate?: Date;
@@ -68,6 +71,8 @@ export function DataTable<TData, TValue>({
   showFooter = false,
   searchQuery,
   onSearchChange,
+  searchMode = 'submit',
+  searchMinLength = 2,
   startDate,
   onStartDateChange,
   endDate,
@@ -83,6 +88,23 @@ export function DataTable<TData, TValue>({
   onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [searchDraft, setSearchDraft] = useState(searchQuery || '')
+
+  useEffect(() => {
+    if (searchMode !== 'submit') return
+    setSearchDraft(searchQuery || '')
+  }, [searchMode, searchQuery])
+
+  const submitSearch = () => {
+    const trimmed = String(searchDraft || '').trim()
+    if (!trimmed) {
+      onSearchChange('')
+      return
+    }
+    const minLen = Number.isFinite(searchMinLength) ? Math.max(1, searchMinLength) : 2
+    if (trimmed.length < minLen) return
+    onSearchChange(trimmed)
+  }
 
   const table = useReactTable({
     data,
@@ -136,12 +158,40 @@ export function DataTable<TData, TValue>({
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4 flex-1 w-full lg:w-auto">
           <div className="w-full md:w-64 flex-shrink-0">
-            <Input
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="input-style rounded-xl"
-            />
+            <div className="relative">
+              <Input
+                placeholder={searchPlaceholder}
+                value={searchMode === 'submit' ? searchDraft : searchQuery}
+                onChange={(event) => {
+                  if (searchMode === 'submit') {
+                    const next = event.target.value
+                    setSearchDraft(next)
+                    if (!String(next || '').trim()) {
+                      onSearchChange('')
+                    }
+                    return
+                  }
+                  onSearchChange(event.target.value)
+                }}
+                onKeyDown={(e) => {
+                  if (searchMode !== 'submit') return
+                  if (e.key === 'Enter') {
+                    submitSearch()
+                  }
+                }}
+                className={searchMode === 'submit' ? 'input-style rounded-xl pr-10' : 'input-style rounded-xl'}
+              />
+              {searchMode === 'submit' ? (
+                <button
+                  type="button"
+                  onClick={submitSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Cari"
+                >
+                  <MagnifyingGlassIcon className="h-5 w-5" />
+                </button>
+              ) : null}
+            </div>
           </div>
           {onStartDateChange && onEndDateChange && (
             dateFilterStyle === 'grouped' ? (

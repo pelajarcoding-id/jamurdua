@@ -1,14 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, type SetStateAction } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { DataTable } from '@/components/ui/data-table'
 import { columns, UserData, formatUserName } from './columns'
 import { UserModal, ConfirmationModal } from './modal'
 import { DetailModal } from './detail-modal'
-import type { User } from '@prisma/client'
 import toast from 'react-hot-toast'
-import { useDebounce } from '@/hooks/useDebounce'
 import RoleGate from '@/components/RoleGate'
 import { PlusIcon, EllipsisHorizontalIcon } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/button'
@@ -27,7 +25,6 @@ export default function UsersPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const searchParams = useSearchParams();
@@ -36,15 +33,26 @@ export default function UsersPage() {
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
-    if (q !== searchQuery) setSearchQuery(q);
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev) => (prev === q ? prev : q))
+  }, [searchParams]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    const next = String(value || '').trim()
+    setSearchQuery(next)
+    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (next) params.set('search', next)
+    else params.delete('search')
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [pathname, router, searchParams])
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const startDateString = startDate?.toISOString() || '';
       const endDateString = endDate?.toISOString() || '';
-      const res = await fetch(`/api/users?page=${page}&limit=${limit}&search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
+      const q = String(searchQuery || '').trim()
+      const res = await fetch(`/api/users?page=${page}&limit=${limit}&search=${encodeURIComponent(q)}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const usersData = await res.json();
       setData(usersData.data);
@@ -54,7 +62,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, startDate, endDate]);
+  }, [page, limit, searchQuery, startDate, endDate]);
 
   useEffect(() => {
     fetchData();
@@ -219,18 +227,6 @@ export default function UsersPage() {
   const refreshData = useCallback(() => {
     fetchData();
   }, [fetchData]);
-
-  const handleSearchChange = useCallback((value: SetStateAction<string>) => {
-    const next = typeof value === 'function' ? value(searchQuery) : value;
-    setSearchQuery(next);
-    const params = new URLSearchParams(searchParams.toString());
-    if (next) {
-      params.set('search', next);
-    } else {
-      params.delete('search');
-    }
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [pathname, router, searchParams, searchQuery]);
 
   const getRoleClass = useCallback((role: string) => {
     switch (role) {

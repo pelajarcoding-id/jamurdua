@@ -7,7 +7,7 @@ import { columns, KebunData, formatKebunText } from './columns'
 import KebunModal from './modal'
 import type { Kebun } from '@prisma/client'
 import toast from 'react-hot-toast'
-import { useDebounce } from '@/hooks/useDebounce'
+ 
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import { 
   PlusIcon, 
@@ -37,7 +37,7 @@ export default function KebunPage() {
   const [editingKebun, setEditingKebun] = useState<KebunData | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const [searchDraft, setSearchDraft] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [perusahaanId, setPerusahaanId] = useState<string>('all');
@@ -55,22 +55,23 @@ export default function KebunPage() {
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
-    if (q !== searchQuery) setSearchQuery(q);
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev) => (prev === q ? prev : q))
+    setSearchDraft((prev) => (prev === q ? prev : q))
+  }, [searchParams]);
   
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const startDateString = startDate?.toISOString() || '';
       const endDateString = endDate?.toISOString() || '';
-      const res = await fetch(`/api/kebun?page=${page}&limit=${limit}&search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
+      const res = await fetch(`/api/kebun?page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const kebunData = await res.json();
       setData(kebunData.data);
       setTotalItems(kebunData.total);
       setSummaryLoading(true)
       try {
-        const summaryRes = await fetch(`/api/kebun/summary?search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' })
+        const summaryRes = await fetch(`/api/kebun/summary?search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' })
         if (!summaryRes.ok) throw new Error('Gagal mengambil ringkasan kebun')
         const summaryJson = await summaryRes.json()
         setSummary(summaryJson)
@@ -82,7 +83,7 @@ export default function KebunPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, startDate, endDate]);
+  }, [page, limit, searchQuery, startDate, endDate]);
 
   useEffect(() => {
     fetchData();
@@ -172,17 +173,19 @@ export default function KebunPage() {
     }
   }, [data, totalItems, fetchData, deleteConfirmId]);
 
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = e.target.value;
-    setSearchQuery(next);
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
     const params = new URLSearchParams(searchParams.toString());
-    if (next) {
-      params.set('search', next);
+    if (trimmed) {
+      params.set('search', trimmed);
     } else {
       params.delete('search');
     }
+    setPage(1)
     router.replace(`${pathname}?${params.toString()}`);
-  }, [pathname, router, searchParams]);
+  }, [pathname, router, searchDraft, searchParams]);
 
   const totalPages = Math.ceil(totalItems / limit);
   const formatCurrency = (value: number) =>
@@ -210,11 +213,34 @@ export default function KebunPage() {
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm shadow-sm transition-all"
+                className="block w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm shadow-sm transition-all"
                 placeholder="Cari kebun..."
-                value={searchQuery}
-                onChange={handleSearchChange}
+                value={searchDraft}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setSearchDraft(next)
+                  if (!String(next || '').trim()) {
+                    setSearchQuery('')
+                    setPage(1)
+                    const params = new URLSearchParams(searchParams.toString())
+                    params.delete('search')
+                    router.replace(`${pathname}?${params.toString()}`)
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    applySearch()
+                  }
+                }}
               />
+              <button
+                type="button"
+                onClick={applySearch}
+                className="absolute inset-y-0 right-2 flex items-center rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Cari"
+              >
+                <MagnifyingGlassIcon className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>

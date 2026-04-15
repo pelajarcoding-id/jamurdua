@@ -3,9 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { DataTable } from "@/components/ui/data-table";
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { SetStateAction } from 'react';
 import { columns, SupirData } from './columns';
-import { useDebounce } from '@/hooks/useDebounce';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -27,7 +25,6 @@ export default function SupirPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickRange, setQuickRange] = useState('this_year');
@@ -39,8 +36,8 @@ export default function SupirPage() {
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
-    if (q !== searchQuery) setSearchQuery(q);
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev) => (prev === q ? prev : q))
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchSupirs = async () => {
@@ -87,7 +84,7 @@ export default function SupirPage() {
     try {
       const startDateString = startDate ? format(startDate, 'yyyy-MM-dd') : '';
       const endDateString = endDate ? format(endDate, 'yyyy-MM-dd') : '';
-      const res = await fetch(`/api/supir?page=${page}&limit=${limit}&search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}&supirId=${selectedSupirId}`, { cache: 'no-store' });
+      const res = await fetch(`/api/supir?page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}&supirId=${selectedSupirId}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const result = await res.json();
       setData(result.data);
@@ -97,7 +94,7 @@ export default function SupirPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, startDate, endDate, selectedSupirId]);
+  }, [page, limit, searchQuery, startDate, endDate, selectedSupirId]);
 
 
   useEffect(() => {
@@ -290,8 +287,7 @@ export default function SupirPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleSearchChange = useCallback((value: SetStateAction<string>) => {
-    const next = typeof value === 'function' ? value(searchQuery) : value;
+  const handleSearchChange = useCallback((next: string) => {
     setSearchQuery(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next) {
@@ -300,7 +296,7 @@ export default function SupirPage() {
       params.delete('search');
     }
     router.replace(`${pathname}?${params.toString()}`);
-  }, [pathname, router, searchParams, searchQuery]);
+  }, [pathname, router, searchParams]);
 
   const dateDisplay = useMemo(() => {
     if (quickRange && quickRange !== 'custom') {

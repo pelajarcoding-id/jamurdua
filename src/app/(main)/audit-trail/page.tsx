@@ -1,11 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
-import { useDebounce } from 'use-debounce';
 import RoleGate from '@/components/RoleGate';
 import {
     Dialog,
@@ -79,7 +78,6 @@ export default function AuditTrailPage() {
     const [limit, setLimit] = useState(10);
     const [totalItems, setTotalItems] = useState(0);
     const [search, setSearch] = useState('');
-    const [debouncedSearch] = useDebounce(search, 500);
     const [detailOpen, setDetailOpen] = useState(false)
     const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null)
     const searchParams = useSearchParams();
@@ -88,14 +86,14 @@ export default function AuditTrailPage() {
 
     useEffect(() => {
         const q = searchParams.get('search') || '';
-        if (q !== search) setSearch(q);
-    }, [searchParams, search]);
+        setSearch((prev) => (prev === q ? prev : q));
+    }, [searchParams]);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/audit-trail?page=${page}&limit=${limit}&search=${debouncedSearch}`);
+                const res = await fetch(`/api/audit-trail?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
                 const json = await res.json();
                 setData(json.data);
                 setTotalItems(json.total);
@@ -106,7 +104,7 @@ export default function AuditTrailPage() {
             }
         };
         fetchData();
-    }, [page, limit, debouncedSearch]);
+    }, [page, limit, search]);
 
     const handleOpenDetail = useCallback((log: AuditLog) => {
         setSelectedLog(log)
@@ -181,9 +179,9 @@ export default function AuditTrailPage() {
                         onPageChange={setPage}
                         onLimitChange={setLimit}
                         searchQuery={search}
-                        onSearchChange={(value: SetStateAction<string>) => {
-                            const next = typeof value === 'function' ? value(search) : value;
+                        onSearchChange={(next: string) => {
                             setSearch(next);
+                            setPage(1);
                             const params = new URLSearchParams(searchParams.toString());
                             if (next) {
                                 params.set('search', next);

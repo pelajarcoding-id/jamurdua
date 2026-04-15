@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ImageUpload from '@/components/ui/ImageUpload'
-import { ArrowDownTrayIcon, XMarkIcon, CalendarIcon, PlusIcon, ArrowPathIcon, ClipboardDocumentListIcon, DocumentTextIcon, PencilSquareIcon, TrashIcon, BanknotesIcon, PhotoIcon } from '@heroicons/react/24/outline'
+import { ArrowDownTrayIcon, XMarkIcon, CalendarIcon, PlusIcon, ArrowPathIcon, ClipboardDocumentListIcon, DocumentTextIcon, PencilSquareIcon, TrashIcon, BanknotesIcon, PhotoIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -26,26 +26,9 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox'
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
- 
-
-
-
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { useDebounce } from '@/hooks/useDebounce'
+import { PembayaranTab } from './PembayaranTab'
+import { usePembayaranNotaSawit } from './usePembayaranNotaSawit'
 
 interface SummaryData {
   totalBerat: number;
@@ -96,12 +79,6 @@ export default function NotaSawitPage() {
   const [reconcileRangeEnd, setReconcileRangeEnd] = useState<string>('')
   const [reconcileRangeLoading, setReconcileRangeLoading] = useState(false)
   const [reconcileRangeCandidates, setReconcileRangeCandidates] = useState<NotaSawitData[]>([])
-  const [reconcileHistoryLoading, setReconcileHistoryLoading] = useState(false)
-  const [reconcileHistorySoftLoading, setReconcileHistorySoftLoading] = useState(false)
-  const [reconcileHistory, setReconcileHistory] = useState<any[]>([])
-  const [reconcileHistoryPage, setReconcileHistoryPage] = useState(1)
-  const [reconcileHistoryLimit, setReconcileHistoryLimit] = useState(20)
-  const [reconcileHistoryTotal, setReconcileHistoryTotal] = useState(0)
   const [isReconcileDetailOpen, setIsReconcileDetailOpen] = useState(false)
   const [reconcileDetail, setReconcileDetail] = useState<any | null>(null)
   const [isBuktiTransferOpen, setIsBuktiTransferOpen] = useState(false)
@@ -136,7 +113,7 @@ export default function NotaSawitPage() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [rowSelection, setRowSelection] = useState({});
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const debouncedSearchQuery = useDebounce(searchQuery, 250);
+  const [searchDraft, setSearchDraft] = useState(searchParams.get('search') || '');
   const [notaSoftLoading, setNotaSoftLoading] = useState(false)
   const [cursorId, setCursorId] = useState<number | null>(null);
   const [cursorStack, setCursorStack] = useState<number[]>([]);
@@ -160,9 +137,6 @@ export default function NotaSawitPage() {
     setStartDate(start)
     setEndDate(end)
     setQuickRange('this_year')
-    setPembayaranStartDate(start)
-    setPembayaranEndDate(end)
-    setPembayaranQuickRange('this_year')
   }, []);
 
   const [kebunList, setKebunList] = useState<{ id: number; name: string }[]>([]);
@@ -170,26 +144,24 @@ export default function NotaSawitPage() {
   const [pabrikList, setPabrikList] = useState<{ id: number; name: string }[]>([]);
   const [selectedPabrik, setSelectedPabrik] = useState<string>(searchParams.get('pabrikId') || '');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const [pembayaranSearch, setPembayaranSearch] = useState('')
-  const debouncedPembayaranSearch = useDebounce(pembayaranSearch, 250)
-  const [pembayaranPabrikId, setPembayaranPabrikId] = useState<string>('')
-  const [pembayaranKebunId, setPembayaranKebunId] = useState<string>('')
-  const [pembayaranStartDate, setPembayaranStartDate] = useState<Date | undefined>(undefined)
-  const [pembayaranEndDate, setPembayaranEndDate] = useState<Date | undefined>(undefined)
-  const [pembayaranQuickRange, setPembayaranQuickRange] = useState('this_year')
+  const pembayaran = usePembayaranNotaSawit({
+    enabled: activeTab === 'pembayaran' && role !== 'SUPIR',
+    defaultStartDate: startDate,
+    defaultEndDate: endDate,
+    defaultQuickRange: 'this_year',
+  })
   const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
   const [viewImageError, setViewImageError] = useState(false);
   const notaHasLoadedRef = useRef(false)
   const notaAbortRef = useRef<AbortController | null>(null)
   const refreshToastRef = useRef<string | null>(null)
   const manualRefreshRef = useRef(false)
-  const reconcileHistoryHasLoadedRef = useRef(false)
-  const reconcileHistoryAbortRef = useRef<AbortController | null>(null)
 
 
   useEffect(() => {
     const paramsSearch = searchParams.get('search') || '';
     setSearchQuery((prev: string) => (prev === paramsSearch ? prev : paramsSearch))
+    setSearchDraft((prev: string) => (prev === paramsSearch ? prev : paramsSearch))
   }, [searchParams]);
 
   useEffect(() => {
@@ -217,23 +189,20 @@ export default function NotaSawitPage() {
     fetchPabrik();
   }, []);
 
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    setPage(1);
-    setCursorId(null);
-    setCursorStack([]);
-    setNextCursor(null);
-  };
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+    setPage(1)
+    setCursorId(null)
+    setCursorStack([])
+    setNextCursor(null)
 
-  useEffect(() => {
-    const current = (searchParams.get('search') || '').trim()
-    const next = (debouncedSearchQuery || '').trim()
-    if (current === next) return
     const params = new URLSearchParams(searchParams.toString())
-    if (next) params.set('search', next)
+    if (trimmed) params.set('search', trimmed)
     else params.delete('search')
     router.replace(`?${params.toString()}`, { scroll: false })
-  }, [debouncedSearchQuery, router, searchParams])
+  }, [router, searchDraft, searchParams])
 
   const selectedNotasForBulk = useMemo(() => {
     const ids = Object.keys(rowSelection)
@@ -410,25 +379,6 @@ export default function NotaSawitPage() {
     return 'Pilih Rentang Waktu';
   }, [quickRange, startDate, endDate]);
 
-  const pembayaranDateDisplay = useMemo(() => {
-    if (pembayaranQuickRange && pembayaranQuickRange !== 'custom') {
-      switch (pembayaranQuickRange) {
-        case 'all': return 'Semua'
-        case 'today': return 'Hari Ini'
-        case 'this_week': return 'Minggu Ini'
-        case 'this_month': return 'Bulan Ini'
-        case 'this_year': return 'Tahun Ini'
-        default: return 'Pilih Rentang Waktu'
-      }
-    }
-    if (pembayaranStartDate && pembayaranEndDate) {
-      const s = new Date(pembayaranStartDate).toLocaleDateString('id-ID')
-      const e = new Date(pembayaranEndDate).toLocaleDateString('id-ID')
-      return `${s} - ${e}`
-    }
-    return 'Pilih Rentang Waktu'
-  }, [pembayaranEndDate, pembayaranQuickRange, pembayaranStartDate])
-
   const toWibYmd = useCallback((dt?: Date) => {
     if (!dt) return ''
     const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -446,7 +396,7 @@ export default function NotaSawitPage() {
     setCursorId(null);
     setCursorStack([]);
     setNextCursor(null);
-  }, [debouncedSearchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, limit]);
+  }, [searchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, limit]);
 
   const applyQuickRange = useCallback((val: string) => {
     const shiftDays = (dt: Date, days: number) => new Date(dt.getTime() + days * 24 * 60 * 60 * 1000)
@@ -489,55 +439,6 @@ export default function NotaSawitPage() {
       setEndDate(todayEnd);
     }
   }, [toWibYmd, wibEndFromYmd, wibStartFromYmd]);
-
-  const applyPembayaranQuickRange = useCallback((val: string) => {
-    const shiftDays = (dt: Date, days: number) => new Date(dt.getTime() + days * 24 * 60 * 60 * 1000)
-    const todayYmd = toWibYmd(new Date())
-    const todayStart = wibStartFromYmd(todayYmd)
-    const todayEnd = wibEndFromYmd(todayYmd)
-    setPembayaranQuickRange(val)
-
-    if (val === 'all') {
-      setPembayaranStartDate(undefined)
-      setPembayaranEndDate(undefined)
-      return
-    }
-
-    if (val === 'today') {
-      setPembayaranStartDate(todayStart)
-      setPembayaranEndDate(todayEnd)
-      return
-    }
-
-    if (val === 'this_week') {
-      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
-      const day = wibToday.getUTCDay() // 0=Sun
-      const diffToMon = day === 0 ? 6 : day - 1
-      const monStart = shiftDays(todayStart, -diffToMon)
-      setPembayaranStartDate(monStart)
-      setPembayaranEndDate(todayEnd)
-      return
-    }
-
-    if (val === 'this_month') {
-      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
-      const y = wibToday.getUTCFullYear()
-      const m = String(wibToday.getUTCMonth() + 1).padStart(2, '0')
-      const startYmd = `${y}-${m}-01`
-      setPembayaranStartDate(wibStartFromYmd(startYmd))
-      setPembayaranEndDate(todayEnd)
-      return
-    }
-
-    if (val === 'this_year') {
-      const wibToday = new Date(Date.now() + 7 * 60 * 60 * 1000)
-      const y = wibToday.getUTCFullYear()
-      const startYmd = `${y}-01-01`
-      setPembayaranStartDate(wibStartFromYmd(startYmd))
-      setPembayaranEndDate(todayEnd)
-      return
-    }
-  }, [toWibYmd, wibEndFromYmd, wibStartFromYmd])
 
   const handleSaveStatus = useCallback(async (id: number, status: 'LUNAS' | 'BELUM_LUNAS') => {
     const previousData = [...data];
@@ -896,54 +797,6 @@ export default function NotaSawitPage() {
     setIsBulkReconcileOpen(true)
   }, [endDate, selectedPabrik, startDate, toWibYmd])
 
-  const fetchReconcileHistory = useCallback(async (opts?: { soft?: boolean }) => {
-    const shouldSoft = !!opts?.soft && reconcileHistoryHasLoadedRef.current
-    if (shouldSoft) {
-      setReconcileHistorySoftLoading(true)
-    } else {
-      setReconcileHistoryLoading(true)
-    }
-    try {
-      reconcileHistoryAbortRef.current?.abort()
-      const controller = new AbortController()
-      reconcileHistoryAbortRef.current = controller
-      const pabrikId = pembayaranPabrikId ? String(pembayaranPabrikId) : ''
-      const kebunId = pembayaranKebunId ? String(pembayaranKebunId) : ''
-      const params = new URLSearchParams({ page: String(reconcileHistoryPage), limit: String(reconcileHistoryLimit) })
-      if (pabrikId) params.append('pabrikId', pabrikId)
-      if (kebunId) params.append('kebunId', kebunId)
-      if (debouncedPembayaranSearch.trim()) params.append('search', debouncedPembayaranSearch.trim())
-      if (pembayaranStartDate) params.append('startDate', pembayaranStartDate.toISOString())
-      if (pembayaranEndDate) params.append('endDate', pembayaranEndDate.toISOString())
-      const res = await fetch(`/api/nota-sawit/pembayaran-batch?${params.toString()}`, {
-        cache: 'no-store',
-        signal: controller.signal,
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || 'Gagal memuat riwayat rekonsiliasi')
-      setReconcileHistory(Array.isArray(json?.data) ? json.data : [])
-      setReconcileHistoryTotal(Math.max(0, Number(json?.total || 0)))
-    } catch (e: any) {
-      if (String(e?.name) === 'AbortError') return
-      toast.error(e?.message || 'Gagal memuat riwayat rekonsiliasi')
-      setReconcileHistory([])
-      setReconcileHistoryTotal(0)
-    } finally {
-      reconcileHistoryHasLoadedRef.current = true
-      if (shouldSoft) {
-        setReconcileHistorySoftLoading(false)
-      } else {
-        setReconcileHistoryLoading(false)
-      }
-    }
-  }, [debouncedPembayaranSearch, pembayaranEndDate, pembayaranKebunId, pembayaranPabrikId, pembayaranStartDate, reconcileHistoryLimit, reconcileHistoryPage])
-
-  useEffect(() => {
-    if (activeTab !== 'pembayaran') return
-    if (role === 'SUPIR') return
-    fetchReconcileHistory({ soft: true })
-  }, [activeTab, fetchReconcileHistory, role])
-
   const handleOpenEditReconcileBatch = useCallback((b: any) => {
     const id = Number(b?.id)
     if (!Number.isFinite(id) || id <= 0) return
@@ -1018,7 +871,7 @@ export default function NotaSawitPage() {
       setReconcileEditingBatch(null)
       setIsReconcileDetailOpen(false)
       setReconcileDetail(null)
-      await fetchReconcileHistory({ soft: true })
+      await pembayaran.fetchReconcileHistory({ soft: true })
       refreshData()
       toast.success('Perubahan tersimpan', { id: toastId })
     } catch (e: any) {
@@ -1026,7 +879,7 @@ export default function NotaSawitPage() {
     } finally {
       setReconcileEditSubmitting(false)
     }
-  }, [fetchReconcileHistory, reconcileEditGambarExistingUrl, reconcileEditGambarFile, reconcileEditKeterangan, reconcileEditJumlahMasuk, reconcileEditNotaIds, reconcileEditSetLunas, reconcileEditTanggal, reconcileEditingBatchId, refreshData])
+  }, [pembayaran.fetchReconcileHistory, reconcileEditGambarExistingUrl, reconcileEditGambarFile, reconcileEditKeterangan, reconcileEditJumlahMasuk, reconcileEditNotaIds, reconcileEditSetLunas, reconcileEditTanggal, reconcileEditingBatchId, refreshData])
 
   const handleOpenDeleteReconcileBatch = useCallback((batchId: number) => {
     const id = Number(batchId)
@@ -1048,7 +901,7 @@ export default function NotaSawitPage() {
       setReconcileDeletingBatchId(null)
       setIsReconcileDetailOpen(false)
       setReconcileDetail(null)
-      await fetchReconcileHistory({ soft: true })
+      await pembayaran.fetchReconcileHistory({ soft: true })
       refreshData()
       toast.success('Batch dihapus', { id: toastId })
     } catch (e: any) {
@@ -1056,7 +909,7 @@ export default function NotaSawitPage() {
     } finally {
       setReconcileDeleteSubmitting(false)
     }
-  }, [fetchReconcileHistory, reconcileDeletingBatchId, refreshData])
+  }, [pembayaran.fetchReconcileHistory, reconcileDeletingBatchId, refreshData])
 
   const handleReconcileFetchByRange = useCallback(async () => {
     if (!reconcilePabrikId) {
@@ -1242,7 +1095,7 @@ export default function NotaSawitPage() {
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan rekonsiliasi')
       setIsBulkReconcileOpen(false)
       setRowSelection({})
-      await fetchReconcileHistory({ soft: true })
+      await pembayaran.fetchReconcileHistory({ soft: true })
       refreshData()
       const batchId = json?.batchId ? Number(json.batchId) : null
       toast.success(batchId ? `Rekonsiliasi berhasil (Batch #${batchId})` : 'Rekonsiliasi pembayaran berhasil', { id: toastId })
@@ -1254,7 +1107,7 @@ export default function NotaSawitPage() {
     } finally {
       setReconcileSubmitting(false)
     }
-  }, [fetchReconcileHistory, reconcileGambarFile, reconcileJumlahMasuk, reconcileKeterangan, reconcileNotaIds, reconcileSetLunas, reconcileTanggal, refreshData, selectedStatus])
+  }, [pembayaran.fetchReconcileHistory, reconcileGambarFile, reconcileJumlahMasuk, reconcileKeterangan, reconcileNotaIds, reconcileSetLunas, reconcileTanggal, refreshData, selectedStatus])
 
   const handleExportPembayaranBatchPdf = useCallback(async () => {
     if (!reconcileDetail?.id) return
@@ -1779,7 +1632,7 @@ export default function NotaSawitPage() {
         const params = new URLSearchParams({
           page: String(page),
           limit: String(limit),
-          search: debouncedSearchQuery,
+          search: searchQuery,
         });
 
         if (startDateString) params.append('startDate', startDateString);
@@ -1845,7 +1698,7 @@ export default function NotaSawitPage() {
     return () => {
       ignore = true;
     };
-  }, [refreshToggle, page, limit, debouncedSearchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, cursorId, quickRange]);
+  }, [refreshToggle, page, limit, searchQuery, startDate, endDate, selectedKebun, selectedPabrik, selectedStatus, role, userId, cursorId, quickRange]);
 
   const tableMeta = useMemo(() => ({
     role,
@@ -2068,13 +1921,40 @@ export default function NotaSawitPage() {
                   <Input
                       type="text"
                       placeholder="Cari supir atau plat nomor..."
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
+                      value={searchDraft}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setSearchDraft(next)
+                        if (!String(next || '').trim()) {
+                          setSearchQuery('')
+                          setPage(1)
+                          setCursorId(null)
+                          setCursorStack([])
+                          setNextCursor(null)
+                          const params = new URLSearchParams(searchParams.toString())
+                          params.delete('search')
+                          router.replace(`?${params.toString()}`, { scroll: false })
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          applySearch()
+                        }
+                      }}
                       className="input-style rounded-lg pr-10"
                   />
                   {notaSoftLoading ? (
                     <ArrowPathIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={applySearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      aria-label="Cari"
+                    >
+                      <MagnifyingGlassIcon className="h-5 w-5" />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="col-span-1 w-full lg:flex-none lg:w-[260px] flex items-center gap-2">
@@ -2418,332 +2298,43 @@ export default function NotaSawitPage() {
           </TabsContent>
 
           <TabsContent value="pembayaran" className="space-y-6">
-            {role === 'SUPIR' ? (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
-                Menu pembayaran tidak tersedia untuk role SUPIR.
-              </div>
-            ) : (
-              <div className="card-style p-4 rounded-2xl">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                      <ClipboardDocumentListIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Pembayaran Nota Sawit</p>
-                      <p className="text-xs text-gray-500">Riwayat rekonsiliasi pembayaran (batch transfer)</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" className="rounded-full" onClick={() => fetchReconcileHistory()} disabled={reconcileHistoryLoading || reconcileHistorySoftLoading}>
-                      <ArrowPathIcon className={cn("w-4 h-4 mr-2", (reconcileHistoryLoading || reconcileHistorySoftLoading) ? "animate-spin" : "")} />
-                      Refresh
-                    </Button>
-                    <Button onClick={handleOpenBulkReconcileEmpty} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                      <PlusIcon className="w-4 h-4 mr-2" />
-                      Pembayaran
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Cari</Label>
-                    <div className="relative">
-                      <Input
-                        value={pembayaranSearch}
-                        onChange={(e) => {
-                          setPembayaranSearch(e.target.value)
-                          setReconcileHistoryPage(1)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            setReconcileHistoryPage(1)
-                          }
-                        }}
-                        placeholder="Cari batch / pabrik / kebun..."
-                        className="rounded-xl h-10 pr-10"
-                        disabled={reconcileHistoryLoading}
-                      />
-                      {reconcileHistorySoftLoading ? (
-                        <ArrowPathIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Pabrik</Label>
-                    <select
-                      value={pembayaranPabrikId}
-                      onChange={(e) => {
-                        setPembayaranPabrikId(e.target.value)
-                        setReconcileHistoryPage(1)
-                      }}
-                      className="w-full input-style rounded-xl border-gray-200 h-10"
-                      disabled={reconcileHistoryLoading}
-                    >
-                      <option value="">Semua Pabrik</option>
-                      {pabrikList.map((pabrik) => (
-                        <option key={pabrik.id} value={pabrik.id}>
-                          {pabrik.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Kebun</Label>
-                    <select
-                      value={pembayaranKebunId}
-                      onChange={(e) => {
-                        setPembayaranKebunId(e.target.value)
-                        setReconcileHistoryPage(1)
-                      }}
-                      className="w-full input-style rounded-xl border-gray-200 h-10"
-                      disabled={reconcileHistoryLoading}
-                    >
-                      <option value="">Semua Kebun</option>
-                      {kebunList.map((kebun: any) => (
-                        <option key={kebun.id} value={kebun.id}>
-                          {kebun.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase text-gray-500">Periode</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          id="pembayaran-date"
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal bg-white rounded-xl h-10",
-                            !pembayaranStartDate && "text-muted-foreground",
-                          )}
-                          disabled={reconcileHistoryLoading}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {pembayaranDateDisplay}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-4 bg-white" align="start">
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <h4 className="font-medium leading-none">Periode</h4>
-                            <p className="text-sm text-muted-foreground">Pilih periode cepat atau rentang waktu</p>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { applyPembayaranQuickRange('all'); setReconcileHistoryPage(1) }}
-                              className={pembayaranQuickRange === 'all' ? 'bg-accent' : ''}
-                            >
-                              Semua
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { applyPembayaranQuickRange('today'); setReconcileHistoryPage(1) }}
-                              className={pembayaranQuickRange === 'today' ? 'bg-accent' : ''}
-                            >
-                              Hari Ini
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { applyPembayaranQuickRange('this_week'); setReconcileHistoryPage(1) }}
-                              className={pembayaranQuickRange === 'this_week' ? 'bg-accent' : ''}
-                            >
-                              Minggu Ini
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { applyPembayaranQuickRange('this_month'); setReconcileHistoryPage(1) }}
-                              className={pembayaranQuickRange === 'this_month' ? 'bg-accent' : ''}
-                            >
-                              Bulan Ini
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { applyPembayaranQuickRange('this_year'); setReconcileHistoryPage(1) }}
-                              className={pembayaranQuickRange === 'this_year' ? 'bg-accent' : ''}
-                            >
-                              Tahun Ini
-                            </Button>
-                          </div>
-                          <div className="border-t pt-4 space-y-2">
-                            <h4 className="font-medium leading-none">Rentang Waktu</h4>
-                            <div className="grid gap-2">
-                              <div className="grid grid-cols-3 items-center gap-4">
-                                <Label htmlFor="pembayaran-start-date" className="text-xs">Dari</Label>
-                                <Input
-                                  id="pembayaran-start-date"
-                                  type="date"
-                                  className="col-span-2 h-8"
-                                  value={pembayaranStartDate ? toWibYmd(pembayaranStartDate) : ''}
-                                  onChange={(e) => {
-                                    setPembayaranStartDate(e.target.value ? wibStartFromYmd(e.target.value) : undefined)
-                                    setPembayaranQuickRange('custom')
-                                    setReconcileHistoryPage(1)
-                                  }}
-                                />
-                              </div>
-                              <div className="grid grid-cols-3 items-center gap-4">
-                                <Label htmlFor="pembayaran-end-date" className="text-xs">Sampai</Label>
-                                <Input
-                                  id="pembayaran-end-date"
-                                  type="date"
-                                  className="col-span-2 h-8"
-                                  value={pembayaranEndDate ? toWibYmd(pembayaranEndDate) : ''}
-                                  onChange={(e) => {
-                                    setPembayaranEndDate(e.target.value ? wibEndFromYmd(e.target.value) : undefined)
-                                    setPembayaranQuickRange('custom')
-                                    setReconcileHistoryPage(1)
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <DataTable
-                    columns={pembayaranColumns}
-                    data={reconcileHistory}
-                    isLoading={reconcileHistoryLoading}
-                    meta={{
-                      onRowClick: (b: any) => {
-                        setReconcileDetail(b)
-                        setIsReconcileDetailOpen(true)
-                      },
-                    }}
-                    renderMobileCards={({ data, isLoading }) => {
-                      if (isLoading) {
-                        return (
-                          <div className="space-y-3">
-                            {[...Array(3)].map((_, i) => (
-                              <div key={i} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                                <Skeleton className="h-4 w-32" />
-                                <Skeleton className="h-4 w-44" />
-                                <Skeleton className="h-4 w-36" />
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      }
-                      if (!data || data.length === 0) {
-                        return (
-                          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
-                            Belum ada riwayat rekonsiliasi.
-                          </div>
-                        )
-                      }
-                      return (
-                        <div className="space-y-3">
-                          {(data as any[]).map((b) => {
-                            const selisih = Number(b?.selisih || 0)
-                            return (
-                              <div
-                                key={String(b?.id)}
-                                className="rounded-2xl border border-gray-100 bg-white p-4 hover:bg-gray-50/50 transition-colors cursor-pointer"
-                                onClick={() => {
-                                  setReconcileDetail(b)
-                                  setIsReconcileDetailOpen(true)
-                                }}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-extrabold text-gray-900">Batch #{b?.id}</div>
-                                    <div className="text-xs text-gray-500 truncate">
-                                      {b?.tanggal ? new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'} • {b?.pabrikSawit?.name || '-'}
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-xs text-gray-500">Nota</div>
-                                    <div className="text-sm font-extrabold text-gray-900 tabular-nums">{formatNumber(Number(b?.count || 0))}</div>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
-                                    <div className="text-gray-500">Jumlah Tagihan Nota</div>
-                                    <div className="font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(b?.totalTagihan || 0))}</div>
-                                  </div>
-                                  <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
-                                    <div className="text-gray-500">Jumlah Ditransfer</div>
-                                    <div className="font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(b?.jumlahMasuk || 0))}</div>
-                                  </div>
-                                </div>
-
-                                <div className="mt-2 flex items-center justify-between text-xs">
-                                  <div className="text-gray-500">Selisih</div>
-                                  <div className={cn("font-extrabold tabular-nums", selisih === 0 ? "text-emerald-700" : selisih > 0 ? "text-emerald-700" : "text-rose-700")}>
-                                    {formatCurrency(selisih)}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    }}
-                  />
-                </div>
-
-                <div className="mt-4 flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3">
-                  <div className="text-sm text-gray-500">
-                    Menampilkan{' '}
-                    <span className="font-medium text-gray-800">
-                      {Math.min((reconcileHistoryPage - 1) * reconcileHistoryLimit + 1, reconcileHistoryTotal || 0)}
-                    </span>{' '}
-                    -{' '}
-                    <span className="font-medium text-gray-800">
-                      {Math.min(reconcileHistoryPage * reconcileHistoryLimit, reconcileHistoryTotal || 0)}
-                    </span>{' '}
-                    dari <span className="font-medium text-gray-800">{formatNumber(reconcileHistoryTotal || 0)}</span> batch
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                      value={reconcileHistoryLimit}
-                      onChange={(e) => {
-                        const next = Number(e.target.value)
-                        setReconcileHistoryLimit(next)
-                        setReconcileHistoryPage(1)
-                      }}
-                      title="Per halaman"
-                      disabled={reconcileHistoryLoading}
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                      <option value={200}>200</option>
-                    </select>
-                    <button
-                      onClick={() => setReconcileHistoryPage((p) => Math.max(1, p - 1))}
-                      disabled={reconcileHistoryPage <= 1 || reconcileHistoryLoading}
-                      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Sebelumnya
-                    </button>
-                    <button
-                      onClick={() => setReconcileHistoryPage((p) => p + 1)}
-                      disabled={reconcileHistoryLoading || reconcileHistoryPage * reconcileHistoryLimit >= reconcileHistoryTotal}
-                      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Berikutnya
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <PembayaranTab
+              role={role}
+              fetchReconcileHistory={pembayaran.fetchReconcileHistory}
+              reconcileHistoryLoading={pembayaran.reconcileHistoryLoading}
+              reconcileHistorySoftLoading={pembayaran.reconcileHistorySoftLoading}
+              handleOpenBulkReconcileEmpty={handleOpenBulkReconcileEmpty}
+              pembayaranSearch={pembayaran.pembayaranSearch}
+              setPembayaranSearch={pembayaran.setPembayaranSearch}
+              setReconcileHistoryPage={pembayaran.setReconcileHistoryPage}
+              pembayaranPabrikId={pembayaran.pembayaranPabrikId}
+              setPembayaranPabrikId={pembayaran.setPembayaranPabrikId}
+              pabrikList={pabrikList}
+              pembayaranKebunId={pembayaran.pembayaranKebunId}
+              setPembayaranKebunId={pembayaran.setPembayaranKebunId}
+              kebunList={kebunList}
+              pembayaranDateDisplay={pembayaran.pembayaranDateDisplay}
+              pembayaranStartDate={pembayaran.pembayaranStartDate}
+              pembayaranEndDate={pembayaran.pembayaranEndDate}
+              pembayaranQuickRange={pembayaran.pembayaranQuickRange}
+              applyPembayaranQuickRange={pembayaran.applyPembayaranQuickRange}
+              toWibYmd={pembayaran.toWibYmd}
+              wibStartFromYmd={pembayaran.wibStartFromYmd}
+              wibEndFromYmd={pembayaran.wibEndFromYmd}
+              setPembayaranStartDate={pembayaran.setPembayaranStartDate}
+              setPembayaranEndDate={pembayaran.setPembayaranEndDate}
+              setPembayaranQuickRange={pembayaran.setPembayaranQuickRange}
+              pembayaranColumns={pembayaranColumns}
+              reconcileHistory={pembayaran.reconcileHistory}
+              setReconcileDetail={setReconcileDetail}
+              setIsReconcileDetailOpen={setIsReconcileDetailOpen}
+              reconcileHistoryPage={pembayaran.reconcileHistoryPage}
+              reconcileHistoryLimit={pembayaran.reconcileHistoryLimit}
+              reconcileHistoryTotal={pembayaran.reconcileHistoryTotal}
+              setReconcileHistoryLimit={pembayaran.setReconcileHistoryLimit}
+              formatNumber={formatNumber}
+              formatCurrency={formatCurrency}
+            />
           </TabsContent>
         </Tabs>
       </div>

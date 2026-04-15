@@ -20,22 +20,6 @@ import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
 import { useAuth } from '@/components/AuthProvider';
 
 type UangJalanWithSoftDelete = UangJalan & {
@@ -147,7 +131,7 @@ export default function UangJalanPage() {
         setEndDate(end);
     }, []);
     const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-    const debouncedSearchQuery = useDebounce(searchQuery, 500);
+    const [searchDraft, setSearchDraft] = useState(searchParams.get('search') || '');
 
     const [refreshToggle, setRefreshToggle] = useState(false);
     const [page, setPage] = useState(1);
@@ -167,7 +151,7 @@ export default function UangJalanPage() {
             
             if (startDateString) url += `&startDate=${startDateString}`;
             if (endDateString) url += `&endDate=${endDateString}`;
-            if (debouncedSearchQuery) url += `&search=${debouncedSearchQuery}`;
+            if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
 
             if (role === 'SUPIR' && userId) {
                 url += `&supirId=${userId}`;
@@ -204,14 +188,13 @@ export default function UangJalanPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [startDate, endDate, page, limit, role, userId, debouncedSearchQuery, selectedSupirId])
+    }, [startDate, endDate, page, limit, role, userId, searchQuery, selectedSupirId])
 
     useEffect(() => {
         const paramsSearch = searchParams.get('search') || '';
-        if (paramsSearch !== searchQuery) {
-            setSearchQuery(paramsSearch);
-        }
-    }, [searchParams, searchQuery]);
+        setSearchQuery((prev: string) => (prev === paramsSearch ? prev : paramsSearch));
+        setSearchDraft((prev: string) => (prev === paramsSearch ? prev : paramsSearch));
+    }, [searchParams]);
 
     useEffect(() => {
         fetchData()
@@ -227,11 +210,14 @@ export default function UangJalanPage() {
         }
     }, [fetchData]);
 
-    const handleSearchChange = (value: string) => {
-        setSearchQuery(value);
+    const applySearch = () => {
+        const trimmed = String(searchDraft || '').trim();
+        if (trimmed && trimmed.length < 2) return;
+        setSearchQuery(trimmed);
+        setPage(1);
         const params = new URLSearchParams(searchParams.toString());
-        if (value) {
-            params.set('search', value);
+        if (trimmed) {
+            params.set('search', trimmed);
         } else {
             params.delete('search');
         }
@@ -900,13 +886,38 @@ export default function UangJalanPage() {
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                         <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4 flex-1 w-full lg:w-auto">
                             <div className="w-full md:w-64 flex-shrink-0">
-                                <Input
-                                    type="text"
-                                    placeholder="Cari supir atau plat nomor..."
-                                    value={searchQuery}
-                                    onChange={(e) => handleSearchChange(e.target.value)}
-                                    className="input-style rounded-lg"
-                                />
+                                <div className="relative">
+                                    <Input
+                                        type="text"
+                                        placeholder="Cari supir atau plat nomor..."
+                                        value={searchDraft}
+                                        onChange={(e) => {
+                                            const next = e.target.value
+                                            setSearchDraft(next)
+                                            if (!String(next || '').trim()) {
+                                                setSearchQuery('')
+                                                setPage(1)
+                                                const params = new URLSearchParams(searchParams.toString())
+                                                params.delete('search')
+                                                router.replace(`?${params.toString()}`)
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                applySearch()
+                                            }
+                                        }}
+                                        className="input-style rounded-lg pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={applySearch}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                        aria-label="Cari"
+                                    >
+                                        <MagnifyingGlassIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
                             </div>
                             <div className="w-full md:w-auto flex items-center gap-2">
                                 {role !== 'SUPIR' && (

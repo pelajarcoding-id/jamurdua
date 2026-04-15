@@ -6,11 +6,27 @@ export const authConfig = {
     signIn: '/login',
   },
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
+    authorized({ auth, request }) {
+      const nextUrl = request.nextUrl
       const isLoggedIn = !!auth?.user;
       const isOnLogin = nextUrl.pathname.startsWith('/login');
       const user = auth?.user;
       const userRole = (user?.role || '').toUpperCase();
+
+      const buildRedirect = (pathname: string) => {
+        const url = nextUrl.clone()
+        const xfHost = request.headers.get('x-forwarded-host')
+        const xfProto = request.headers.get('x-forwarded-proto')
+        if (xfHost) {
+          url.host = xfHost.split(',')[0].trim()
+        }
+        if (xfProto) {
+          url.protocol = `${xfProto.split(',')[0].trim()}:`
+        }
+        url.pathname = pathname
+        url.search = ''
+        return Response.redirect(url)
+      }
 
       // Allow access to public uploads and serve-image API
       if (nextUrl.pathname.startsWith('/uploads/') || nextUrl.pathname.startsWith('/api/serve-image/')) {
@@ -22,23 +38,23 @@ export const authConfig = {
         const isAllowed = allowedRoutes.some(route => nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`));
 
         if (isOnLogin || nextUrl.pathname === '/') {
-          return Response.redirect(new URL('/kebun', nextUrl));
+          return buildRedirect('/kebun')
         }
 
         if (!isAllowed) {
-          return Response.redirect(new URL('/kebun', nextUrl));
+          return buildRedirect('/kebun')
         }
       }
       if (isLoggedIn && userRole === 'MANAGER') {
-        const allowedRoutes = ['/kebun', '/timbangan', '/karyawan', '/karyawan-kebun', '/profile', '/logout'];
+        const allowedRoutes = ['/attendance', '/kebun', '/timbangan', '/karyawan', '/karyawan-kebun', '/profile', '/logout'];
         const isAllowed = allowedRoutes.some(route => nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`));
 
         if (isOnLogin || nextUrl.pathname === '/') {
-          return Response.redirect(new URL('/kebun', nextUrl));
+          return buildRedirect('/kebun')
         }
 
         if (!isAllowed) {
-          return Response.redirect(new URL('/kebun', nextUrl));
+          return buildRedirect('/kebun')
         }
       }
 
@@ -57,16 +73,16 @@ export const authConfig = {
         const isRestricted = restrictedRoutes.some(route => nextUrl.pathname.startsWith(route));
         
         if (isRestricted) {
-          return Response.redirect(new URL('/', nextUrl));
+          return buildRedirect('/')
         }
       }
 
       if (isOnLogin) {
         if (isLoggedIn) {
           if (userRole === 'MANDOR' || userRole === 'MANAGER') {
-            return Response.redirect(new URL('/kebun', nextUrl));
+            return buildRedirect('/kebun')
           }
-          return Response.redirect(new URL('/', nextUrl));
+          return buildRedirect('/')
         }
         return true;
       }

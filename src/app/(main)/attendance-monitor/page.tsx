@@ -5,8 +5,7 @@ import RoleGate from '@/components/RoleGate'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useDebounce } from '@/hooks/useDebounce'
-import { ArrowDownTrayIcon, CalendarDaysIcon, CheckIcon, ChevronUpDownIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import { ArrowDownTrayIcon, CalendarDaysIcon, CheckIcon, ChevronUpDownIcon, MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -169,6 +168,7 @@ export default function AttendanceMonitorPage() {
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [searchDraft, setSearchDraft] = useState('')
   const [karyawanId, setKaryawanId] = useState<string>('')
   const [karyawanOptions, setKaryawanOptions] = useState<KaryawanOption[]>([])
   const [locationId, setLocationId] = useState<string>('')
@@ -197,7 +197,6 @@ export default function AttendanceMonitorPage() {
   const [confirmCancel, setConfirmCancel] = useState<{ row: AttendanceRow; mode: 'in' | 'out' | 'both' } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
-  const debouncedSearch = useDebounce(search, 450)
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -301,7 +300,7 @@ export default function AttendanceMonitorPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) })
-      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (search) params.set('search', search)
       if (karyawanId) params.set('karyawanId', karyawanId)
       if (startDate) params.set('startDate', startDate)
       if (endDate) params.set('endDate', endDate)
@@ -327,17 +326,17 @@ export default function AttendanceMonitorPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, limit, debouncedSearch, karyawanId, startDate, endDate, locationId])
+  }, [page, limit, search, karyawanId, startDate, endDate, locationId])
 
   const buildParams = useCallback((pageValue: number, limitValue: number) => {
     const params = new URLSearchParams({ page: String(pageValue), limit: String(limitValue) })
-    if (debouncedSearch) params.set('search', debouncedSearch)
+    if (search) params.set('search', search)
     if (karyawanId) params.set('karyawanId', karyawanId)
     if (startDate) params.set('startDate', startDate)
     if (endDate) params.set('endDate', endDate)
     if (locationId) params.set('locationId', locationId)
     return params
-  }, [debouncedSearch, endDate, karyawanId, locationId, startDate])
+  }, [endDate, karyawanId, locationId, search, startDate])
 
   const handleExportPdf = useCallback(async () => {
     try {
@@ -413,7 +412,14 @@ export default function AttendanceMonitorPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, karyawanId, startDate, endDate, locationId])
+  }, [karyawanId, startDate, endDate, locationId])
+
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearch(trimmed)
+    setPage(1)
+  }, [searchDraft])
 
   return (
     <RoleGate allow={['ADMIN', 'PEMILIK', 'KASIR']}>
@@ -425,12 +431,34 @@ export default function AttendanceMonitorPage() {
 
         <div className="bg-white border border-gray-100 rounded-2xl p-4 md:p-5">
           <div className="grid grid-cols-1 md:grid-cols-8 gap-3">
-            <Input
-              placeholder="Cari nama, email, atau ID user..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="md:col-span-2 rounded-full h-10"
-            />
+            <div className="md:col-span-2 relative">
+              <Input
+                placeholder="Cari nama, email, atau ID user..."
+                value={searchDraft}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setSearchDraft(next)
+                  if (!String(next || '').trim()) {
+                    setSearch('')
+                    setPage(1)
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    applySearch()
+                  }
+                }}
+                className="rounded-full h-10 pr-10"
+              />
+              <button
+                type="button"
+                onClick={applySearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Cari"
+              >
+                <MagnifyingGlassIcon className="h-5 w-5" />
+              </button>
+            </div>
             <SearchableKaryawanFilter
               value={karyawanId}
               onChange={setKaryawanId}

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -71,6 +71,7 @@ export default function PabrikSawitClient() {
   const [limit, setLimit] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickRange, setQuickRange] = useState('this_year');
@@ -80,8 +81,9 @@ export default function PabrikSawitClient() {
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
-    if (q !== searchQuery) setSearchQuery(q);
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev) => (prev === q ? prev : q))
+    setSearchDraft((prev) => (prev === q ? prev : q))
+  }, [searchParams]);
 
   useEffect(() => {
     // Initialize dates on client side to avoid hydration mismatch
@@ -308,16 +310,16 @@ export default function PabrikSawitClient() {
     refreshData,
   }), [handleOpenModal, handleOpenDeleteConfirm, refreshData]);
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set('search', value);
-    } else {
-      params.delete('search');
-    }
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [pathname, router, searchParams]);
+  const applySearch = useCallback((val?: string) => {
+    const trimmed = String(val ?? searchDraft ?? '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (trimmed) params.set('search', trimmed)
+    else params.delete('search')
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [pathname, router, searchDraft, searchParams])
 
   const formatNumber = useCallback((value: number) => new Intl.NumberFormat('id-ID').format(value), []);
   const formatCurrency = useCallback((value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value), []);
@@ -490,13 +492,34 @@ export default function PabrikSawitClient() {
         <div className="bg-white p-6 rounded-lg shadow-md">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
             <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full lg:w-auto">
-              <Input
-                type="text"
-                placeholder="Cari berdasarkan nama atau alamat..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full lg:w-96 p-2 border border-gray-300 rounded-xl"
-              />
+              <div className="relative w-full lg:w-96">
+                <Input
+                  type="text"
+                  placeholder="Cari berdasarkan nama atau alamat..."
+                  value={searchDraft}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setSearchDraft(next)
+                    if (!String(next || '').trim()) {
+                      applySearch('')
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      applySearch()
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-xl pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => applySearch()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Cari"
+                >
+                  <MagnifyingGlassIcon className="h-5 w-5" />
+                </button>
+              </div>
               <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto">
                 <Popover>
                   <PopoverTrigger asChild>

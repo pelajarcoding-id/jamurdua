@@ -31,17 +31,6 @@ export async function GET(request: Request) {
                 { merk: { contains: search, mode: 'insensitive' } },
                 { jenis: { contains: search, mode: 'insensitive' } },
             ];
-            const isNumeric = /^\d+(\.\d+)?$/.test(search);
-            if (isNumeric) {
-                const like = `%${search}%`;
-                const idsRows: Array<{ id: number }> = await prisma.$queryRaw(
-                    Prisma.sql`SELECT k.id FROM "Kendaraan" k WHERE CAST(k.id AS TEXT) ILIKE ${like}`
-                );
-                const numericIds = idsRows.map(r => r.id);
-                if (numericIds.length > 0) {
-                    or.push({ id: { in: numericIds } });
-                }
-            }
             where.AND.push({ OR: or });
         }
 

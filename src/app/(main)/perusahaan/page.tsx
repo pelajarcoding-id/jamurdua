@@ -6,7 +6,7 @@ import { DataTable } from '@/components/data-table'
 import { columns, PerusahaanData } from './columns'
 import PerusahaanModal from './modal'
 import toast from 'react-hot-toast'
-import { useDebounce } from '@/hooks/useDebounce'
+ 
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import { 
   PlusIcon, 
@@ -28,7 +28,7 @@ export default function PerusahaanPage() {
   const [editingPerusahaan, setEditingPerusahaan] = useState<PerusahaanData | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const [searchDraft, setSearchDraft] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [summary, setSummary] = useState<{
@@ -43,7 +43,7 @@ export default function PerusahaanPage() {
     try {
       const startDateString = startDate?.toISOString() || '';
       const endDateString = endDate?.toISOString() || '';
-      const res = await fetch(`/api/perusahaan?page=${page}&limit=${limit}&search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
+      const res = await fetch(`/api/perusahaan?page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const result = await res.json();
       setData(result.data);
@@ -51,7 +51,7 @@ export default function PerusahaanPage() {
 
       setSummaryLoading(true);
       try {
-        const summaryRes = await fetch(`/api/perusahaan/summary?search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
+        const summaryRes = await fetch(`/api/perusahaan/summary?search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' });
         if (summaryRes.ok) {
           const summaryData = await summaryRes.json();
           setSummary(summaryData);
@@ -64,7 +64,7 @@ export default function PerusahaanPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, startDate, endDate]);
+  }, [page, limit, searchQuery, startDate, endDate]);
 
   useEffect(() => {
     fetchData();
@@ -125,6 +125,13 @@ export default function PerusahaanPage() {
     ? `${startDate.toLocaleDateString('id-ID')} - ${endDate.toLocaleDateString('id-ID')}`
     : 'Semua Waktu';
 
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+    setPage(1)
+  }, [searchDraft])
+
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 max-w-7xl mx-auto w-full min-h-screen bg-gray-50/50">
       {/* Header Section */}
@@ -154,10 +161,30 @@ export default function PerusahaanPage() {
           <input
             type="text"
             placeholder="Cari berdasarkan nama, email, atau telepon..."
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-sm placeholder:text-gray-400"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-12 pr-11 py-3 bg-gray-50 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-sm placeholder:text-gray-400"
+            value={searchDraft}
+            onChange={(e) => {
+              const next = e.target.value
+              setSearchDraft(next)
+              if (!String(next || '').trim()) {
+                setSearchQuery('')
+                setPage(1)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                applySearch()
+              }
+            }}
           />
+          <button
+            type="button"
+            onClick={applySearch}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Cari"
+          >
+            <MagnifyingGlassIcon className="h-5 w-5" />
+          </button>
         </div>
         <div className="md:col-span-4">
           <div className="flex flex-col sm:items-end gap-2 text-xs text-gray-500">

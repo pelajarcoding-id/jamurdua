@@ -26,13 +26,13 @@ export async function POST(request: Request) {
     await ensureTable()
     const body = await request.json()
     const rawEmail = typeof body?.email === 'string' ? body.email : ''
-    const email = rawEmail.trim().toLowerCase()
+    const email = rawEmail.trim()
     if (!email) {
       return NextResponse.json({ ok: true })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
       select: { id: true, name: true, email: true },
     })
     if (!user) {

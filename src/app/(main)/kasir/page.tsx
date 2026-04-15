@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import { DocumentTextIcon, CalendarIcon, PlusIcon, ArrowPathIcon, XMarkIcon, ArrowDownTrayIcon, TagIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, CalendarIcon, PlusIcon, ArrowPathIcon, XMarkIcon, ArrowDownTrayIcon, TagIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { ModalHeader } from '@/components/ui/modal-elements';
 
 import { columns } from './columns';
@@ -53,19 +53,6 @@ const formatDateDisplay = (value: string) => {
     return value;
   }
 };
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
-}
 
 const getCurrentWIBDateParts = () => {
     const now = new Date();
@@ -193,7 +180,7 @@ const KasirPage = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const [searchDraft, setSearchDraft] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedTipe, setSelectedTipe] = useState<'all' | 'PEMASUKAN' | 'PENGELUARAN'>('all');
   const [userQuery, setUserQuery] = useState('');
@@ -244,8 +231,9 @@ const KasirPage = () => {
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
-    if (q !== searchQuery) setSearchQuery(q);
-  }, [searchParams, searchQuery]);
+    setSearchQuery((prev) => (prev === q ? prev : q))
+    setSearchDraft((prev) => (prev === q ? prev : q))
+  }, [searchParams]);
 
   const dateDisplay = () => {
     if (quickRange && quickRange !== 'custom') {
@@ -292,7 +280,7 @@ const KasirPage = () => {
 
     setIsLoading(true);
     try {
-      let url = `/api/kasir?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&page=${page}&limit=${limit}&search=${debouncedSearchQuery}`;
+      let url = `/api/kasir?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}`;
       if (selectedUserId !== 'all') {
         url += `&filterUserId=${selectedUserId}`;
       }
@@ -319,7 +307,7 @@ const KasirPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [startDate, endDate, page, limit, debouncedSearchQuery, selectedUserId, selectedCategory, selectedTipe]);
+  }, [startDate, endDate, page, limit, searchQuery, selectedUserId, selectedCategory, selectedTipe]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -335,16 +323,16 @@ const KasirPage = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set('search', value);
-    } else {
-      params.delete('search');
-    }
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [pathname, router, searchParams]);
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (trimmed) params.set('search', trimmed)
+    else params.delete('search')
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [pathname, router, searchDraft, searchParams])
 
   const handleEdit = (trx: KasTransaksi) => {
     setEditingTransaction(trx);
@@ -821,12 +809,37 @@ const KasirPage = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
           <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4 flex-1 w-full lg:w-auto">
              <div className="w-full md:w-64 flex-shrink-0">
-                <Input
-                  placeholder="Cari transaksi..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="input-style rounded-xl"
-                />
+               <div className="relative">
+                 <Input
+                   placeholder="Cari transaksi..."
+                   value={searchDraft}
+                   onChange={(e) => {
+                     const next = e.target.value
+                     setSearchDraft(next)
+                     if (!String(next || '').trim()) {
+                       setSearchQuery('')
+                       setPage(1)
+                       const params = new URLSearchParams(searchParams.toString())
+                       params.delete('search')
+                       router.replace(`${pathname}?${params.toString()}`)
+                     }
+                   }}
+                   onKeyDown={(e) => {
+                     if (e.key === 'Enter') {
+                       applySearch()
+                     }
+                   }}
+                   className="input-style rounded-xl pr-10"
+                 />
+                 <button
+                   type="button"
+                   onClick={applySearch}
+                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                   aria-label="Cari"
+                 >
+                   <MagnifyingGlassIcon className="h-5 w-5" />
+                 </button>
+               </div>
              </div>
 
              

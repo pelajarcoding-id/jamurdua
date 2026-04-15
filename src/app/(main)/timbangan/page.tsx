@@ -13,29 +13,13 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { CalendarIcon, ScaleIcon } from "@heroicons/react/24/outline"
+import { CalendarIcon, MagnifyingGlassIcon, ScaleIcon } from "@heroicons/react/24/outline"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
 import { id } from "date-fns/locale"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { useAuth } from '@/components/AuthProvider'
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
 
 interface SummaryData {
   totalTimbangan: number;
@@ -61,7 +45,7 @@ export default function TimbanganPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const [searchDraft, setSearchDraft] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const searchParams = useSearchParams()
@@ -70,8 +54,9 @@ export default function TimbanganPage() {
 
   useEffect(() => {
     const q = searchParams.get('search') || ''
-    if (q !== searchQuery) setSearchQuery(q)
-  }, [searchParams, searchQuery])
+    setSearchQuery((prev) => (prev === q ? prev : q))
+    setSearchDraft((prev) => (prev === q ? prev : q))
+  }, [searchParams])
 
   useEffect(() => {
     // Initialize dates on client side to avoid hydration mismatch
@@ -146,9 +131,9 @@ export default function TimbanganPage() {
       const endDateString = endDate?.toISOString();
 
       const [timbanganRes, kebunRes, summaryRes, supirRes, kendaraanRes] = await Promise.all([
-        fetch(`/api/timbangan?page=${page}&limit=${limit}&search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}&status=${statusFilter}`, { cache: 'no-store' }),
+        fetch(`/api/timbangan?page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}&status=${statusFilter}`, { cache: 'no-store' }),
         fetch('/api/kebun?limit=1000', { cache: 'no-store' }),
-        fetch(`/api/timbangan/summary?search=${debouncedSearchQuery}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' }),
+        fetch(`/api/timbangan/summary?search=${encodeURIComponent(searchQuery)}&startDate=${startDateString}&endDate=${endDateString}`, { cache: 'no-store' }),
         fetch('/api/users?role=SUPIR&limit=1000', { cache: 'no-store' }),
         fetch('/api/kendaraan?limit=1000', { cache: 'no-store' })
       ]);
@@ -174,7 +159,7 @@ export default function TimbanganPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, startDate, endDate, statusFilter])
+  }, [page, limit, searchQuery, startDate, endDate, statusFilter])
 
   useEffect(() => {
     fetchData();
@@ -203,16 +188,16 @@ export default function TimbanganPage() {
     setIsModalOpen(true);
   }, []);
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value)
+  const applySearch = useCallback((val?: string) => {
+    const trimmed = String(val ?? searchDraft ?? '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+    setPage(1)
     const params = new URLSearchParams(searchParams.toString())
-    if (value) {
-      params.set('search', value)
-    } else {
-      params.delete('search')
-    }
+    if (trimmed) params.set('search', trimmed)
+    else params.delete('search')
     router.replace(`${pathname}?${params.toString()}`)
-  }, [pathname, router, searchParams])
+  }, [pathname, router, searchDraft, searchParams])
 
   const handleCloseModal = useCallback(() => {
     setEditingTimbangan(null);
@@ -415,12 +400,33 @@ export default function TimbanganPage() {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
             <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4 flex-1 w-full lg:w-auto">
               <div className="w-full md:w-64 flex-shrink-0">
-                <Input
-                  placeholder="Cari kebun, supir, nopol..."
-                  value={searchQuery}
-                  onChange={(event) => handleSearchChange(event.target.value)}
-                  className="input-style rounded-xl"
-                />
+                <div className="relative">
+                  <Input
+                    placeholder="Cari kebun, supir, nopol..."
+                    value={searchDraft}
+                    onChange={(event) => {
+                      const next = event.target.value
+                      setSearchDraft(next)
+                      if (!String(next || '').trim()) {
+                        applySearch('')
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        applySearch()
+                      }
+                    }}
+                    className="input-style rounded-xl pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => applySearch()}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Cari"
+                  >
+                    <MagnifyingGlassIcon className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               <div className="w-full md:w-auto flex items-center gap-2">
                 <Popover>

@@ -10,7 +10,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { PencilSquareIcon, TrashIcon, ChevronDownIcon, PlusCircleIcon, MinusCircleIcon, EyeIcon, ArrowPathIcon, CheckCircleIcon, CalendarIcon, MagnifyingGlassIcon, XMarkIcon, ClockIcon, UserGroupIcon, BanknotesIcon, CreditCardIcon, CurrencyDollarIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useDebounce } from '@/hooks/useDebounce'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from '@/components/ui/switch'
@@ -110,7 +109,7 @@ export default function KaryawanKebunPage() {
   const [selectedLocationFilterId, setSelectedLocationFilterId] = useState<number | 'all'>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('AKTIF')
   const [karyawanSearch, setKaryawanSearch] = useState('')
-  const debouncedKaryawanSearch = useDebounce(karyawanSearch, 400)
+  const [karyawanSearchApplied, setKaryawanSearchApplied] = useState('')
   const [filterExpanded, setFilterExpanded] = useState(false)
 
   const { data: me } = useSWRImmutable<{ id: number; name: string; role: string }>('/api/auth/me', (u: string) => fetch(u).then(r => r.ok ? r.json() : null))
@@ -128,9 +127,9 @@ export default function KaryawanKebunPage() {
     if (selectedJobType !== 'all') sp.set('jobType', selectedJobType)
     if (selectedJobType === 'KEBUN' && selectedKebunId) sp.set('kebunId', String(selectedKebunId))
     if (selectedStatus !== 'all') sp.set('status', selectedStatus)
-    if (debouncedKaryawanSearch.trim()) sp.set('search', debouncedKaryawanSearch.trim())
+    if (karyawanSearchApplied.trim()) sp.set('search', karyawanSearchApplied.trim())
     return `/api/karyawan?${sp.toString()}`
-  }, [karyawanLimit, karyawanPage, selectedJobType, selectedKebunId, selectedLocationFilterId, debouncedKaryawanSearch, selectedStatus])
+  }, [karyawanLimit, karyawanPage, selectedJobType, selectedKebunId, selectedLocationFilterId, karyawanSearchApplied, selectedStatus])
   const { data: karyawanData, isLoading: loadingKaryawan, mutate: mutateKaryawan } = useSWR<{ data: User[]; total: number; page: number; limit: number }>(
     accessDenied ? null : karyawanUrl,
     (url: string) => fetch(url).then(r => r.json())
@@ -334,7 +333,14 @@ export default function KaryawanKebunPage() {
 
   useEffect(() => {
     setKaryawanPage(1)
-  }, [selectedJobType, selectedKebunId, selectedLocationFilterId, selectedStatus, debouncedKaryawanSearch])
+  }, [selectedJobType, selectedKebunId, selectedLocationFilterId, selectedStatus, karyawanSearchApplied])
+
+  const applyKaryawanSearch = useCallback(() => {
+    const trimmed = String(karyawanSearch || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setKaryawanSearchApplied(trimmed)
+    setKaryawanPage(1)
+  }, [karyawanSearch])
 
   useEffect(() => {
     async function loadKebun() {
@@ -832,10 +838,10 @@ export default function KaryawanKebunPage() {
     if (endDate) sp.set('endDate', endDate)
     if (selectedStatus && selectedStatus !== 'all') sp.set('status', selectedStatus)
     if (selectedJobType && selectedJobType !== 'all') sp.set('jobType', selectedJobType)
-    if (debouncedKaryawanSearch) sp.set('search', debouncedKaryawanSearch)
+    if (karyawanSearchApplied) sp.set('search', karyawanSearchApplied)
     if (absenUserId) sp.set('karyawanId', String(absenUserId))
     return `/api/karyawan/operasional?${sp.toString()}`
-  }, [selectedKebunId, startDate, endDate, selectedStatus, selectedJobType, debouncedKaryawanSearch, absenUserId])
+  }, [selectedKebunId, startDate, endDate, selectedStatus, selectedJobType, karyawanSearchApplied, absenUserId])
 
   const { data, isLoading, mutate } = useSWR<{ data: Row[] }>(
     accessDenied ? null : query,
@@ -2049,12 +2055,34 @@ export default function KaryawanKebunPage() {
                 </div>
               </PopoverContent>
             </Popover>
-            <Input
-              className="rounded-full w-full sm:w-56"
-              placeholder="Cari nama..."
-              value={karyawanSearch}
-              onChange={(e) => setKaryawanSearch(e.target.value)}
-            />
+            <div className="relative w-full sm:w-56">
+              <Input
+                className="rounded-full w-full pr-10"
+                placeholder="Cari nama..."
+                value={karyawanSearch}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setKaryawanSearch(next)
+                  if (!String(next || '').trim()) {
+                    setKaryawanSearchApplied('')
+                    setKaryawanPage(1)
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    applyKaryawanSearch()
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={applyKaryawanSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Cari"
+              >
+                <MagnifyingGlassIcon className="h-5 w-5" />
+              </button>
+            </div>
             </div>
           </div>
         </div>

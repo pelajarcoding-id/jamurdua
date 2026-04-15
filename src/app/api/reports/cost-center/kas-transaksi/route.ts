@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const kebunIdParam = searchParams.get('kebunId')
     const kendaraanPlatNomor = searchParams.get('kendaraanPlatNomor') || null
     const karyawanIdParam = searchParams.get('karyawanId')
+    const search = (searchParams.get('search') || '').trim()
     const untagged = searchParams.get('untagged') === 'true'
     const tagScope = searchParams.get('tagScope')
     const pageRaw = Number(searchParams.get('page') || 1)
@@ -61,6 +62,23 @@ export async function GET(request: Request) {
       if (karyawanId) whereClause.karyawanId = karyawanId
     }
 
+    if (search) {
+      whereClause.AND = [
+        ...((whereClause.AND as any[]) || []),
+        {
+          OR: [
+            { kategori: { contains: search, mode: 'insensitive' } },
+            { deskripsi: { contains: search, mode: 'insensitive' } },
+            { keterangan: { contains: search, mode: 'insensitive' } },
+            { user: { name: { contains: search, mode: 'insensitive' } } },
+            { kebun: { name: { contains: search, mode: 'insensitive' } } },
+            { kendaraan: { platNomor: { contains: search, mode: 'insensitive' } } },
+            { karyawan: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        },
+      ]
+    }
+
     const startUtc = (range?.startUtc || monthRange!.startUtc)
     const endExclusiveUtc = (range?.endExclusiveUtc || monthRange!.endExclusiveUtc)
     const uangJalanBaseWhere: any = {
@@ -94,6 +112,20 @@ export async function GET(request: Request) {
       if (descFilters.length > 0) {
         uangJalanBaseWhere.AND = descFilters.map((x) => ({ description: { contains: x } }))
       }
+    }
+
+    if (search) {
+      uangJalanBaseWhere.AND = [
+        ...((uangJalanBaseWhere.AND as any[]) || []),
+        {
+          OR: [
+            { description: { contains: search, mode: 'insensitive' } },
+            { sesiUangJalan: { supir: { name: { contains: search, mode: 'insensitive' } } } },
+            { sesiUangJalan: { kendaraan: { platNomor: { contains: search, mode: 'insensitive' } } } },
+            { user: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        },
+      ]
     }
 
     const takeN = page * pageSize

@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const kendaraanPlatNomor = searchParams.get('kendaraanPlatNomor');
   const perusahaanId = searchParams.get('perusahaanId');
   const statusPembayaran = (searchParams.get('statusPembayaran') || '').toUpperCase()
+  const search = (searchParams.get('search') || '').trim()
   const groupByParam = (searchParams.get('groupBy') || 'kebun').toLowerCase()
   const groupBy = ['total', 'kebun', 'perusahaan', 'pabrik'].includes(groupByParam) ? groupByParam : 'kebun'
 
@@ -76,6 +77,27 @@ export async function GET(request: Request) {
     if (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS') {
       ;(notaSawitWhere as any).statusPembayaran = statusPembayaran
       ;(notaSawitWhereNoTanggal as any).statusPembayaran = statusPembayaran
+    }
+    if (search) {
+      const isInt = /^\d+$/.test(search)
+      const idNum = isInt ? Number(search) : null
+      const orCond: Prisma.NotaSawitWhereInput[] = [
+        { kendaraanPlatNomor: { contains: search, mode: 'insensitive' } },
+        { supir: { name: { contains: search, mode: 'insensitive' } } },
+        { kebun: { name: { contains: search, mode: 'insensitive' } } },
+        { timbangan: { kebun: { name: { contains: search, mode: 'insensitive' } } } },
+        { pabrikSawit: { name: { contains: search, mode: 'insensitive' } } },
+        { perusahaan: { name: { contains: search, mode: 'insensitive' } } },
+      ]
+      if (idNum) orCond.push({ id: idNum })
+      notaSawitWhere.AND = [
+        ...(Array.isArray(notaSawitWhere.AND) ? notaSawitWhere.AND : notaSawitWhere.AND ? [notaSawitWhere.AND] : []),
+        { OR: orCond },
+      ]
+      notaSawitWhereNoTanggal.AND = [
+        ...(Array.isArray(notaSawitWhereNoTanggal.AND) ? notaSawitWhereNoTanggal.AND : notaSawitWhereNoTanggal.AND ? [notaSawitWhereNoTanggal.AND] : []),
+        { OR: orCond },
+      ]
     }
 
     // 1. KPI

@@ -24,8 +24,16 @@ export const {
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+        const emailInput = String(credentials.email).trim()
+        if (!emailInput) return null
+
+        const user = await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: emailInput,
+              mode: 'insensitive',
+            },
+          },
         });
 
         if (!user || !user.passwordHash) {

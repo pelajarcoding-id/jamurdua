@@ -137,8 +137,8 @@ export async function POST(request: Request) {
 
     const rawEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
     if (rawEmail) {
-      const exists = await prisma.user.findUnique({
-        where: { email: rawEmail },
+      const exists = await prisma.user.findFirst({
+        where: { email: { equals: rawEmail, mode: 'insensitive' } },
         select: { id: true },
       })
       if (exists) {

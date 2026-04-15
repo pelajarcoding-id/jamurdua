@@ -67,7 +67,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
 
     // Role MANAGER: akses menu Kebun dan Timbangan saja
     if (userRole === 'MANAGER') {
-      return ['Kebun', 'Timbangan'].includes(link.name);
+      return ['Absensi', 'Kebun', 'Timbangan'].includes(link.name);
     }
 
     return true;

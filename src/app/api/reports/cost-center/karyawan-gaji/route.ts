@@ -50,6 +50,7 @@ export async function GET(request: Request) {
  
     const kebunIdParam = searchParams.get('kebunId')
     const kebunId = kebunIdParam ? Number(kebunIdParam) : null
+    const searchLower = (searchParams.get('search') || '').trim().toLowerCase()
  
     const pageRaw = Number(searchParams.get('page') || 1)
     const pageSizeRaw = Number(searchParams.get('pageSize') || searchParams.get('limit') || 20)
@@ -117,15 +118,22 @@ export async function GET(request: Request) {
         }
       })
       .sort((a, b) => a.karyawanName.localeCompare(b.karyawanName))
+
+    const filteredRows = searchLower
+      ? allRows.filter((r) => {
+          if (String(r.karyawanId) === searchLower) return true
+          return String(r.karyawanName || '').toLowerCase().includes(searchLower)
+        })
+      : allRows
  
-    const totalItems = allRows.length
+    const totalItems = filteredRows.length
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
     const startIdx = (page - 1) * pageSize
-    const paged = allRows.slice(startIdx, startIdx + pageSize)
+    const paged = filteredRows.slice(startIdx, startIdx + pageSize)
  
-    const sumBerjalan = allRows.reduce((acc, r) => acc + (Number(r.gajiBerjalan) || 0), 0)
-    const sumDibayar = allRows.reduce((acc, r) => acc + (Number(r.gajiDibayar) || 0), 0)
-    const sumTotal = allRows.reduce((acc, r) => acc + (Number(r.total) || 0), 0)
+    const sumBerjalan = filteredRows.reduce((acc, r) => acc + (Number(r.gajiBerjalan) || 0), 0)
+    const sumDibayar = filteredRows.reduce((acc, r) => acc + (Number(r.gajiDibayar) || 0), 0)
+    const sumTotal = filteredRows.reduce((acc, r) => acc + (Number(r.total) || 0), 0)
  
     return NextResponse.json({
       data: paged,

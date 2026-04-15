@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { PlusIcon, ArrowsRightLeftIcon, EllipsisHorizontalIcon, PencilSquareIcon, TrashIcon, ClockIcon, ExclamationTriangleIcon, PrinterIcon, ArrowPathIcon, ArchiveBoxIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ArrowsRightLeftIcon, EllipsisHorizontalIcon, PencilSquareIcon, TrashIcon, ClockIcon, ExclamationTriangleIcon, PrinterIcon, ArrowPathIcon, ArchiveBoxIcon, XMarkIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { TransactionModal } from './transaction-modal';
 import { EditModal } from './edit-modal';
 import { DetailModal } from './detail-modal';
@@ -29,7 +29,6 @@ import 'react-image-crop/dist/ReactCrop.css';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-import { useDebounce } from '@/hooks/useDebounce';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type InventoryItem = {
@@ -162,15 +161,16 @@ export default function InventoryPage() {
     const [limit, setLimit] = useState(10);
     const [totalItems, setTotalItems] = useState(0);
     const [search, setSearch] = useState('');
-    const debouncedSearch = useDebounce(search, 500);
+    const [searchDraft, setSearchDraft] = useState('');
     const searchParams = useSearchParams();
     const pathname = usePathname();
     const router = useRouter();
     
     useEffect(() => {
         const q = searchParams.get('search') || '';
-        if (q !== search) setSearch(q);
-    }, [searchParams, search]);
+        setSearch((prev) => (prev === q ? prev : q))
+        setSearchDraft((prev) => (prev === q ? prev : q))
+    }, [searchParams]);
     
     // New States
     const [lowStockCount, setLowStockCount] = useState(0);
@@ -194,7 +194,7 @@ export default function InventoryPage() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/inventory?page=${page}&limit=${limit}&search=${debouncedSearch}&category=${selectedCategory}`);
+            const res = await fetch(`/api/inventory?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&category=${selectedCategory}`);
             const json = await res.json();
             setData(json.data);
             setTotalItems(json.total);
@@ -205,7 +205,7 @@ export default function InventoryPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, limit, debouncedSearch, selectedCategory]);
+    }, [page, limit, search, selectedCategory]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -221,16 +221,16 @@ export default function InventoryPage() {
         fetchData();
     }, [fetchData]);
 
-    const handleSearchChange = useCallback((value: string) => {
-        setSearch(value);
-        const params = new URLSearchParams(searchParams.toString());
-        if (value) {
-            params.set('search', value);
-        } else {
-            params.delete('search');
-        }
-        router.replace(`${pathname}?${params.toString()}`);
-    }, [pathname, router, searchParams]);
+    const applySearch = useCallback((val?: string) => {
+        const trimmed = String(val ?? searchDraft ?? '').trim()
+        if (trimmed && trimmed.length < 2) return
+        setSearch(trimmed)
+        setPage(1)
+        const params = new URLSearchParams(searchParams.toString())
+        if (trimmed) params.set('search', trimmed)
+        else params.delete('search')
+        router.replace(`${pathname}?${params.toString()}`)
+    }, [pathname, router, searchDraft, searchParams]);
 
     const handleTransaction = (item: InventoryItem) => {
         setSelectedItem(item);
@@ -567,12 +567,37 @@ export default function InventoryPage() {
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                         <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4 flex-1 w-full lg:w-auto">
                             <div className="w-full md:w-64 flex-shrink-0">
-                                <Input
-                                    placeholder="Cari nama atau kode barang..."
-                                    value={search}
-                                    onChange={(e) => handleSearchChange(e.target.value)}
-                                    className="input-style"
-                                />
+                                <div className="relative">
+                                    <Input
+                                        placeholder="Cari nama atau kode barang..."
+                                        value={searchDraft}
+                                        onChange={(e) => {
+                                            const next = e.target.value
+                                            setSearchDraft(next)
+                                            if (!String(next || '').trim()) {
+                                                setSearch('')
+                                                setPage(1)
+                                                const params = new URLSearchParams(searchParams.toString())
+                                                params.delete('search')
+                                                router.replace(`${pathname}?${params.toString()}`)
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                applySearch()
+                                            }
+                                        }}
+                                        className="input-style pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => applySearch()}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                        aria-label="Cari"
+                                    >
+                                        <MagnifyingGlassIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
                             </div>
                             <select
                                 value={selectedCategory}

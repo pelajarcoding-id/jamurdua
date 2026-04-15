@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { useDebounce } from '@/hooks/useDebounce'
 import { ArchiveBoxIcon, MagnifyingGlassIcon, XMarkIcon, CheckIcon, PlusIcon, PencilSquareIcon, EyeIcon, ArrowDownTrayIcon, TrashIcon } from '@heroicons/react/24/outline'
 import ImageUpload from '@/components/ui/ImageUpload'
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
@@ -58,7 +57,8 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
   const [kendaraanList, setKendaraanList] = useState<KendaraanItem[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
   const [loadingTrx, setLoadingTrx] = useState(false)
-  const [search, setSearch] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchDraft, setSearchDraft] = useState('')
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [trxType, setTrxType] = useState<'IN' | 'OUT'>('OUT')
@@ -111,7 +111,11 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     stock: '',
     kendaraanPlatNomor: '',
   })
-  const debouncedSearch = useDebounce(search.trim(), 400)
+  const applySearch = useCallback(() => {
+    const trimmed = String(searchDraft || '').trim()
+    if (trimmed && trimmed.length < 2) return
+    setSearchQuery(trimmed)
+  }, [searchDraft])
 
   const lowStockCount = useMemo(
     () => items.filter(item => item.minStock > 0 && item.stock <= item.minStock).length,
@@ -122,7 +126,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     try {
       setLoadingItems(true)
       const params = new URLSearchParams()
-      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (searchQuery) params.set('search', searchQuery)
       const res = await fetch(`/api/kebun/${kebunId}/inventory?${params.toString()}`)
       if (!res.ok) throw new Error('Gagal memuat stok inventory')
       const data = await res.json()
@@ -132,7 +136,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     } finally {
       setLoadingItems(false)
     }
-  }, [debouncedSearch, kebunId])
+  }, [kebunId, searchQuery])
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -542,11 +546,30 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
           <div className="w-full sm:w-72 relative">
             <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchDraft}
+              onChange={(e) => {
+                const next = e.target.value
+                setSearchDraft(next)
+                if (!String(next || '').trim()) {
+                  setSearchQuery('')
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  applySearch()
+                }
+              }}
               placeholder="Cari barang..."
-              className="pl-9 rounded-full"
+              className="pl-9 pr-10 rounded-full"
             />
+            <button
+              type="button"
+              onClick={applySearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Cari"
+            >
+              <MagnifyingGlassIcon className="h-5 w-5" />
+            </button>
           </div>
           <Button
             className="rounded-full bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
