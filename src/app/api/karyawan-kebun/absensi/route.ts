@@ -34,6 +34,7 @@ const ensureTable = async () => {
       "kerja" BOOLEAN NOT NULL DEFAULT FALSE,
       "libur" BOOLEAN NOT NULL DEFAULT FALSE,
       "note" TEXT,
+      "source" TEXT,
       "jamKerja" NUMERIC,
       "ratePerJam" NUMERIC,
       "uangMakan" NUMERIC,
@@ -49,6 +50,9 @@ const ensureTable = async () => {
     WHERE table_name = 'AbsensiHarian'
   `
   const columnNames = columns.map(c => c.column_name)
+  if (!columnNames.includes('source')) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "source" TEXT`)
+  }
   if (!columnNames.includes('jamKerja')) {
     await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "jamKerja" NUMERIC`)
   }
@@ -176,6 +180,7 @@ export async function GET(request: Request) {
         kerja: boolean
         libur: boolean
         note: string | null
+        source: string | null
         jamKerja: number | null
         ratePerJam: number | null
         uangMakan: number | null
@@ -187,6 +192,7 @@ export async function GET(request: Request) {
           BOOL_OR("kerja") as "kerja",
           BOOL_OR("libur") as "libur",
           MAX("note") as "note",
+          CASE WHEN BOOL_OR(COALESCE("source",'') = 'SELFIE') THEN 'SELFIE' ELSE MAX("source") END as "source",
           MAX("jamKerja") as "jamKerja",
           MAX("ratePerJam") as "ratePerJam",
           MAX("uangMakan") as "uangMakan",
@@ -271,14 +277,15 @@ export async function POST(request: Request) {
       if (!dateYmd) continue
       const dateKey = `${String(dateYmd.y).padStart(4, '0')}-${String(dateYmd.m).padStart(2, '0')}-${String(dateYmd.d).padStart(2, '0')}`
       await prisma.$executeRaw`
-        INSERT INTO "AbsensiHarian" ("kebunId","karyawanId","date","jumlah","kerja","libur","note","jamKerja","ratePerJam","uangMakan","useHourly","updatedAt")
-        VALUES (${Number(kebunId)}, ${Number(karyawanId)}, ${dateKey}::DATE, ${jumlah}, ${kerja}, ${libur}, ${note}, ${jamKerja}, ${ratePerJam}, ${uangMakan}, ${useHourly}, NOW())
+        INSERT INTO "AbsensiHarian" ("kebunId","karyawanId","date","jumlah","kerja","libur","note","source","jamKerja","ratePerJam","uangMakan","useHourly","updatedAt")
+        VALUES (${Number(kebunId)}, ${Number(karyawanId)}, ${dateKey}::DATE, ${jumlah}, ${kerja}, ${libur}, ${note}, ${'MANUAL'}, ${jamKerja}, ${ratePerJam}, ${uangMakan}, ${useHourly}, NOW())
         ON CONFLICT ("kebunId","karyawanId","date")
         DO UPDATE SET
           "jumlah" = EXCLUDED."jumlah",
           "kerja" = EXCLUDED."kerja",
           "libur" = EXCLUDED."libur",
           "note" = EXCLUDED."note",
+          "source" = CASE WHEN "AbsensiHarian"."source" = 'SELFIE' THEN 'SELFIE' ELSE EXCLUDED."source" END,
           "jamKerja" = EXCLUDED."jamKerja",
           "ratePerJam" = EXCLUDED."ratePerJam",
           "uangMakan" = EXCLUDED."uangMakan",
@@ -322,6 +329,23 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'date tidak valid' }, { status: 400 })
     }
     const dateKey = `${String(dateYmd.y).padStart(4, '0')}-${String(dateYmd.m).padStart(2, '0')}-${String(dateYmd.d).padStart(2, '0')}`
+
+    const selfieLock = await prisma.$queryRaw<Array<{ exists: number }>>(
+      Prisma.sql`SELECT 1 as "exists"
+                 FROM "AbsensiHarian"
+                 WHERE "karyawanId" = ${karyawanId}
+                   AND "date" = ${dateKey}::DATE
+                   AND COALESCE("source",'') = 'SELFIE'
+                   AND (
+                     ${kebunId} = 0
+                     OR "kebunId" = ${kebunId}
+                     OR "kebunId" = 0
+                   )
+                 LIMIT 1`
+    )
+    if (selfieLock.length > 0) {
+      return NextResponse.json({ error: 'Absensi dari selfie tidak bisa dihapus dari menu karyawan' }, { status: 409 })
+    }
 
     // Check if paid
     const paid = await prisma.$queryRaw<Array<{ id: number }>>`

@@ -1003,7 +1003,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         ) : filteredActivities.length === 0 ? (
           <p className="text-center text-gray-500 py-4 bg-gray-50 rounded-lg border border-dashed">Belum ada riwayat pekerjaan</p>
         ) : (
-          filteredActivities.map((item) => {
+          filteredActivities.map((item, idx) => {
             const isUpah = !!item.upahBorongan
             const totalCount = Number(item.totalCount || 0) || 1
             const inGajianCount = Number(item.inGajianCount || 0)
@@ -1014,7 +1014,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             const isUnpaid = isUpah && !isLocked
 
             return (
-            <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div key={item.id} className="relative bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="absolute top-3 left-3 h-6 min-w-6 px-2 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center">
+                {idx + 1}
+              </div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-3">
                 <div className="order-1">
                   <div className="flex flex-wrap items-center gap-2">

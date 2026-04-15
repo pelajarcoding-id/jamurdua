@@ -59,6 +59,9 @@ export async function GET(
         kendaraan: {
           select: { platNomor: true }
         },
+        gajian: {
+          select: { status: true }
+        },
         timbangan: true
       },
       orderBy: {

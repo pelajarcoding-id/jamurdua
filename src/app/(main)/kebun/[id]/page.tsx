@@ -115,8 +115,11 @@ function GajianTab({ kebunId }: { kebunId: number }) {
   const [editingPotonganId, setEditingPotonganId] = useState<string | null>(null)
   const [savedPotonganIds, setSavedPotonganIds] = useState<Record<string, true>>({})
   const [notaSawitCount, setNotaSawitCount] = useState(0)
+  const [notaSawitTotalKg, setNotaSawitTotalKg] = useState(0)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyPerView, setHistoryPerView] = useState(10)
+  const [historyPage, setHistoryPage] = useState(1)
   const [drafts, setDrafts] = useState<GajianHistoryItem[]>([])
   const [finalized, setFinalized] = useState<GajianHistoryItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -165,6 +168,22 @@ function GajianTab({ kebunId }: { kebunId: number }) {
   const historyItems = useMemo(() => {
     return [...drafts, ...finalized].sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
   }, [drafts, finalized])
+  const historyTotalPages = useMemo(() => Math.max(1, Math.ceil(historyItems.length / historyPerView)), [historyItems.length, historyPerView])
+  const historyStartIndex = useMemo(() => (historyPage - 1) * historyPerView, [historyPage, historyPerView])
+  const pagedHistoryItems = useMemo(
+    () => historyItems.slice(historyStartIndex, historyStartIndex + historyPerView),
+    [historyItems, historyStartIndex, historyPerView]
+  )
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [historyStartDate, historyEndDate, historyPerView])
+
+  useEffect(() => {
+    if (historyPage > historyTotalPages) {
+      setHistoryPage(historyTotalPages)
+    }
+  }, [historyPage, historyTotalPages])
 
   const fetchPreview = useCallback(async () => {
     setPreviewLoading(true)
@@ -172,7 +191,7 @@ function GajianTab({ kebunId }: { kebunId: number }) {
         const [unpaidRes, actRes, notaRes, potonganRes, defaultBiayaRes] = await Promise.all([
         fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`, { cache: 'no-store' }),
           fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1&upahBorongan=1`),
-        fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, { cache: 'no-store' }),
+        fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&statusGajian=BELUM_DIPROSES`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?startDate=${startDate}&endDate=${endDate}`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/default-biaya`),
       ])
@@ -182,8 +201,10 @@ function GajianTab({ kebunId }: { kebunId: number }) {
         const json = await notaRes.json().catch(() => ({} as any))
         setNotaSawitCount(Number(json?.count || 0))
         totalKg = Number(json?.totalBerat || 0)
+        setNotaSawitTotalKg(totalKg)
       } else {
         setNotaSawitCount(0)
+        setNotaSawitTotalKg(0)
       }
 
       const mappedBiaya: BiayaLainItem[] = []
@@ -392,8 +413,10 @@ function GajianTab({ kebunId }: { kebunId: number }) {
             <div className="text-2xl font-bold text-blue-900 mt-2">{formatCurrency(totalBiayaLain)}</div>
           </div>
           <div className="p-4 rounded-2xl bg-white border border-gray-100">
-            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Nota Sawit</div>
-            <div className="text-2xl font-bold text-gray-900 mt-2">{formatNumber(notaSawitCount)}</div>
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Nota Sawit Belum Digaji</div>
+            <div className="text-2xl font-bold text-gray-900 mt-2">
+              {formatNumber(notaSawitCount)} <span className="text-base font-semibold text-gray-500">| {formatNumber(Math.round(notaSawitTotalKg || 0))} kg</span>
+            </div>
           </div>
           <div className="p-4 rounded-2xl bg-gray-900 text-white">
             <div className="text-xs font-semibold uppercase tracking-wider">Total Pengajuan</div>
@@ -647,6 +670,23 @@ function GajianTab({ kebunId }: { kebunId: number }) {
         </div>
 
         <div className="md:hidden space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-gray-500">
+              Menampilkan {historyItems.length === 0 ? 0 : historyStartIndex + 1} - {Math.min(historyStartIndex + historyPerView, historyItems.length)} dari {historyItems.length}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Per View</span>
+              <select
+                className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={historyPerView}
+                onChange={(e) => setHistoryPerView(Number(e.target.value))}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
           {historyLoading ? (
             <div className="rounded-2xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-400">
               Memuat riwayat...
@@ -656,7 +696,7 @@ function GajianTab({ kebunId }: { kebunId: number }) {
               Belum ada riwayat gajian
             </div>
           ) : (
-            historyItems.map((g) => (
+            pagedHistoryItems.map((g) => (
               <div key={`history-${g.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -695,9 +735,49 @@ function GajianTab({ kebunId }: { kebunId: number }) {
               </div>
             ))
           )}
+          {!historyLoading && historyItems.length > 0 && (
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={historyPage <= 1}
+                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-xs text-gray-600">Halaman {historyPage} / {historyTotalPages}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={historyPage >= historyTotalPages}
+                onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
+              >
+                Berikutnya
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-100">
+          <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-100 bg-white">
+            <div className="text-xs text-gray-500">
+              Menampilkan {historyItems.length === 0 ? 0 : historyStartIndex + 1} - {Math.min(historyStartIndex + historyPerView, historyItems.length)} dari {historyItems.length}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Per View</span>
+              <select
+                className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={historyPerView}
+                onChange={(e) => setHistoryPerView(Number(e.target.value))}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -716,7 +796,7 @@ function GajianTab({ kebunId }: { kebunId: number }) {
               ) : historyItems.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Belum ada riwayat gajian</td></tr>
               ) : (
-                historyItems.map((g) => (
+                pagedHistoryItems.map((g) => (
                   <tr key={g.id}>
                     <td className="px-4 py-3">
                       {format(new Date(g.tanggalMulai), 'dd MMM yyyy', { locale: localeId })} - {format(new Date(g.tanggalSelesai), 'dd MMM yyyy', { locale: localeId })}
@@ -742,6 +822,29 @@ function GajianTab({ kebunId }: { kebunId: number }) {
               )}
             </tbody>
           </table>
+          {!historyLoading && historyItems.length > 0 && (
+            <div className="flex items-center justify-end gap-2 p-3 border-t border-gray-100 bg-white">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={historyPage <= 1}
+                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-xs text-gray-600">Halaman {historyPage} / {historyTotalPages}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={historyPage >= historyTotalPages}
+                onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
+              >
+                Berikutnya
+              </Button>
+            </div>
+          )}
         </div>
         <DetailGajianModal
           isOpen={isDetailOpen}

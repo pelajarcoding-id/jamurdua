@@ -15,6 +15,10 @@ type NotaSawitWithRelations = NotaSawit & {
 
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
 const formatDate = (date: string | Date) => new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+const isNotaAlreadyPaid = (nota: any) => {
+  const status = String(nota?.statusGajian || '').toUpperCase()
+  return status === 'DIPROSES'
+}
 
 const getNotaNetto = (row: any) => {
   const n = row?.netto
@@ -37,6 +41,7 @@ export const createColumns = (): ColumnDef<NotaSawitWithRelations>[] => [
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
+        disabled={isNotaAlreadyPaid(row.original)}
         onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
         aria-label="Select row"
       />
@@ -63,6 +68,22 @@ export const createColumns = (): ColumnDef<NotaSawitWithRelations>[] => [
     header: 'Plat Nomor',
     cell: ({ row }) => row.original.kendaraan?.platNomor || '-',
     footer: () => <div className="text-right font-bold">JUMLAH</div>,
+  },
+  {
+    id: 'statusGajian',
+    header: 'Status Gaji',
+    cell: ({ row }) => {
+      const paid = isNotaAlreadyPaid(row.original)
+      return paid ? (
+        <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-xs font-semibold">
+          Sudah Digaji
+        </span>
+      ) : (
+        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2 py-0.5 text-xs font-semibold">
+          Belum Digaji
+        </span>
+      )
+    },
   },
   {
     id: 'netto',

@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const supirId = url.searchParams.get('supirId')
     const pabrikId = url.searchParams.get('pabrikId')
     const statusPembayaran = url.searchParams.get('statusPembayaran')
+    const statusGajian = url.searchParams.get('statusGajian')
     const perusahaanId = url.searchParams.get('perusahaanId')
 
     const range = getWibRangeUtcFromParams(url.searchParams)
@@ -48,6 +49,12 @@ export async function GET(request: Request) {
     if (pabrikId) where.pabrikSawitId = parseInt(pabrikId, 10)
     if (statusPembayaran && (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS')) {
       where.statusPembayaran = statusPembayaran
+    }
+    if (statusGajian) {
+      const sg = String(statusGajian).toUpperCase()
+      if (sg === 'BELUM_DIPROSES' || sg === 'DIPROSES') {
+        where.statusGajian = sg
+      }
     }
     if (perusahaanId) {
       ;(where as any).perusahaanId = parseInt(perusahaanId, 10)

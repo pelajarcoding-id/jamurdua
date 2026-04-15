@@ -25,6 +25,7 @@ type Panen = {
   pabrikSawit: { name: string };
   supir: { name: string };
   kendaraan: { platNomor: string } | null;
+  gajian?: { status: string } | null;
   timbangan: {
     grossKg: number;
     tareKg: number;
@@ -35,6 +36,8 @@ type Panen = {
 export default function PanenTab({ kebunId }: { kebunId: number }) {
   const [panenData, setPanenData] = useState<Panen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [perView, setPerView] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
   const [dateRange, setDateRange] = useState({
@@ -93,6 +96,19 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
 
   const totalNetto = panenData.reduce((acc, curr) => acc + curr.beratAkhir, 0);
   const averageNetto = panenData.length > 0 ? totalNetto / panenData.length : 0;
+  const totalPages = Math.max(1, Math.ceil(panenData.length / perView));
+  const startIndex = (currentPage - 1) * perView;
+  const pagedPanenData = panenData.slice(startIndex, startIndex + perView);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType, selectedDate, dateRange.start, dateRange.end, perView, kebunId]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-8">
@@ -195,9 +211,33 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
             <p>Belum ada riwayat panen tercatat untuk kebun ini</p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {panenData.map((item, idx) => (
-              <div key={item.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden group">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
+              <div className="text-xs text-gray-500">
+                Menampilkan {panenData.length === 0 ? 0 : startIndex + 1} - {Math.min(startIndex + perView, panenData.length)} dari {panenData.length} data
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Per View</span>
+                <select
+                  className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={perView}
+                  onChange={(e) => setPerView(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+            {pagedPanenData.map((item, idx) => {
+              const isFinalPaid = String(item?.gajian?.status || '').toUpperCase() === 'FINALIZED'
+              return (
+              <div key={item.id} className="relative bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden group">
+                <div className="absolute top-4 left-4 h-7 min-w-7 px-2.5 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center z-10">
+                  {startIndex + idx + 1}
+                </div>
                 <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-colors shrink-0">
@@ -205,8 +245,13 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-bold text-gray-900">Nota ke {idx + 1}</span>
+                        <span className="text-sm font-bold text-gray-900">Nota ke {startIndex + idx + 1}</span>
                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-wider">Berhasil</span>
+                        {isFinalPaid ? (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                            Sudah Digaji
+                          </span>
+                        ) : null}
                         <span className="text-sm font-black text-gray-900">Berat Akhir {item.beratAkhir.toLocaleString('id-ID')} kg</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -267,7 +312,31 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                    )}
                 </div>
               </div>
-            ))}
+              )
+            })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="h-8 px-3 rounded-md border border-gray-200 bg-white text-xs disabled:opacity-50"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Sebelumnya
+              </button>
+              <span className="text-xs text-gray-600">
+                Halaman {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="h-8 px-3 rounded-md border border-gray-200 bg-white text-xs disabled:opacity-50"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Berikutnya
+              </button>
+            </div>
           </div>
         )}
       </div>

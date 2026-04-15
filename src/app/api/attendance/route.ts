@@ -66,6 +66,7 @@ async function ensureAbsensiHarianTable() {
       "kerja" BOOLEAN NOT NULL DEFAULT FALSE,
       "libur" BOOLEAN NOT NULL DEFAULT FALSE,
       "note" TEXT,
+      "source" TEXT,
       "jamKerja" NUMERIC,
       "ratePerJam" NUMERIC,
       "uangMakan" NUMERIC,
@@ -75,6 +76,15 @@ async function ensureAbsensiHarianTable() {
       UNIQUE ("kebunId","karyawanId","date")
     )
   `)
+
+  const columns = await prisma.$queryRaw<Array<{ column_name: string }>>`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'AbsensiHarian'
+  `
+  const columnNames = columns.map((c) => c.column_name)
+  if (!columnNames.includes('source')) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "source" TEXT`)
+  }
 
   const fkAbsensiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
     SELECT 1 as "exists"
@@ -128,6 +138,7 @@ async function syncSelfieToCalendarKerja(params: { userId: number; date: Date })
       update: {
         kerja: true,
         libur: false,
+        source: 'SELFIE',
         updatedAt: new Date(),
       },
       create: {
@@ -136,6 +147,7 @@ async function syncSelfieToCalendarKerja(params: { userId: number; date: Date })
         date: params.date,
         kerja: true,
         libur: false,
+        source: 'SELFIE',
       },
     })
   }

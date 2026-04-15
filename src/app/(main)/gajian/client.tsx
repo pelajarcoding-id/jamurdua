@@ -1979,11 +1979,13 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             </h3>
             <div className="md:hidden space-y-3">
               {notas.map((nota, index) => {
+                const isPaid = String((nota as any)?.statusGajian || '').toUpperCase() === 'DIPROSES'
                 const isSelected = !!(rowSelection as any)[index];
                 return (
                   <div
                     key={`nota-card-${nota.id}`}
                     onClick={() => {
+                      if (isPaid) return
                       setRowSelection((prev: any) => {
                         const next = { ...prev };
                         if (next[index]) delete next[index];
@@ -1991,17 +1993,23 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                         return next;
                       });
                     }}
-                    className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3 transition-colors ${isSelected ? 'ring-2 ring-emerald-500' : 'hover:bg-gray-50/50'}`}
+                    className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3 transition-colors ${isSelected ? 'ring-2 ring-emerald-500' : 'hover:bg-gray-50/50'} ${isPaid ? 'opacity-90' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="font-semibold text-gray-900">{nota.kendaraan?.platNomor || '-'}</div>
+                        {isPaid ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold">
+                            Sudah Digaji
+                          </span>
+                        ) : null}
                         <div className="text-xs text-gray-500">{nota.supir?.name || '-'}</div>
                         <div className="text-xs text-gray-500">{nota.timbangan?.kebun?.name || nota.kebun?.name || '-'}</div>
                       </div>
                       <div onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={isSelected}
+                          disabled={isPaid}
                           onCheckedChange={(v) => {
                             setRowSelection((prev: any) => {
                               const next = { ...prev };

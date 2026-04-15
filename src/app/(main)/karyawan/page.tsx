@@ -199,6 +199,7 @@ export default function KaryawanKebunPage() {
   const [absenWorkMap, setAbsenWorkMap] = useState<Record<string, boolean>>({})
   const [absenOffMap, setAbsenOffMap] = useState<Record<string, boolean>>({})
   const [absenNoteMap, setAbsenNoteMap] = useState<Record<string, string>>({})
+  const [absenSourceMap, setAbsenSourceMap] = useState<Record<string, string>>({})
   const [absenHourlyMap, setAbsenHourlyMap] = useState<Record<string, boolean>>({})
   const [absenHourMap, setAbsenHourMap] = useState<Record<string, string>>({})
   const [absenRateMap, setAbsenRateMap] = useState<Record<string, string>>({})
@@ -397,6 +398,7 @@ export default function KaryawanKebunPage() {
           const nextWork: Record<string, boolean> = {}
           const nextOff: Record<string, boolean> = {}
           const nextNote: Record<string, string> = {}
+          const nextSource: Record<string, string> = {}
           const nextHourly: Record<string, boolean> = {}
           const nextHour: Record<string, string> = {}
           const nextRate: Record<string, string> = {}
@@ -422,6 +424,7 @@ export default function KaryawanKebunPage() {
             if (r.kerja) nextWork[key] = true
             if (r.libur) nextOff[key] = true
             if (r.note) nextNote[key] = r.note
+            if (r.source) nextSource[key] = String(r.source)
             if (r.useHourly) {
               nextHourly[key] = true
               nextHour[key] = r.jamKerja != null ? String(r.jamKerja) : ''
@@ -437,6 +440,7 @@ export default function KaryawanKebunPage() {
           setAbsenWorkMap(nextWork)
           setAbsenOffMap(nextOff)
           setAbsenNoteMap(nextNote)
+          setAbsenSourceMap(nextSource)
           setAbsenHourlyMap(nextHourly)
           setAbsenHourMap(nextHour)
           setAbsenRateMap(nextRate)
@@ -2257,6 +2261,7 @@ export default function KaryawanKebunPage() {
                 <table className="min-w-[760px] w-full divide-y divide-gray-200 whitespace-nowrap">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap w-[56px]">No</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Nama</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell whitespace-nowrap">Lokasi</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell whitespace-nowrap">No HP</th>
@@ -2269,6 +2274,7 @@ export default function KaryawanKebunPage() {
                 {loadingKaryawan ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-10" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-4 w-40" /></td>
                       <td className="px-4 py-3 hidden lg:table-cell"><Skeleton className="h-4 w-32" /></td>
                       <td className="px-4 py-3 hidden lg:table-cell"><Skeleton className="h-4 w-28" /></td>
@@ -2279,10 +2285,10 @@ export default function KaryawanKebunPage() {
                   ))
                 ) : filteredKaryawanList.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-center text-gray-500" colSpan={6}>Tidak ada karyawan</td>
+                    <td className="px-4 py-6 text-center text-gray-500" colSpan={7}>Tidak ada karyawan</td>
                   </tr>
                 ) : (
-                  filteredKaryawanList.map(k => (
+                  filteredKaryawanList.map((k, idx) => (
                     <tr
                       key={k.id}
                       onClick={(e) => {
@@ -2293,6 +2299,9 @@ export default function KaryawanKebunPage() {
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
                       title="Klik baris untuk melihat absensi & hutang"
                     >
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-600">
+                        {(karyawanPage - 1) * karyawanLimit + idx + 1}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 min-w-0">
                           {k.photoUrl ? (
@@ -2536,13 +2545,14 @@ export default function KaryawanKebunPage() {
                     const num = Number((val||'').toString().replace(/\./g,'').replace(/,/g,'')) || 0
                     const isOff = !!absenOffMap[key]
                     const isWork = !!absenWorkMap[key]
+                    const isSelfie = String(absenSourceMap[key] || '').toUpperCase() === 'SELFIE'
                     const isPaid = !!absenPaidMap[key]
                     const isFilled = !!val || isOff || isWork || !!absenNoteMap[key]
                     const color = isOff
                       ? 'bg-red-50 border-red-100 text-red-700'
                       : isPaid
                         ? 'bg-purple-50 border-purple-100 text-purple-700'
-                        : (num > 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : num < 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-white border-gray-100 text-gray-700')
+                        : (isWork ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : num > 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : num < 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-white border-gray-100 text-gray-700')
                     cells.push(
                       <button
                         key={key}
@@ -2585,6 +2595,20 @@ export default function KaryawanKebunPage() {
                           {isOff ? (
                             <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight text-red-600">
                               Libur
+                            </div>
+                          ) : isWork ? (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight text-emerald-700">
+                                Masuk Kerja
+                              </div>
+                              {isSelfie ? (
+                                <div className="text-[9px] sm:text-[10px] font-semibold text-blue-600">
+                                  Absensi Selfie
+                                </div>
+                              ) : null}
+                              {num > 0 ? (
+                                <span className="text-[10px] sm:text-xs font-bold truncate">Rp {num.toLocaleString('id-ID')}</span>
+                              ) : null}
                             </div>
                           ) : num > 0 ? (
                             <div className="flex flex-col">
@@ -3221,7 +3245,7 @@ export default function KaryawanKebunPage() {
                     size="icon"
                     className="rounded-xl w-10 h-10 border-red-200 text-red-500 hover:bg-red-50 transition-all shadow-sm"
                     title="Hapus Data"
-                    disabled={isDeletingAbsen}
+                    disabled={isDeletingAbsen || (absenSelectedDate ? String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' : false)}
                     onClick={() => setOpenDeleteAbsenConfirm(true)}
                   >
                     <TrashIcon className="w-4 h-4" />
@@ -3264,7 +3288,8 @@ export default function KaryawanKebunPage() {
               setOpenAbsenView(false);
               await mutate();
             } else {
-              toast.error('Gagal menghapus data');
+              const err = await res.json().catch(() => ({} as any))
+              toast.error(err?.error || 'Gagal menghapus data');
             }
           } catch {
             toast.error('Kesalahan jaringan');
@@ -3322,6 +3347,11 @@ export default function KaryawanKebunPage() {
             {absenSelectedDate && absenPaidMap[absenSelectedDate] && (
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-xs text-amber-700">
                 Tanggal ini sudah digaji. Batalkan digaji untuk mengubah data.
+              </div>
+            )}
+            {absenSelectedDate && String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                Absensi pada tanggal ini berasal dari Absensi Selfie.
               </div>
             )}
             
@@ -3524,6 +3554,9 @@ export default function KaryawanKebunPage() {
                 onChange={(e) => setAbsenNote(e.target.value)}
                 disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
               />
+              {absenSelectedDate && String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' && (
+                <p className="text-xs text-blue-600">Absensi melalui Absensi Selfie.</p>
+              )}
             </div>
           </ModalContentWrapper>
           <ModalFooter className="gap-2">
