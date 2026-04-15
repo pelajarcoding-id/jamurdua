@@ -19,6 +19,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const { name, role } = useAuth();
+  const canViewNotification = ['ADMIN', 'PEMILIK', 'KASIR'].includes(String(role || '').toUpperCase())
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,7 +90,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           
           <div className="flex items-center space-x-6 flex-1 md:flex-none justify-end md:justify-start">
             <div className="flex items-center space-x-4">
-              {role !== 'MANAGER' && role !== 'MANDOR' ? <NotificationDropdown /> : null}
+              {canViewNotification ? <NotificationDropdown /> : null}
               <PwaReloadButton />
               
               <div className="relative" ref={profileMenuRef}>

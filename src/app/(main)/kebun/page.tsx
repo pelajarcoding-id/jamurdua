@@ -43,8 +43,10 @@ export default function KebunPage() {
   const [perusahaanId, setPerusahaanId] = useState<string>('all');
   const [summary, setSummary] = useState<{
     totalProduksi: number
+    totalBeratAkhir?: number
+    totalBayarNet?: number
     totalBiaya: number
-    produksiPerKebun: Array<{ kebunId: number; kebunName: string; totalProduksi: number }>
+    produksiPerKebun: Array<{ kebunId: number; kebunName: string; totalProduksi?: number; totalBeratAkhir?: number }>
   } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const searchParams = useSearchParams();
@@ -281,22 +283,24 @@ export default function KebunPage() {
                   <p className="text-lg font-semibold text-gray-900">{totalItems.toLocaleString('id-ID')}</p>
                 </div>
                 <div className="rounded-xl bg-amber-50/70 px-3 py-2">
-                  <p className="text-xs text-amber-700">Total Produksi</p>
+                  <p className="text-xs text-amber-700">Total Produksi (Berat Akhir)</p>
                   <p className="text-lg font-semibold text-gray-900">
-                    {summary?.totalProduksi ? `${summary.totalProduksi.toLocaleString('id-ID')} Kg` : '0 Kg'}
+                    {summary?.totalBeratAkhir || summary?.totalProduksi
+                      ? `${Number(summary?.totalBeratAkhir ?? summary?.totalProduksi ?? 0).toLocaleString('id-ID')} Kg`
+                      : '0 Kg'}
                   </p>
                 </div>
                 <div className="rounded-xl bg-sky-50/70 px-3 py-2">
-                  <p className="text-xs text-sky-700">Total Biaya</p>
-                  <p className="text-lg font-semibold text-gray-900">{formatCurrency(summary?.totalBiaya || 0)}</p>
+                  <p className="text-xs text-sky-700">Total Bayar Net</p>
+                  <p className="text-lg font-semibold text-gray-900">{formatCurrency(summary?.totalBayarNet ?? summary?.totalBiaya ?? 0)}</p>
                 </div>
                 <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                  <p className="text-xs text-emerald-700">Daftar Produksi Kebun</p>
+                  <p className="text-xs text-emerald-700">Daftar Produksi Kebun (Berat Akhir)</p>
                   <div className="mt-1 space-y-1 text-sm text-gray-800">
                     {(summary?.produksiPerKebun || []).slice(0, 3).map(item => (
                       <div key={item.kebunId} className="flex items-center justify-between gap-2">
                         <span className="truncate">{formatKebunText(item.kebunName)}</span>
-                        <span className="text-xs text-gray-500">{item.totalProduksi.toLocaleString('id-ID')} Kg</span>
+                        <span className="text-xs text-gray-500">{Number(item.totalBeratAkhir ?? item.totalProduksi ?? 0).toLocaleString('id-ID')} Kg</span>
                       </div>
                     ))}
                     {(!summary || summary.produksiPerKebun.length === 0) && (

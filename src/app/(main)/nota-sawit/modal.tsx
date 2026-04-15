@@ -150,7 +150,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   }>({});
 
   const [isManualInput, setIsManualInput] = useState(false);
-  const [useTimbanganKebunInput, setUseTimbanganKebunInput] = useState(false);
+  const [useTimbanganKebunInput, setUseTimbanganKebunInput] = useState(true);
   const [selectedTimbangan, setSelectedTimbangan] = useState<TimbanganWithKebun | null>(null);
   const [isEditingComparison, setIsEditingComparison] = useState(false);
   const [originalComparison, setOriginalComparison] = useState<{ grossKg: number; tareKg: number } | null>(null);
@@ -208,7 +208,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             });
             setPreview(nota.gambarNotaUrl || null);
             setIsManualInput(false); 
-            setUseTimbanganKebunInput(false);
+            setUseTimbanganKebunInput(!nota?.timbanganId);
             
             // Recalculate derived
             // @ts-ignore
@@ -243,7 +243,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             });
             setPreview(null);
             setIsManualInput(false);
-            setUseTimbanganKebunInput(false);
+            setUseTimbanganKebunInput(true);
             setSelectedTimbangan(null);
             setBeratTotal(0);
             setTotalPembayaran(0);
@@ -476,7 +476,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
         const updated = { ...prev, [name]: numericValue };
         
         // Handle nested timbangan updates (Edit Mode)
-        if (nota && (name === 'grossKg' || name === 'tareKg')) {
+        if (nota && (name === 'grossKg' || name === 'tareKg' || name === 'netKg')) {
             return {
                 ...updated,
                 timbangan: {
@@ -724,14 +724,12 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                 </div>
 
                 <div className="flex items-center justify-between gap-3 mb-3">
-                  <div className="text-xs text-gray-600">
-                    Input timbangan kebun langsung di nota
-                  </div>
+                  <div className="text-xs text-gray-600">Gunakan Data Timbangan Tersimpan</div>
                   <Switch
-                    checked={useTimbanganKebunInput}
+                    checked={!useTimbanganKebunInput}
                     onCheckedChange={(checked) => {
-                      setUseTimbanganKebunInput(!!checked)
-                      if (checked && !nota) {
+                      setUseTimbanganKebunInput(!checked)
+                      if (!checked && !nota) {
                         setSelectedTimbangan(null)
                         setFormData(prev => ({
                           ...prev,
@@ -781,8 +779,8 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                               value={nota ? (formData.timbangan?.grossKg || 0) : (formData.manualGross || 0)}
                               onChange={handleNumericChange}
                               disabled={!formData.timbanganId && !useTimbanganKebunInput}
-                              readOnly={!!formData.timbanganId && !useTimbanganKebunInput}
-                              className={`${(formData.timbanganId && !useTimbanganKebunInput) ? "bg-gray-100 text-gray-500" : "bg-white text-gray-900"} rounded-xl border-gray-200`}
+                              readOnly={false}
+                              className="bg-white text-gray-900 rounded-xl border-gray-200"
                           />
                       </div>
                       <div>
@@ -792,19 +790,23 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                               value={nota ? (formData.timbangan?.tareKg || 0) : (formData.manualTare || 0)}
                               onChange={handleNumericChange}
                               disabled={!formData.timbanganId && !useTimbanganKebunInput}
-                              readOnly={!!formData.timbanganId && !useTimbanganKebunInput}
-                              className={`${(formData.timbanganId && !useTimbanganKebunInput) ? "bg-gray-100 text-gray-500" : "bg-white text-gray-900"} rounded-xl border-gray-200`}
+                              readOnly={false}
+                              className="bg-white text-gray-900 rounded-xl border-gray-200"
                           />
                       </div>
                       <div>
                           <Label>Netto (Kg)</Label>
-                          <Input 
-                              value={formatNumber(
-                                  nota ? ((formData.timbangan?.grossKg || 0) - (formData.timbangan?.tareKg || 0)) :
-                                  ((formData.manualGross || 0) - (formData.manualTare || 0))
-                              )}
-                              readOnly
-                              className="bg-gray-100 font-bold rounded-xl border-gray-200"
+                          <FormattedNumberInput
+                              name={nota ? "netKg" : "manualNet"}
+                              value={
+                                nota
+                                  ? (formData.timbangan?.netKg || ((formData.timbangan?.grossKg || 0) - (formData.timbangan?.tareKg || 0)))
+                                  : (formData.manualNet || ((formData.manualGross || 0) - (formData.manualTare || 0)))
+                              }
+                              onChange={handleNumericChange}
+                              disabled={!formData.timbanganId && !useTimbanganKebunInput}
+                              readOnly={false}
+                              className="bg-white font-bold rounded-xl border-gray-200"
                           />
                       </div>
                   </div>

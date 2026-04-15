@@ -6,13 +6,15 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDebounce } from '@/hooks/useDebounce'
-import { ArrowDownTrayIcon, CalendarDaysIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import { ArrowDownTrayIcon, CalendarDaysIcon, CheckIcon, ChevronUpDownIcon, MapPinIcon } from '@heroicons/react/24/outline'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { ModalFooter, ModalHeader } from '@/components/ui/modal-elements'
 import { useAuth } from '@/components/AuthProvider'
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { cn } from '@/lib/utils'
 
 type AttendanceRow = {
   id: number
@@ -40,6 +42,79 @@ type AttendanceSummary = {
   totalKaryawanAbsen: number
   totalMasuk: number
   totalPulang: number
+}
+
+type KaryawanOption = {
+  id: number
+  name: string
+  email: string
+}
+
+function SearchableKaryawanFilter({
+  value,
+  onChange,
+  options,
+}: {
+  value: string
+  onChange: (next: string) => void
+  options: KaryawanOption[]
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = value ? options.find((o) => String(o.id) === value) : null
+  const label = selected ? `${selected.name} (${selected.id})` : 'Semua Karyawan'
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="md:col-span-2 rounded-full h-10 justify-between"
+        >
+          <span className="truncate">{label}</span>
+          <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Cari karyawan..." />
+          <CommandList>
+            <CommandEmpty>Karyawan tidak ditemukan.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="Semua Karyawan"
+                onSelect={() => {
+                  onChange('')
+                  setOpen(false)
+                }}
+              >
+                <CheckIcon className={cn('mr-2 h-4 w-4', !value ? 'opacity-100' : 'opacity-0')} />
+                Semua Karyawan
+              </CommandItem>
+              {options.map((k) => {
+                const v = String(k.id)
+                const text = `${k.name} (${k.id}) - ${k.email}`
+                return (
+                  <CommandItem
+                    key={k.id}
+                    value={text}
+                    onSelect={() => {
+                      onChange(v)
+                      setOpen(false)
+                    }}
+                  >
+                    <CheckIcon className={cn('mr-2 h-4 w-4', value === v ? 'opacity-100' : 'opacity-0')} />
+                    <span className="truncate">{text}</span>
+                  </CommandItem>
+                )
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 const formatDateTime = (value: string | null) => {
@@ -94,6 +169,8 @@ export default function AttendanceMonitorPage() {
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [karyawanId, setKaryawanId] = useState<string>('')
+  const [karyawanOptions, setKaryawanOptions] = useState<KaryawanOption[]>([])
   const [locationId, setLocationId] = useState<string>('')
   const [locations, setLocations] = useState<Array<{ id: number; name: string; type: string }>>([])
   const [page, setPage] = useState(1)
@@ -139,6 +216,25 @@ export default function AttendanceMonitorPage() {
       }
     }
     loadLocations()
+  }, [])
+
+  useEffect(() => {
+    const loadKaryawan = async () => {
+      try {
+        const res = await fetch('/api/attendance/admin?includeKaryawan=1&page=1&limit=1', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok) return
+        const list = Array.isArray(json?.karyawanOptions) ? json.karyawanOptions : []
+        setKaryawanOptions(
+          list
+            .map((x: any) => ({ id: Number(x.id), name: String(x.name || ''), email: String(x.email || '') }))
+            .filter((x: KaryawanOption) => Number.isFinite(x.id) && x.id > 0)
+        )
+      } catch {
+        setKaryawanOptions([])
+      }
+    }
+    loadKaryawan()
   }, [])
 
   useEffect(() => {
@@ -205,6 +301,7 @@ export default function AttendanceMonitorPage() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (debouncedSearch) params.set('search', debouncedSearch)
+      if (karyawanId) params.set('karyawanId', karyawanId)
       if (startDate) params.set('startDate', startDate)
       if (endDate) params.set('endDate', endDate)
       if (locationId) params.set('locationId', locationId)
@@ -229,16 +326,17 @@ export default function AttendanceMonitorPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, limit, debouncedSearch, startDate, endDate, locationId])
+  }, [page, limit, debouncedSearch, karyawanId, startDate, endDate, locationId])
 
   const buildParams = useCallback((pageValue: number, limitValue: number) => {
     const params = new URLSearchParams({ page: String(pageValue), limit: String(limitValue) })
     if (debouncedSearch) params.set('search', debouncedSearch)
+    if (karyawanId) params.set('karyawanId', karyawanId)
     if (startDate) params.set('startDate', startDate)
     if (endDate) params.set('endDate', endDate)
     if (locationId) params.set('locationId', locationId)
     return params
-  }, [debouncedSearch, endDate, locationId, startDate])
+  }, [debouncedSearch, endDate, karyawanId, locationId, startDate])
 
   const handleExportPdf = useCallback(async () => {
     try {
@@ -314,7 +412,7 @@ export default function AttendanceMonitorPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, startDate, endDate, locationId])
+  }, [debouncedSearch, karyawanId, startDate, endDate, locationId])
 
   return (
     <RoleGate allow={['ADMIN', 'PEMILIK', 'KASIR']}>
@@ -325,12 +423,17 @@ export default function AttendanceMonitorPage() {
         </div>
 
         <div className="bg-white border border-gray-100 rounded-2xl p-4 md:p-5">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-8 gap-3">
             <Input
               placeholder="Cari nama, email, atau ID user..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="md:col-span-2 rounded-full h-10"
+            />
+            <SearchableKaryawanFilter
+              value={karyawanId}
+              onChange={setKaryawanId}
+              options={karyawanOptions}
             />
             <Select value={locationId || 'ALL'} onValueChange={(v) => setLocationId(v === 'ALL' ? '' : v)}>
               <SelectTrigger className="md:col-span-2 rounded-full h-10">

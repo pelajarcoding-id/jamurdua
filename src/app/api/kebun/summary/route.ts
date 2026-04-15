@@ -52,6 +52,8 @@ export async function GET(request: Request) {
     if (kebunIds.length === 0) {
       return NextResponse.json({
         totalProduksi: 0,
+        totalBeratAkhir: 0,
+        totalBayarNet: 0,
         totalBiaya: 0,
         produksiPerKebun: [],
       })
@@ -75,24 +77,14 @@ export async function GET(request: Request) {
         : {}),
     }
 
-    const gajianWhere: Prisma.GajianWhereInput = {
-      kebunId: { in: kebunIds },
-      ...(startDate || endDate
-        ? {
-            tanggalMulai: startDate ? { gte: startDate } : undefined,
-            tanggalSelesai: endDate ? { lte: endDate } : undefined,
-          }
-        : {}),
-    }
-
-    const [totalProduksiAgg, totalBiayaAgg, produksiRows] = await Promise.all([
+    const [totalProduksiAgg, totalBayarNetAgg, produksiRows] = await Promise.all([
       prisma.notaSawit.aggregate({
         where: notaWhere,
         _sum: { beratAkhir: true },
       }),
-      prisma.gajian.aggregate({
-        where: gajianWhere,
-        _sum: { totalGaji: true },
+      prisma.notaSawit.aggregate({
+        where: notaWhere,
+        _sum: { pembayaranSetelahPph: true },
       }),
       prisma.notaSawit.groupBy({
         by: ['kebunId'],
@@ -107,13 +99,18 @@ export async function GET(request: Request) {
       .map(row => ({
         kebunId: row.kebunId as number,
         kebunName: kebunMap.get(row.kebunId as number) || `Kebun ${row.kebunId}`,
-        totalProduksi: Number(row._sum.beratAkhir || 0),
+        totalBeratAkhir: Number(row._sum.beratAkhir || 0),
       }))
-      .sort((a, b) => b.totalProduksi - a.totalProduksi)
+      .sort((a, b) => b.totalBeratAkhir - a.totalBeratAkhir)
+
+    const totalBeratAkhir = Number(totalProduksiAgg._sum.beratAkhir || 0)
+    const totalBayarNet = Number(totalBayarNetAgg._sum.pembayaranSetelahPph || 0)
 
     return NextResponse.json({
-      totalProduksi: Number(totalProduksiAgg._sum.beratAkhir || 0),
-      totalBiaya: Number(totalBiayaAgg._sum.totalGaji || 0),
+      totalProduksi: totalBeratAkhir,
+      totalBeratAkhir,
+      totalBayarNet,
+      totalBiaya: totalBayarNet,
       produksiPerKebun,
     })
   } catch (error) {

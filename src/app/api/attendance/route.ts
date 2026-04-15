@@ -3,13 +3,17 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFile } from '@/lib/storage'
 
-function getWibTodayDateForDb() {
-  const ymd = new Intl.DateTimeFormat('en-CA', {
+function getWibTodayYmd() {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
+}
+
+function getWibTodayDateForDb() {
+  const ymd = getWibTodayYmd()
   return new Date(`${ymd}T00:00:00.000Z`)
 }
 
@@ -49,6 +53,88 @@ async function ensureAttendanceSelfieTable() {
     CREATE INDEX IF NOT EXISTS "AttendanceSelfie_date_idx"
       ON "AttendanceSelfie" ("date");
   `)
+}
+
+async function ensureAbsensiHarianTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "AbsensiHarian" (
+      "id" SERIAL PRIMARY KEY,
+      "kebunId" INTEGER NOT NULL,
+      "karyawanId" INTEGER NOT NULL,
+      "date" DATE NOT NULL,
+      "jumlah" NUMERIC NOT NULL DEFAULT 0,
+      "kerja" BOOLEAN NOT NULL DEFAULT FALSE,
+      "libur" BOOLEAN NOT NULL DEFAULT FALSE,
+      "note" TEXT,
+      "jamKerja" NUMERIC,
+      "ratePerJam" NUMERIC,
+      "uangMakan" NUMERIC,
+      "useHourly" BOOLEAN,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE ("kebunId","karyawanId","date")
+    )
+  `)
+
+  const fkAbsensiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
+    SELECT 1 as "exists"
+    FROM pg_constraint
+    WHERE conname = 'AbsensiHarian_karyawanId_fkey'
+    LIMIT 1
+  `
+  if (fkAbsensiHarian.length === 0) {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "AbsensiHarian"
+      ADD CONSTRAINT "AbsensiHarian_karyawanId_fkey"
+      FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE
+      NOT VALID
+    `)
+  }
+}
+
+async function syncSelfieToCalendarKerja(params: { userId: number; date: Date }) {
+  await ensureAbsensiHarianTable()
+
+  const kebunCandidates = await prisma.$queryRaw<Array<{ kebunId: number }>>`
+    SELECT DISTINCT "kebunId"
+    FROM "AbsensiDefaultHarian"
+    WHERE "karyawanId" = ${params.userId}
+  `
+
+  const fallbackKebun = kebunCandidates.length
+    ? kebunCandidates
+    : await prisma.$queryRaw<Array<{ kebunId: number }>>`
+        SELECT DISTINCT "kebunId"
+        FROM "AbsensiHarian"
+        WHERE "karyawanId" = ${params.userId}
+      `
+
+  for (const row of fallbackKebun) {
+    const kebunId = Number(row.kebunId)
+    if (!Number.isFinite(kebunId)) continue
+    await (prisma as any).absensiHarian.upsert({
+      where: {
+        kebunId_karyawanId_date: {
+          kebunId,
+          karyawanId: params.userId,
+          date: params.date,
+        },
+      },
+      update: {
+        kerja: true,
+        libur: false,
+        updatedAt: new Date(),
+      },
+      create: {
+        kebunId,
+        karyawanId: params.userId,
+        date: params.date,
+        kerja: true,
+        libur: false,
+      },
+    })
+  }
 }
 
 export async function POST(req: Request) {
@@ -137,6 +223,8 @@ export async function POST(req: Request) {
         },
       })
     }
+
+    await syncSelfieToCalendarKerja({ userId, date: today })
 
     return NextResponse.json({ ok: true, attendance })
   } catch (error: any) {

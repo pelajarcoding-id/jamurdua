@@ -30,6 +30,28 @@ async function ensureAttendanceSelfieTable() {
   `)
 }
 
+async function ensureAbsensiHarianTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "AbsensiHarian" (
+      "id" SERIAL PRIMARY KEY,
+      "kebunId" INTEGER NOT NULL,
+      "karyawanId" INTEGER NOT NULL,
+      "date" DATE NOT NULL,
+      "jumlah" NUMERIC NOT NULL DEFAULT 0,
+      "kerja" BOOLEAN NOT NULL DEFAULT FALSE,
+      "libur" BOOLEAN NOT NULL DEFAULT FALSE,
+      "note" TEXT,
+      "jamKerja" NUMERIC,
+      "ratePerJam" NUMERIC,
+      "uangMakan" NUMERIC,
+      "useHourly" BOOLEAN,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE ("kebunId","karyawanId","date")
+    )
+  `)
+}
+
 export async function GET(request: Request) {
   try {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR'])
@@ -44,6 +66,8 @@ export async function GET(request: Request) {
     const startDate = (searchParams.get('startDate') || '').trim()
     const endDate = (searchParams.get('endDate') || '').trim()
     const locationIdRaw = (searchParams.get('locationId') || '').trim()
+    const karyawanIdRaw = (searchParams.get('karyawanId') || '').trim()
+    const includeKaryawan = searchParams.get('includeKaryawan') === '1'
     const skip = (page - 1) * limit
 
     const whereParts: Prisma.Sql[] = []
@@ -74,6 +98,11 @@ export async function GET(request: Request) {
     const locationId = Number(locationIdRaw)
     if (locationIdRaw && Number.isFinite(locationId) && locationId > 0) {
       whereParts.push(Prisma.sql`ka."locationId" = ${locationId}`)
+    }
+
+    const karyawanId = Number(karyawanIdRaw)
+    if (karyawanIdRaw && Number.isFinite(karyawanId) && karyawanId > 0) {
+      whereParts.push(Prisma.sql`a."userId" = ${karyawanId}`)
     }
 
     const whereClause = whereParts.length
@@ -200,6 +229,20 @@ export async function GET(request: Request) {
       totalPulang: 0,
     }
 
+    const karyawanOptions = includeKaryawan
+      ? await prisma.$queryRaw<Array<{ id: number; name: string; email: string }>>(
+          Prisma.sql`
+            SELECT DISTINCT
+              u."id",
+              u."name",
+              u."email"
+            FROM "AttendanceSelfie" a
+            INNER JOIN "User" u ON u."id" = a."userId"
+            ORDER BY u."name" ASC
+          `
+        )
+      : []
+
     return NextResponse.json({
       data: rows,
       page,
@@ -211,6 +254,7 @@ export async function GET(request: Request) {
         totalMasuk: Number(summary.totalMasuk || 0),
         totalPulang: Number(summary.totalPulang || 0),
       },
+      karyawanOptions,
     })
   } catch (error) {
     console.error('Error fetching admin attendance list:', error)
@@ -239,8 +283,27 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Data absensi tidak ditemukan' }, { status: 404 })
     }
 
-    await (prisma as any).attendanceSelfie.delete({
-      where: { id },
+    await ensureAbsensiHarianTable()
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(
+        Prisma.sql`
+          UPDATE "AbsensiHarian" ah
+          SET
+            "kerja" = FALSE,
+            "libur" = FALSE,
+            "jumlah" = 0,
+            "updatedAt" = NOW()
+          FROM "AttendanceSelfie" a
+          WHERE a."id" = ${id}
+            AND ah."karyawanId" = a."userId"
+            AND ah."date" = COALESCE(a."checkIn"::date, a."date")
+        `
+      )
+
+      await (tx as any).attendanceSelfie.delete({
+        where: { id },
+      })
     })
 
     return NextResponse.json({ ok: true })

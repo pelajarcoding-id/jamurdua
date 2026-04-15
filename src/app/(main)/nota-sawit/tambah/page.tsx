@@ -42,7 +42,7 @@ export default function TambahNotaSawitPage() {
   const [tanggalBongkar, setTanggalBongkar] = useState<string>('');
   const [keterangan, setKeterangan] = useState('');
   
-  const [isManualInput, setIsManualInput] = useState(false);
+  const [isManualInput, setIsManualInput] = useState(true);
   const [manualGross, setManualGross] = useState(0);
   const [manualTare, setManualTare] = useState(0);
   const [manualNet, setManualNet] = useState(0);
@@ -552,16 +552,18 @@ export default function TambahNotaSawitPage() {
 
         <div className="bg-white p-6 rounded-lg shadow-md">
           <form ref={formRef} onSubmit={handleSubmit} onInvalid={(e) => e.preventDefault()} noValidate>
-            {/* --- Toggle Manual Input --- */}
+            {/* --- Toggle Sumber Timbangan (default: manual kebun) --- */}
             <div className="flex items-center mb-6">
                 <input 
-                    id="manual-input-toggle" 
+                    id="timbangan-source-toggle" 
                     type="checkbox" 
-                    checked={isManualInput} 
-                    onChange={(e) => setIsManualInput(e.target.checked)} 
+                    checked={!isManualInput}
+                    onChange={(e) => setIsManualInput(!e.target.checked)}
                     className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <label htmlFor="manual-input-toggle" className="ml-2 block text-sm text-gray-900">Input Berat Manual</label>
+                <label htmlFor="timbangan-source-toggle" className="ml-2 block text-sm text-gray-900">
+                  Gunakan Data Timbangan Tersimpan
+                </label>
             </div>
 
             {/* --- Main Form Fields --- */}
