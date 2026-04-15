@@ -40,6 +40,10 @@ type UnpaidKaryawan = {
 type BiayaLainItem = {
   deskripsi: string
   total: number
+  jumlah?: number
+  satuan?: string
+  hargaSatuan?: number
+  isAutoKg?: boolean
 }
 
 type PotonganItem = {
@@ -234,7 +238,11 @@ function GajianTab({ kebunId }: { kebunId: number }) {
           if (db.isAutoKg) {
             mappedBiaya.push({
               deskripsi: db.deskripsi,
-              total: Math.round(totalKg * (db.hargaSatuan || 0))
+              total: Math.round(totalKg * (db.hargaSatuan || 0)),
+              jumlah: totalKg,
+              satuan: 'kg',
+              hargaSatuan: Number(db.hargaSatuan || 0),
+              isAutoKg: true,
             })
           } else {
             mappedBiaya.push({
@@ -492,6 +500,11 @@ function GajianTab({ kebunId }: { kebunId: number }) {
                 biayaLain.map((b, idx) => (
                   <div key={`${b.deskripsi}-${idx}`} className="rounded-2xl border border-gray-100 bg-white p-4">
                     <div className="text-sm font-semibold text-gray-900">{b.deskripsi}</div>
+                    {b.isAutoKg ? (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {formatNumber(Math.round(Number(b.jumlah || 0)))} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
+                      </div>
+                    ) : null}
                     <div className="text-xs text-gray-400 mt-1">Total</div>
                     <div className="font-semibold text-blue-700">{formatCurrency(Number(b.total) || 0)}</div>
                   </div>
@@ -515,7 +528,14 @@ function GajianTab({ kebunId }: { kebunId: number }) {
                   ) : (
                     biayaLain.map((b, idx) => (
                       <tr key={`${b.deskripsi}-${idx}`}>
-                        <td className="px-4 py-2">{b.deskripsi}</td>
+                        <td className="px-4 py-2">
+                          <div className="font-medium text-gray-900">{b.deskripsi}</div>
+                          {b.isAutoKg ? (
+                            <div className="text-xs text-gray-500">
+                              {formatNumber(Math.round(Number(b.jumlah || 0)))} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-2 text-right font-semibold">{formatCurrency(Number(b.total) || 0)}</td>
                       </tr>
                     ))

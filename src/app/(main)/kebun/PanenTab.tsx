@@ -233,10 +233,11 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
             <div className="grid gap-4">
             {pagedPanenData.map((item, idx) => {
               const isFinalPaid = String(item?.gajian?.status || '').toUpperCase() === 'FINALIZED'
+              const displayNo = panenData.length - (startIndex + idx)
               return (
               <div key={item.id} className="relative bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden group">
                 <div className="absolute top-4 left-4 h-7 min-w-7 px-2.5 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center z-10">
-                  {startIndex + idx + 1}
+                  {displayNo}
                 </div>
                 <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-start gap-4">
@@ -245,7 +246,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-bold text-gray-900">Nota ke {startIndex + idx + 1}</span>
+                        <span className="text-sm font-bold text-gray-900">Nota ke {displayNo}</span>
                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-wider">Berhasil</span>
                         {isFinalPaid ? (
                           <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
