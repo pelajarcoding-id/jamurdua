@@ -6,6 +6,7 @@ import imageCompression from 'browser-image-compression'
 import { Camera, MapPin, RefreshCw, CheckCircle2, LogOut, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Image from 'next/image'
+import { convertImageFileToWebp } from '@/lib/image-webp'
 
 const videoConstraints = {
   width: 720,
@@ -107,21 +108,24 @@ export default function AttendancePage() {
       const file = new File([blob], "attendance.jpg", { type: "image/jpeg" })
 
       // Compress and convert to WebP
-      const options = {
-        maxSizeMB: 0.2, // Max 200KB
-        maxWidthOrHeight: 800,
-        useWebWorker: true,
-        fileType: 'image/webp' as any
-      }
-      
-      let compressedFile = await imageCompression(file, options)
-      if (compressedFile.size > 350_000) {
+      let compressedFile: File
+      try {
         compressedFile = await imageCompression(file, {
-          maxSizeMB: 0.15,
-          maxWidthOrHeight: 720,
+          maxSizeMB: 0.2,
+          maxWidthOrHeight: 800,
           useWebWorker: true,
           fileType: 'image/webp' as any
         })
+        if (compressedFile.size > 350_000) {
+          compressedFile = await imageCompression(file, {
+            maxSizeMB: 0.15,
+            maxWidthOrHeight: 720,
+            useWebWorker: true,
+            fileType: 'image/webp' as any
+          })
+        }
+      } catch {
+        compressedFile = await convertImageFileToWebp(file, { quality: 0.82, maxDimension: 720 })
       }
 
       const formData = new FormData()
@@ -136,8 +140,14 @@ export default function AttendancePage() {
         body: formData
       })
 
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
+      const contentType = res.headers.get('content-type') || ''
+      const raw = await res.text()
+      const data = contentType.includes('application/json') ? JSON.parse(raw || '{}') : null
+      if (!res.ok) {
+        const msg = data?.error ? String(data.error) : raw || `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+      if (data?.error) throw new Error(String(data.error))
 
       toast.success(type === 'IN' ? 'Berhasil Absen Masuk' : 'Berhasil Absen Pulang', { id: toastId })
       setAttendance(data.attendance)

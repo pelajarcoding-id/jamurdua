@@ -241,7 +241,7 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
     const fetchLists = async () => {
       try {
         const [kendRes, kebunRes] = await Promise.all([
-          fetch('/api/kendaraan?limit=1000'),
+          fetch('/api/kendaraan/list'),
           fetch('/api/kebun?limit=1000'),
         ]);
         if (kendRes.ok) {
