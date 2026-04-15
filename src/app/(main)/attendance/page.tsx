@@ -25,6 +25,18 @@ const formatWibTime = (value: string | null | undefined) => {
   }).format(d)
 }
 
+const formatWibDateFromYmd = (ymd: string | null | undefined) => {
+  if (!ymd) return '-'
+  const m = String(ymd).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return String(ymd)
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return String(ymd)
+  const dt = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0))
+  return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium' }).format(dt)
+}
+
 function dataUrlToFile(dataUrl: string, filename: string) {
   const parts = dataUrl.split(',')
   if (parts.length < 2) {
@@ -461,9 +473,7 @@ export default function AttendancePage() {
                 </tr>
               ) : (
                 historyRows.map((r) => {
-                  const dateText = r?.date
-                    ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium' }).format(new Date(r.date))
-                    : '-'
+                  const dateText = formatWibDateFromYmd(r?.date)
                   return (
                     <tr key={r.id}>
                       <td className="py-2 pr-3 text-gray-700">{dateText}</td>

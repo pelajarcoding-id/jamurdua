@@ -254,6 +254,14 @@ export async function GET(req: Request) {
     const limit = Math.min(60, Math.max(1, Number(searchParams.get('limit') || '7')))
     const history = searchParams.get('history') === '1'
 
+    const formatWibYmdFromDate = (d: Date) =>
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(d)
+
     const attendance = await (prisma as any).attendanceSelfie.findUnique({
       where: {
         userId_date: {
@@ -283,7 +291,18 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json({ attendance, history: rows })
+    const historyRows = (Array.isArray(rows) ? rows : []).map((r: any) => ({
+      id: Number(r.id),
+      date: r?.date ? formatWibYmdFromDate(new Date(r.date)) : null,
+      checkIn: r?.checkIn ? new Date(r.checkIn).toISOString() : null,
+      checkOut: r?.checkOut ? new Date(r.checkOut).toISOString() : null,
+      locationIn: r?.locationIn ? String(r.locationIn) : null,
+      locationOut: r?.locationOut ? String(r.locationOut) : null,
+      photoInUrl: r?.photoInUrl ? String(r.photoInUrl) : null,
+      photoOutUrl: r?.photoOutUrl ? String(r.photoOutUrl) : null,
+    }))
+
+    return NextResponse.json({ attendance, history: historyRows })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

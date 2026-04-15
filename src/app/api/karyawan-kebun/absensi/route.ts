@@ -170,54 +170,39 @@ export async function GET(request: Request) {
     const karyawanIdParam = searchParams.get('karyawanId')
     if (karyawanIdParam) {
       const karyawanId = Number(karyawanIdParam)
-      const records = kebunId === 0
-        ? await prisma.$queryRaw<Array<{
-            date: string
-            jumlah: number
-            kerja: boolean
-            libur: boolean
-            note: string | null
-            jamKerja: number | null
-            ratePerJam: number | null
-            uangMakan: number | null
-            useHourly: boolean | null
-          }>>`
-            SELECT
-              TO_CHAR("date", 'YYYY-MM-DD') as "date",
-              COALESCE(SUM("jumlah"), 0) as "jumlah",
-              BOOL_OR("kerja") as "kerja",
-              BOOL_OR("libur") as "libur",
-              MAX("note") as "note",
-              MAX("jamKerja") as "jamKerja",
-              MAX("ratePerJam") as "ratePerJam",
-              MAX("uangMakan") as "uangMakan",
-              MAX("useHourly") as "useHourly"
-            FROM "AbsensiHarian"
-            WHERE "karyawanId" = ${karyawanId}
-              AND "date" >= ${startKey}::DATE
-              AND "date" <= ${endKey}::DATE
-            GROUP BY "date"
-            ORDER BY "date" ASC
-          `
-        : await prisma.$queryRaw<Array<{
-            date: string
-            jumlah: number
-            kerja: boolean
-            libur: boolean
-            note: string | null
-            jamKerja: number | null
-            ratePerJam: number | null
-            uangMakan: number | null
-            useHourly: boolean | null
-          }>>`
-            SELECT TO_CHAR("date", 'YYYY-MM-DD') as "date", "jumlah", "kerja", "libur", "note", "jamKerja", "ratePerJam", "uangMakan", "useHourly"
-            FROM "AbsensiHarian"
-            WHERE "kebunId" = ${kebunId}
-              AND "karyawanId" = ${karyawanId}
-              AND "date" >= ${startKey}::DATE
-              AND "date" <= ${endKey}::DATE
-            ORDER BY "date" ASC
-          `
+      const records = await prisma.$queryRaw<Array<{
+        date: string
+        jumlah: number
+        kerja: boolean
+        libur: boolean
+        note: string | null
+        jamKerja: number | null
+        ratePerJam: number | null
+        uangMakan: number | null
+        useHourly: boolean | null
+      }>>`
+        SELECT
+          TO_CHAR("date", 'YYYY-MM-DD') as "date",
+          COALESCE(SUM("jumlah"), 0) as "jumlah",
+          BOOL_OR("kerja") as "kerja",
+          BOOL_OR("libur") as "libur",
+          MAX("note") as "note",
+          MAX("jamKerja") as "jamKerja",
+          MAX("ratePerJam") as "ratePerJam",
+          MAX("uangMakan") as "uangMakan",
+          MAX("useHourly") as "useHourly"
+        FROM "AbsensiHarian"
+        WHERE "karyawanId" = ${karyawanId}
+          AND "date" >= ${startKey}::DATE
+          AND "date" <= ${endKey}::DATE
+          AND (
+            ${kebunId} = 0
+            OR "kebunId" = ${kebunId}
+            OR "kebunId" = 0
+          )
+        GROUP BY "date"
+        ORDER BY "date" ASC
+      `
       return NextResponse.json({ data: records })
     }
 
