@@ -144,6 +144,10 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   const [openDeleteAbsenConfirm, setOpenDeleteAbsenConfirm] = useState(false)
 
   const [karyawanSearch, setKaryawanSearch] = useState('')
+  const [karyawanPerView, setKaryawanPerView] = useState(20)
+  const [karyawanPage, setKaryawanPage] = useState(1)
+  const [hutangPerView, setHutangPerView] = useState(20)
+  const [hutangPage, setHutangPage] = useState(1)
   const calendarRef = useRef<HTMLDivElement>(null)
   const [openAddKaryawan, setOpenAddKaryawan] = useState(false)
   const [addKaryawanName, setAddKaryawanName] = useState('')
@@ -188,6 +192,13 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     return rows.filter(r => r.karyawan.name.toLowerCase().includes(s))
   }, [rows, karyawanSearch])
 
+  const karyawanTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / karyawanPerView)), [filteredRows.length, karyawanPerView])
+  const karyawanStartIndex = useMemo(() => (karyawanPage - 1) * karyawanPerView, [karyawanPage, karyawanPerView])
+  const pagedKaryawanRows = useMemo(
+    () => filteredRows.slice(karyawanStartIndex, karyawanStartIndex + karyawanPerView),
+    [filteredRows, karyawanStartIndex, karyawanPerView],
+  )
+
   const totalGajiBerjalan = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.totalGajiBelumDibayar || 0), 0), [filteredRows])
   const totalGajiDibayar = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.totalGajiDibayar || 0), 0), [filteredRows])
   const totalSaldoHutang = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.hutangSaldo || 0), 0), [filteredRows])
@@ -196,6 +207,26 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     return filteredRows
       .sort((a, b) => (Number(b.hutangSaldo || 0) - Number(a.hutangSaldo || 0)))
   }, [filteredRows])
+
+  const hutangTotalPages = useMemo(() => Math.max(1, Math.ceil(hutangList.length / hutangPerView)), [hutangList.length, hutangPerView])
+  const hutangStartIndex = useMemo(() => (hutangPage - 1) * hutangPerView, [hutangPage, hutangPerView])
+  const pagedHutangRows = useMemo(
+    () => hutangList.slice(hutangStartIndex, hutangStartIndex + hutangPerView),
+    [hutangList, hutangStartIndex, hutangPerView],
+  )
+
+  useEffect(() => {
+    setKaryawanPage(1)
+    setHutangPage(1)
+  }, [karyawanSearch, absenMonth, kebunId, karyawanPerView, hutangPerView])
+
+  useEffect(() => {
+    if (karyawanPage > karyawanTotalPages) setKaryawanPage(karyawanTotalPages)
+  }, [karyawanPage, karyawanTotalPages])
+
+  useEffect(() => {
+    if (hutangPage > hutangTotalPages) setHutangPage(hutangTotalPages)
+  }, [hutangPage, hutangTotalPages])
 
   // Fetch employees for this kebun (for dropdown if still needed or just list)
   const { data: karyawanData, mutate: mutateKaryawanList } = useSWR<{ data: User[] }>(
@@ -938,7 +969,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
             </div>
           ) : (
             <>
-              {filteredRows.map((r) => (
+              {pagedKaryawanRows.map((r) => (
                 <div
                   key={`card-${r.karyawan.id}`}
                   onClick={() => {
@@ -1035,6 +1066,43 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                   </div>
                 </div>
               ))}
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-xs">
+                <div className="text-gray-500">
+                  Menampilkan {filteredRows.length === 0 ? 0 : karyawanStartIndex + 1} - {Math.min(karyawanStartIndex + karyawanPerView, filteredRows.length)} dari {filteredRows.length}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Per View</span>
+                  <select
+                    className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={karyawanPerView}
+                    onChange={(e) => setKaryawanPerView(Number(e.target.value))}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full h-8 px-3"
+                    disabled={karyawanPage <= 1}
+                    onClick={() => setKaryawanPage((p) => Math.max(1, p - 1))}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-gray-600">{karyawanPage}/{karyawanTotalPages}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full h-8 px-3"
+                    disabled={karyawanPage >= karyawanTotalPages}
+                    onClick={() => setKaryawanPage((p) => Math.min(karyawanTotalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-gray-700">Total</span>
@@ -1054,9 +1122,47 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
         </div>
 
         <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-100 mb-6">
+          <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-100 bg-white">
+            <div className="text-xs text-gray-500">
+              Menampilkan {filteredRows.length === 0 ? 0 : karyawanStartIndex + 1} - {Math.min(karyawanStartIndex + karyawanPerView, filteredRows.length)} dari {filteredRows.length}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Per View</span>
+              <select
+                className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={karyawanPerView}
+                onChange={(e) => setKaryawanPerView(Number(e.target.value))}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full h-8 px-3"
+                disabled={karyawanPage <= 1}
+                onClick={() => setKaryawanPage((p) => Math.max(1, p - 1))}
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-xs text-gray-600">Halaman {karyawanPage} / {karyawanTotalPages}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full h-8 px-3"
+                disabled={karyawanPage >= karyawanTotalPages}
+                onClick={() => setKaryawanPage((p) => Math.min(karyawanTotalPages, p + 1))}
+              >
+                Berikutnya
+              </Button>
+            </div>
+          </div>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 w-[64px]">No</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Nama</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Hari Kerja</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Gaji Berjalan</th>
@@ -1069,6 +1175,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               {loadingSummary ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <tr key={i}>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-10" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-12 ml-auto" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-24 ml-auto" /></td>
@@ -1079,10 +1186,10 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                 ))
               ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={canManageKaryawan ? 6 : 5} className="px-4 py-8 text-center text-gray-400">Tidak ada data karyawan</td>
+                  <td colSpan={canManageKaryawan ? 7 : 6} className="px-4 py-8 text-center text-gray-400">Tidak ada data karyawan</td>
                 </tr>
               ) : (
-                filteredRows.map((r) => (
+                pagedKaryawanRows.map((r, idx) => (
                   <tr 
                     key={r.karyawan.id}
                     onClick={() => {
@@ -1098,6 +1205,9 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                     }}
                     className={`hover:bg-gray-50/50 cursor-pointer transition-colors ${selectedUser?.id === r.karyawan.id ? 'bg-gray-50' : ''}`}
                   >
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-600">
+                      {karyawanStartIndex + idx + 1}
+                    </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
                       <div className="flex items-center gap-2">
                         {selectedUser?.id === r.karyawan.id && <div className="w-1 h-4 bg-gray-900 rounded-full" />}
@@ -1465,7 +1575,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                 Tidak ada data karyawan
               </div>
             ) : (
-              hutangList.map((r) => (
+              pagedHutangRows.map((r) => (
                 <div key={`hutang-card-${r.karyawan.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
@@ -1498,12 +1608,89 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                 </div>
               ))
             )}
+            {!loadingSummary && hutangList.length > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-xs">
+                <div className="text-gray-500">
+                  Menampilkan {hutangList.length === 0 ? 0 : hutangStartIndex + 1} - {Math.min(hutangStartIndex + hutangPerView, hutangList.length)} dari {hutangList.length}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Per View</span>
+                  <select
+                    className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={hutangPerView}
+                    onChange={(e) => setHutangPerView(Number(e.target.value))}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full h-8 px-3"
+                    disabled={hutangPage <= 1}
+                    onClick={() => setHutangPage((p) => Math.max(1, p - 1))}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-gray-600">{hutangPage}/{hutangTotalPages}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full h-8 px-3"
+                    disabled={hutangPage >= hutangTotalPages}
+                    onClick={() => setHutangPage((p) => Math.min(hutangTotalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-100">
+            <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-100 bg-white">
+              <div className="text-xs text-gray-500">
+                Menampilkan {hutangList.length === 0 ? 0 : hutangStartIndex + 1} - {Math.min(hutangStartIndex + hutangPerView, hutangList.length)} dari {hutangList.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Per View</span>
+                <select
+                  className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={hutangPerView}
+                  onChange={(e) => setHutangPerView(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full h-8 px-3"
+                  disabled={hutangPage <= 1}
+                  onClick={() => setHutangPage((p) => Math.max(1, p - 1))}
+                >
+                  Sebelumnya
+                </Button>
+                <span className="text-xs text-gray-600">Halaman {hutangPage} / {hutangTotalPages}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full h-8 px-3"
+                  disabled={hutangPage >= hutangTotalPages}
+                  onClick={() => setHutangPage((p) => Math.min(hutangTotalPages, p + 1))}
+                >
+                  Berikutnya
+                </Button>
+              </div>
+            </div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 w-[64px]">No</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Karyawan</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Saldo Sebelum Potong</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Potongan Terakhir</th>
@@ -1513,12 +1700,13 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loadingSummary ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Memuat data...</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Memuat data...</td></tr>
                 ) : hutangList.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Tidak ada data karyawan</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Tidak ada data karyawan</td></tr>
                 ) : (
-                  hutangList.map((r) => (
+                  pagedHutangRows.map((r, idx) => (
                     <tr key={`hutang-${r.karyawan.id}`}>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-600">{hutangStartIndex + idx + 1}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{r.karyawan.name}</td>
                       <td className="px-4 py-3 text-right text-gray-700 font-semibold">
                         {r.lastPotongan?.jumlah

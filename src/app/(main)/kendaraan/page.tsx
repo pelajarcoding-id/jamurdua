@@ -46,6 +46,7 @@ export default function KendaraanPage() {
   const [selectedKendaraan, setSelectedKendaraan] = useState<KendaraanData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [jenisFilter, setJenisFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [jenisOptions, setJenisOptions] = useState<string[]>([])
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const searchParams = useSearchParams();
@@ -61,6 +62,11 @@ export default function KendaraanPage() {
     const j = searchParams.get('jenis') || 'all'
     if (j !== jenisFilter) setJenisFilter(j)
   }, [searchParams, jenisFilter])
+
+  useEffect(() => {
+    const s = searchParams.get('status') || 'all'
+    if (s !== statusFilter) setStatusFilter(s)
+  }, [searchParams, statusFilter])
 
   useEffect(() => {
     const load = async () => {
@@ -84,6 +90,7 @@ export default function KendaraanPage() {
       params.set('limit', String(limit))
       if (debouncedSearchQuery) params.set('search', debouncedSearchQuery)
       if (jenisFilter && jenisFilter !== 'all') params.set('jenis', jenisFilter)
+      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter)
       const res = await fetch(`/api/kendaraan?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const kendaraanData = await res.json();
@@ -94,7 +101,7 @@ export default function KendaraanPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearchQuery, jenisFilter]);
+  }, [page, limit, debouncedSearchQuery, jenisFilter, statusFilter]);
 
   useEffect(() => {
     fetchData();
@@ -243,6 +250,18 @@ export default function KendaraanPage() {
       params.set('jenis', value)
     } else {
       params.delete('jenis')
+    }
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [pathname, router, searchParams])
+
+  const handleStatusChange = useCallback((value: string) => {
+    setStatusFilter(value)
+    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (value && value !== 'all') {
+      params.set('status', value)
+    } else {
+      params.delete('status')
     }
     router.replace(`${pathname}?${params.toString()}`)
   }, [pathname, router, searchParams])
@@ -510,17 +529,32 @@ export default function KendaraanPage() {
                 data={data} 
                 onRowClick={(row) => handleOpenDetail(row)}
                 extraFilters={
-                  <div className="w-full md:w-56">
-                    <select
-                      value={jenisFilter}
-                      onChange={(e) => handleJenisChange(e.target.value)}
-                      className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm"
-                    >
-                      <option value="all">Semua Jenis</option>
-                      {jenisOptions.map((j) => (
-                        <option key={j} value={j}>{j}</option>
-                      ))}
-                    </select>
+                  <div className="w-full md:w-auto flex flex-col md:flex-row gap-2">
+                    <div className="w-full md:w-56">
+                      <select
+                        value={jenisFilter}
+                        onChange={(e) => handleJenisChange(e.target.value)}
+                        className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm"
+                      >
+                        <option value="all">Semua Jenis</option>
+                        {jenisOptions.map((j) => (
+                          <option key={j} value={j}>{j}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-full md:w-56">
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => handleStatusChange(e.target.value)}
+                        className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm"
+                      >
+                        <option value="all">Semua Status</option>
+                        <option value="sudah_mati">Sudah Mati</option>
+                        <option value="segera_habis">Segera Habis</option>
+                        <option value="aktif">Aktif</option>
+                        <option value="perhatian">Perhatian</option>
+                      </select>
+                    </div>
                   </div>
                 }
                 renderMobileCards={({ data, isLoading }) => (

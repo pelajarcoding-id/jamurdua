@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/data-table';
 import { columns, NotaSawitLaporanData } from './columns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -20,7 +21,7 @@ import toast from 'react-hot-toast';
 import ModalDetailNota from '@/app/(main)/nota-sawit/detail-modal';
 import type { NotaSawitData } from '@/app/(main)/nota-sawit/columns';
 
-import { Kebun, User, PabrikSawit, Kendaraan } from '@prisma/client';
+import { Kebun, User, PabrikSawit, Kendaraan, Perusahaan } from '@prisma/client';
 
 interface MonthlyData {
   month: string;
@@ -32,8 +33,8 @@ interface MonthlyData {
   isUp?: boolean;
 }
 
-interface MonthlyDataPerKebun {
-  kebunName: string;
+interface MonthlyDataPerGroup {
+  groupName: string;
   data: MonthlyData[];
 }
 
@@ -47,13 +48,17 @@ interface KpiData {
   totalPotongan: number;
   totalNetto: number;
   totalPembayaran: number;
+  lunasCount: number;
+  belumLunasCount: number;
+  totalPembayaranLunas: number;
+  totalPembayaranBelumLunas: number;
   jumlahNota: number;
   rataRataHargaPerKg: number;
   rataRataTonasePerNota: number;
   totalPph: number;
   totalPph25: number;
   totalNet: number;
-  totalAktual: number;
+  totalPembayaranNotaSawit: number;
   selisih: number;
 }
 
@@ -81,6 +86,7 @@ function SearchableFilter({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -90,7 +96,7 @@ function SearchableFilter({
           <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-50" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -128,6 +134,9 @@ function SearchableFilter({
 }
 
 export default function LaporanNotaSawitPage() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [items, setItems] = useState<NotaSawitLaporanData[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [page, setPage] = useState(1);
@@ -152,19 +161,23 @@ export default function LaporanNotaSawitPage() {
   }, []);
 
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
-  const [monthlyDataPerKebun, setMonthlyDataPerKebun] = useState<MonthlyDataPerKebun[]>([]);
-  const [selectedGrowthKebun, setSelectedGrowthKebun] = useState<string>('total');
+  const [monthlyDataPerGroup, setMonthlyDataPerGroup] = useState<MonthlyDataPerGroup[]>([]);
+  const [selectedGrowthGroup, setSelectedGrowthGroup] = useState<string>('total');
+  const [groupBy, setGroupBy] = useState<'kebun' | 'perusahaan' | 'pabrik'>('kebun')
 
-  const [topKebun, setTopKebun] = useState<TopKebunData[]>([]);
+  const [topGroups, setTopGroups] = useState<TopKebunData[]>([]);
   const [kpi, setKpi] = useState<KpiData | null>(null);
   const [kebunList, setKebunList] = useState<Kebun[]>([]);
   const [supirList, setSupirList] = useState<User[]>([]);
   const [pabrikList, setPabrikList] = useState<PabrikSawit[]>([]);
   const [kendaraanList, setKendaraanList] = useState<Kendaraan[]>([]);
+  const [perusahaanList, setPerusahaanList] = useState<Perusahaan[]>([]);
   const [selectedKebun, setSelectedKebun] = useState('');
   const [selectedSupir, setSelectedSupir] = useState('');
   const [selectedPabrik, setSelectedPabrik] = useState('');
   const [selectedKendaraan, setSelectedKendaraan] = useState('');
+  const [selectedPerusahaan, setSelectedPerusahaan] = useState('');
+  const [selectedStatusPembayaran, setSelectedStatusPembayaran] = useState('');
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(true);
   const [detailNota, setDetailNota] = useState<NotaSawitData | null>(null);
@@ -240,6 +253,7 @@ export default function LaporanNotaSawitPage() {
         setSupirList(data.supir || []);
         setPabrikList(data.pabrik || []);
         setKendaraanList(data.kendaraan || []);
+        setPerusahaanList(data.perusahaan || []);
       } catch (e: any) {
         console.error(e.message);
       }
@@ -269,6 +283,8 @@ export default function LaporanNotaSawitPage() {
         if (selectedSupir) params.append('supirId', selectedSupir);
         if (selectedPabrik) params.append('pabrikId', selectedPabrik);
         if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
+        if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
+        if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
 
         const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data tabel');
@@ -283,7 +299,7 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchData();
-  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, toYmd]);
+  }, [startDate, endDate, page, limit, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, toYmd]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -292,7 +308,7 @@ export default function LaporanNotaSawitPage() {
 
       if (!startDateString || !endDateString) {
         setMonthlyData([]);
-        setTopKebun([]);
+        setTopGroups([]);
         setKpi(null);
         return;
       }
@@ -306,6 +322,9 @@ export default function LaporanNotaSawitPage() {
         if (selectedSupir) params.append('supirId', selectedSupir);
         if (selectedPabrik) params.append('pabrikId', selectedPabrik);
         if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
+        if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
+        if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
+        params.append('groupBy', groupBy);
 
         const res = await fetch(`/api/laporan-nota-sawit/statistik?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Gagal mengambil data statistik');
@@ -313,8 +332,8 @@ export default function LaporanNotaSawitPage() {
         if (data.error) throw new Error(data.error);
         setKpi(data.kpi || null);
         setMonthlyData(data.monthlyData || []);
-        setMonthlyDataPerKebun(data.monthlyDataPerKebun || []);
-        setTopKebun(data.topKebun || []);
+        setMonthlyDataPerGroup(data.monthlyDataPerGroup || []);
+        setTopGroups(data.topGroups || []);
       } catch (e: any) {
         console.error('Error fetching stats:', e);
       } finally {
@@ -322,17 +341,21 @@ export default function LaporanNotaSawitPage() {
       }
     }
     fetchStats();
-  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, toYmd]);
+  }, [startDate, endDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, groupBy, toYmd]);
 
   const growthKebunOptions = useMemo(() => {
-    return Array.from(new Set((monthlyDataPerKebun || []).map((k) => k.kebunName))).sort((a, b) => a.localeCompare(b))
-  }, [monthlyDataPerKebun])
+    return Array.from(new Set((monthlyDataPerGroup || []).map((k) => k.groupName))).sort((a, b) => a.localeCompare(b))
+  }, [monthlyDataPerGroup])
 
   useEffect(() => {
-    if (selectedGrowthKebun !== 'total' && !growthKebunOptions.includes(selectedGrowthKebun)) {
-      setSelectedGrowthKebun('total')
+    if (selectedGrowthGroup !== 'total' && !growthKebunOptions.includes(selectedGrowthGroup)) {
+      setSelectedGrowthGroup('total')
     }
-  }, [growthKebunOptions, selectedGrowthKebun])
+  }, [growthKebunOptions, selectedGrowthGroup])
+
+  useEffect(() => {
+    setSelectedGrowthGroup('total')
+  }, [groupBy])
 
   const handleExport = async () => {
     try {
@@ -352,6 +375,8 @@ export default function LaporanNotaSawitPage() {
       if (selectedSupir) params.append('supirId', selectedSupir);
       if (selectedPabrik) params.append('pabrikId', selectedPabrik);
       if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
+      if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
+      if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
 
       const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data untuk ekspor');
@@ -399,7 +424,7 @@ export default function LaporanNotaSawitPage() {
         'Total Pembayaran (Rp)',
         'PPh 25 (Rp)',
         'Total Bayar Net (Rp)',
-        'Pembayaran Aktual (Rp)',
+        'Total Pembayaran Nota Sawit (Rp)',
         'Status Pembayaran',
       ];
 
@@ -470,6 +495,91 @@ export default function LaporanNotaSawitPage() {
     }
   };
 
+  const resetFilters = useCallback(() => {
+    const today = new Date()
+    const start = new Date(today.getFullYear(), 0, 1)
+    const end = new Date(today)
+    end.setHours(0, 0, 0, 0)
+    setQuickRange('this_year')
+    setStartDate(start)
+    setEndDate(end)
+    setSelectedKebun('')
+    setSelectedPerusahaan('')
+    setSelectedSupir('')
+    setSelectedPabrik('')
+    setSelectedKendaraan('')
+    setSelectedStatusPembayaran('')
+    setGroupBy('kebun')
+    setSelectedGrowthGroup('total')
+    setPage(1)
+    setLimit(10)
+  }, [])
+
+  const urlInitRef = useRef(false)
+
+  useEffect(() => {
+    if (urlInitRef.current) return
+    if (!startDate || !endDate) return
+    const sp = searchParams
+    const sStart = sp.get('startDate') || ''
+    const sEnd = sp.get('endDate') || ''
+    if (sStart && sEnd) {
+      setStartDate(new Date(`${sStart}T00:00:00.000Z`))
+      setEndDate(new Date(`${sEnd}T00:00:00.000Z`))
+      setQuickRange(sp.get('quickRange') || 'custom')
+    }
+    setSelectedKebun(sp.get('kebunId') || '')
+    setSelectedPerusahaan(sp.get('perusahaanId') || '')
+    setSelectedSupir(sp.get('supirId') || '')
+    setSelectedPabrik(sp.get('pabrikId') || '')
+    setSelectedKendaraan(sp.get('kendaraanPlatNomor') || '')
+    const st = (sp.get('statusPembayaran') || '').toUpperCase()
+    setSelectedStatusPembayaran(st === 'LUNAS' || st === 'BELUM_LUNAS' ? st : '')
+    const gb = (sp.get('groupBy') || '').toLowerCase()
+    setGroupBy((gb === 'kebun' || gb === 'perusahaan' || gb === 'pabrik') ? (gb as any) : 'kebun')
+    const p = Number(sp.get('page') || '1')
+    const l = Number(sp.get('limit') || '10')
+    if (Number.isFinite(p) && p > 0) setPage(p)
+    if (Number.isFinite(l) && l > 0) setLimit(l)
+    urlInitRef.current = true
+  }, [searchParams, startDate, endDate])
+
+  useEffect(() => {
+    if (!urlInitRef.current) return
+    const params = new URLSearchParams()
+    const sStart = toYmd(startDate)
+    const sEnd = toYmd(endDate)
+    if (sStart) params.set('startDate', sStart)
+    if (sEnd) params.set('endDate', sEnd)
+    if (quickRange) params.set('quickRange', quickRange)
+    if (selectedKebun) params.set('kebunId', selectedKebun)
+    if (selectedPerusahaan) params.set('perusahaanId', selectedPerusahaan)
+    if (selectedSupir) params.set('supirId', selectedSupir)
+    if (selectedPabrik) params.set('pabrikId', selectedPabrik)
+    if (selectedKendaraan) params.set('kendaraanPlatNomor', selectedKendaraan)
+    if (selectedStatusPembayaran) params.set('statusPembayaran', selectedStatusPembayaran)
+    if (groupBy) params.set('groupBy', groupBy)
+    params.set('page', String(page))
+    params.set('limit', String(limit))
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [
+    router,
+    pathname,
+    toYmd,
+    startDate,
+    endDate,
+    quickRange,
+    selectedKebun,
+    selectedPerusahaan,
+    selectedSupir,
+    selectedPabrik,
+    selectedKendaraan,
+    selectedStatusPembayaran,
+    groupBy,
+    page,
+    limit,
+  ])
+
   const handleExportPdf = async () => {
     try {
       const startDateString = toYmd(startDate);
@@ -487,6 +597,9 @@ export default function LaporanNotaSawitPage() {
       if (selectedKebun) params.append('kebunId', selectedKebun);
       if (selectedSupir) params.append('supirId', selectedSupir);
       if (selectedPabrik) params.append('pabrikId', selectedPabrik);
+      if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
+      if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
+      if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
 
       const res = await fetch(`/api/nota-sawit?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Gagal mengambil data untuk ekspor');
@@ -623,14 +736,20 @@ export default function LaporanNotaSawitPage() {
         <h1 className="text-2xl font-bold mb-6">Laporan Nota Sawit</h1>
 
         <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-          <h2 className="text-xl font-semibold mb-4">Filter Laporan</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-semibold">Filter Laporan</h2>
+            <Button variant="outline" className="rounded-xl" onClick={resetFilters}>
+              Reset Filter
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
              <div className="flex flex-col space-y-2">
                 <Label className="text-sm font-medium text-gray-700">Rentang Waktu</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       id="date"
+                      type="button"
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal bg-white border-gray-300",
@@ -641,7 +760,7 @@ export default function LaporanNotaSawitPage() {
                       {dateDisplay}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-4 bg-white" align="start">
+                  <PopoverContent className="w-auto p-4 bg-white z-50" align="start">
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <h4 className="font-medium leading-none">Rentang Waktu</h4>
@@ -705,6 +824,36 @@ export default function LaporanNotaSawitPage() {
               />
             </div>
             <div className="flex flex-col space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Status Pembayaran</Label>
+              <Select
+                value={selectedStatusPembayaran || 'all'}
+                onValueChange={(v) => {
+                  setSelectedStatusPembayaran(v === 'all' ? '' : v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                  <SelectValue placeholder="Semua Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  <SelectItem value="LUNAS">Lunas</SelectItem>
+                  <SelectItem value="BELUM_LUNAS">Belum Lunas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Filter per Perusahaan</Label>
+              <SearchableFilter
+                label="Perusahaan"
+                value={selectedPerusahaan}
+                onChange={(v) => { setSelectedPerusahaan(v); setPage(1) }}
+                allLabel="Semua Perusahaan"
+                searchPlaceholder="Cari perusahaan..."
+                options={perusahaanList.map((p) => ({ value: String(p.id), label: p.name }))}
+              />
+            </div>
+            <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Filter per Supir</Label>
               <SearchableFilter
                 label="Supir"
@@ -734,7 +883,9 @@ export default function LaporanNotaSawitPage() {
                     onChange={(v) => { setSelectedKendaraan(v); setPage(1) }}
                     allLabel="Semua Kendaraan"
                     searchPlaceholder="Cari plat..."
-                    options={kendaraanList.map((k) => ({ value: k.platNomor, label: `${k.platNomor}${k.merk ? ` • ${k.merk}` : ''}` }))}
+                    options={kendaraanList
+                      .filter((k) => String((k as any)?.jenis || '').toLowerCase().includes('truk') || String((k as any)?.jenis || '').toLowerCase().includes('truck'))
+                      .map((k) => ({ value: k.platNomor, label: `${k.platNomor}${k.merk ? ` • ${k.merk}` : ''}` }))}
                   />
                 </div>
           </div>
@@ -777,6 +928,28 @@ export default function LaporanNotaSawitPage() {
                     <p className="text-lg font-semibold text-gray-900">{kpi?.totalPembayaran ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPembayaran)) : 'Rp 0'}</p>
                   )}
                 </div>
+                <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
+                  <p className="text-xs text-emerald-700">Pembayaran Lunas</p>
+                  {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
+                    <>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {kpi?.totalPembayaranLunas ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPembayaranLunas)) : 'Rp 0'}
+                      </p>
+                      <p className="text-xs text-gray-500">{kpi?.lunasCount || 0} Nota</p>
+                    </>
+                  )}
+                </div>
+                <div className="rounded-xl bg-red-50/60 px-3 py-2">
+                  <p className="text-xs text-red-700">Pembayaran Belum Lunas</p>
+                  {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
+                    <>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {kpi?.totalPembayaranBelumLunas ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPembayaranBelumLunas)) : 'Rp 0'}
+                      </p>
+                      <p className="text-xs text-gray-500">{kpi?.belumLunasCount || 0} Nota</p>
+                    </>
+                  )}
+                </div>
                 <div className="rounded-xl bg-sky-50/70 px-3 py-2">
                   <p className="text-xs text-sky-700">Rata-rata Harga</p>
                   {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
@@ -798,9 +971,9 @@ export default function LaporanNotaSawitPage() {
                   )}
                 </div>
                 <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                  <p className="text-xs text-emerald-700">Pembayaran Aktual</p>
+                  <p className="text-xs text-emerald-700">Total Pembayaran Nota Sawit</p>
                   {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
-                    <p className="text-lg font-semibold text-gray-900">{kpi?.totalAktual ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalAktual)) : 'Rp 0'}</p>
+                    <p className="text-lg font-semibold text-gray-900">{kpi?.totalPembayaranNotaSawit ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPembayaranNotaSawit)) : 'Rp 0'}</p>
                   )}
                 </div>
                 <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
@@ -842,17 +1015,29 @@ export default function LaporanNotaSawitPage() {
               <div className="mt-6 overflow-x-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-600">Analisa Pertumbuhan Produksi</h3>
-                  <Select value={selectedGrowthKebun} onValueChange={setSelectedGrowthKebun}>
-                    <SelectTrigger className="w-[200px] h-8 text-sm">
-                      <SelectValue placeholder="Pilih Kebun" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="total">Total Semua Kebun</SelectItem>
-                      {growthKebunOptions.map((name) => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
+                      <SelectTrigger className="w-[190px] h-8 text-sm">
+                        <SelectValue placeholder="Group By" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kebun">Per Kebun</SelectItem>
+                        <SelectItem value="perusahaan">Per Perusahaan</SelectItem>
+                        <SelectItem value="pabrik">Per Pabrik</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedGrowthGroup} onValueChange={setSelectedGrowthGroup}>
+                      <SelectTrigger className="w-[220px] h-8 text-sm">
+                        <SelectValue placeholder="Pilih" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="total">Total</SelectItem>
+                        {growthKebunOptions.map((name) => (
+                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <table className="min-w-full text-sm">
@@ -867,8 +1052,8 @@ export default function LaporanNotaSawitPage() {
                   <tbody>
                     {monthlyData.map((totalItem, index) => {
                        let data = totalItem;
-                       if (selectedGrowthKebun !== 'total') {
-                         data = monthlyDataPerKebun.find(k => k.kebunName === selectedGrowthKebun)?.data.find(d => d.month === totalItem.month) || {
+                       if (selectedGrowthGroup !== 'total') {
+                         data = monthlyDataPerGroup.find(k => k.groupName === selectedGrowthGroup)?.data.find(d => d.month === totalItem.month) || {
                            month: totalItem.month,
                            totalBerat: 0,
                            totalPembayaran: 0,
@@ -897,13 +1082,15 @@ export default function LaporanNotaSawitPage() {
             )}
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Kebun Paling Produktif</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              {groupBy === 'kebun' ? 'Kebun Paling Produktif' : groupBy === 'perusahaan' ? 'Perusahaan Paling Produktif' : 'Pabrik Paling Produktif'}
+            </h2>
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white">
                 <thead>
                   <tr>
                     <th className="py-2 px-4 border-b">Peringkat</th>
-                    <th className="py-2 px-4 border-b">Nama Kebun</th>
+                    <th className="py-2 px-4 border-b">Nama</th>
                     <th className="py-2 px-4 border-b text-right">Total Berat Bersih</th>
                   </tr>
                 </thead>
@@ -916,7 +1103,7 @@ export default function LaporanNotaSawitPage() {
                          <td className="py-2 px-4 border-b"><Skeleton className="h-4 w-full" /></td>
                        </tr>
                      ))
-                  ) : topKebun.map((kebun, index) => (
+                  ) : topGroups.map((kebun, index) => (
                     <tr key={index}>
                       <td className="py-2 px-4 border-b text-center">{index + 1}</td>
                       <td className="py-2 px-4 border-b">{kebun.nama}</td>

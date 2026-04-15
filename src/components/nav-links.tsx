@@ -104,12 +104,6 @@ export const links: NavLink[] = [
         name: 'Uang Jalan',
         href: '/uang-jalan',
         icon: TruckIcon,
-        subLinks: [
-            {
-                name: 'Laporan Uang Jalan',
-                href: '/laporan-uang-jalan',
-            },
-        ],
     },
     {
         name: 'Supir',

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
+import { differenceInDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
         const limit = parseInt(searchParams.get('limit') || '10');
         const search = searchParams.get('search') || '';
         const jenisFilter = searchParams.get('jenis') || '';
+        const statusFilter = (searchParams.get('status') || '').toLowerCase();
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
 
@@ -56,6 +58,35 @@ export async function GET(request: Request) {
             where.AND.push({
                 jenis: { equals: jenisFilter, mode: 'insensitive' },
             });
+        }
+
+        const computeStatus = (k: any) => {
+            const today = new Date();
+            const stnkDays = differenceInDays(new Date(k.tanggalMatiStnk), today);
+            const pajakDays = k.tanggalPajakTahunan ? differenceInDays(new Date(k.tanggalPajakTahunan), today) : 999;
+            const izinDate = (k as any).tanggalIzinTrayek;
+            const izinDays = izinDate ? differenceInDays(new Date(izinDate), today) : 999;
+            const speksiDays = k.speksi ? differenceInDays(new Date(k.speksi), today) : 999;
+
+            const isLate = stnkDays < 0 || pajakDays < 0 || izinDays < 0 || speksiDays < 0;
+            const isUrgent = !isLate && (stnkDays <= 7 || pajakDays <= 7 || izinDays <= 7 || speksiDays <= 7);
+            const isWarning = !isLate && !isUrgent && (stnkDays <= 30 || pajakDays <= 30 || izinDays <= 30 || speksiDays <= 30);
+
+            if (isLate) return 'sudah_mati';
+            if (isUrgent) return 'segera_habis';
+            if (isWarning) return 'perhatian';
+            return 'aktif';
+        };
+
+        if (statusFilter && statusFilter !== 'all') {
+            const allRows = await prisma.kendaraan.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+            });
+            const filtered = allRows.filter((k) => computeStatus(k) === statusFilter);
+            const totalItems = filtered.length;
+            const paged = filtered.slice(skip, skip + limit);
+            return NextResponse.json({ data: paged, total: totalItems });
         }
 
         const totalItems = await prisma.kendaraan.count({ where });

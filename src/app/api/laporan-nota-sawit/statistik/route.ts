@@ -13,6 +13,10 @@ export async function GET(request: Request) {
   const supirId = searchParams.get('supirId');
   const pabrikId = searchParams.get('pabrikId');
   const kendaraanPlatNomor = searchParams.get('kendaraanPlatNomor');
+  const perusahaanId = searchParams.get('perusahaanId');
+  const statusPembayaran = (searchParams.get('statusPembayaran') || '').toUpperCase()
+  const groupByParam = (searchParams.get('groupBy') || 'kebun').toLowerCase()
+  const groupBy = ['total', 'kebun', 'perusahaan', 'pabrik'].includes(groupByParam) ? groupByParam : 'kebun'
 
   if (!startDate || !endDate) {
     return NextResponse.json({ error: 'Parameter tanggal mulai dan tanggal akhir diperlukan' }, { status: 400 });
@@ -31,25 +35,47 @@ export async function GET(request: Request) {
         lt: range.endExclusiveUtc,
       },
     };
+    const notaSawitWhereNoTanggal: Prisma.NotaSawitWhereInput = {
+      deletedAt: null,
+    }
 
     if (supirId) {
       notaSawitWhere.supirId = parseInt(supirId, 10);
+      notaSawitWhereNoTanggal.supirId = parseInt(supirId, 10);
     }
 
     if (kebunId) {
       const kid = parseInt(kebunId, 10)
+      const kebunCond: Prisma.NotaSawitWhereInput = { OR: [{ kebunId: kid }, { timbangan: { kebunId: kid } }] }
       notaSawitWhere.AND = [
         ...(Array.isArray(notaSawitWhere.AND) ? notaSawitWhere.AND : notaSawitWhere.AND ? [notaSawitWhere.AND] : []),
-        { OR: [{ kebunId: kid }, { timbangan: { kebunId: kid } }] },
+        kebunCond,
+      ]
+      notaSawitWhereNoTanggal.AND = [
+        ...(Array.isArray(notaSawitWhereNoTanggal.AND) ? notaSawitWhereNoTanggal.AND : notaSawitWhereNoTanggal.AND ? [notaSawitWhereNoTanggal.AND] : []),
+        kebunCond,
       ]
     }
 
     if (pabrikId) {
       notaSawitWhere.pabrikSawitId = parseInt(pabrikId, 10);
+      notaSawitWhereNoTanggal.pabrikSawitId = parseInt(pabrikId, 10);
     }
 
     if (kendaraanPlatNomor) {
       notaSawitWhere.kendaraanPlatNomor = kendaraanPlatNomor;
+      notaSawitWhereNoTanggal.kendaraanPlatNomor = kendaraanPlatNomor;
+    }
+    if (perusahaanId) {
+      const pid = parseInt(perusahaanId, 10)
+      if (Number.isFinite(pid) && pid > 0) {
+        ;(notaSawitWhere as any).perusahaanId = pid
+        ;(notaSawitWhereNoTanggal as any).perusahaanId = pid
+      }
+    }
+    if (statusPembayaran === 'LUNAS' || statusPembayaran === 'BELUM_LUNAS') {
+      ;(notaSawitWhere as any).statusPembayaran = statusPembayaran
+      ;(notaSawitWhereNoTanggal as any).statusPembayaran = statusPembayaran
     }
 
     // 1. KPI
@@ -74,19 +100,6 @@ export async function GET(request: Request) {
     console.log('KPI Aggregate Result:', JSON.stringify(kpiData, null, 2));
     console.log('Jumlah Nota:', jumlahNota);
 
-    // Hitung total pembayaran aktual (gabungan yang diisi manual dan default net)
-    // 1. Ambil sum pembayaranAktual yang tidak null (sudah ada di kpiData)
-    // 2. Ambil sum pembayaranSetelahPph untuk row yang pembayaranAktual-nya NULL
-    const kpiDataNullAktual = await prisma.notaSawit.aggregate({
-      where: {
-        ...notaSawitWhere,
-        pembayaranAktual: null,
-      },
-      _sum: {
-        pembayaranSetelahPph: true,
-      },
-    });
-
     const totalTonase = kpiData._sum?.beratAkhir || 0;
     const totalPotongan = kpiData._sum?.potongan || 0;
     const totalNetto = totalTonase + totalPotongan;
@@ -98,26 +111,53 @@ export async function GET(request: Request) {
     // @ts-ignore
     const totalPph25 = kpiData._sum?.pph25 || 0;
     const totalNet = kpiData._sum?.pembayaranSetelahPph || 0;
-    
-    // Total Aktual = (Sum Aktual Non-Null) + (Sum Net Where Aktual Null)
-    const sumAktualNonNull = kpiData._sum?.pembayaranAktual || 0;
-    const sumNetWhereAktualNull = kpiDataNullAktual._sum?.pembayaranSetelahPph || 0;
-    const totalAktual = sumAktualNonNull + sumNetWhereAktualNull;
-    
-    const selisih = totalAktual - totalNet;
+
+    const pembayaranByStatus = await prisma.notaSawit.groupBy({
+      by: ['statusPembayaran'],
+      where: notaSawitWhere,
+      _sum: { totalPembayaran: true },
+      _count: { _all: true },
+    })
+    const lunasRow = pembayaranByStatus.find((r: any) => String(r.statusPembayaran || '').toUpperCase() === 'LUNAS')
+    const belumRow = pembayaranByStatus.find((r: any) => String(r.statusPembayaran || '').toUpperCase() === 'BELUM_LUNAS')
+    const lunasCount = lunasRow?._count?._all || 0
+    const belumLunasCount = belumRow?._count?._all || 0
+    const totalPembayaranLunas = lunasRow?._sum?.totalPembayaran || 0
+    const totalPembayaranBelumLunas = belumRow?._sum?.totalPembayaran || 0
+
+    const pembayaranBatchAgg = await prisma.notaSawitPembayaranBatchItem.aggregate({
+      where: {
+        batch: {
+          tanggal: {
+            gte: range.startUtc,
+            lt: range.endExclusiveUtc,
+          },
+          ...(pabrikId ? { pabrikSawitId: parseInt(pabrikId, 10) } : {}),
+        },
+        notaSawit: notaSawitWhereNoTanggal,
+      },
+      _sum: { pembayaranAktual: true },
+    })
+    const totalPembayaranNotaSawit = pembayaranBatchAgg._sum?.pembayaranAktual || 0
+
+    const selisih = totalPembayaranNotaSawit - totalNet;
 
     const kpi = {
       totalTonase,
       totalPotongan,
       totalNetto,
       totalPembayaran,
+      lunasCount,
+      belumLunasCount,
+      totalPembayaranLunas,
+      totalPembayaranBelumLunas,
       jumlahNota,
       rataRataHargaPerKg,
       rataRataTonasePerNota,
       totalPph,
       totalPph25,
       totalNet,
-      totalAktual,
+      totalPembayaranNotaSawit,
       selisih,
     };
 
@@ -128,6 +168,8 @@ export async function GET(request: Request) {
         tanggalBongkar: true,
         totalPembayaran: true,
         beratAkhir: true,
+        perusahaan: { select: { name: true } },
+        pabrikSawit: { select: { name: true, perusahaan: { select: { name: true } } } },
         kebun: {
           select: {
             name: true,
@@ -186,97 +228,52 @@ export async function GET(request: Request) {
     });
 
     // Proses data bulanan per Kebun
-    const monthlyDataKebunMap = rawData.reduce((acc: Record<string, Record<string, { month: string; totalBerat: number }>>, item) => {
-      const kebunName = item.kebun?.name || item.timbangan?.kebun?.name
-      if (item.tanggalBongkar && kebunName) {
-        const month = monthKeyWib(item.tanggalBongkar);
-
-        if (!acc[kebunName]) {
-          acc[kebunName] = {};
-        }
-        if (!acc[kebunName][month]) {
-          acc[kebunName][month] = { month, totalBerat: 0 };
-        }
-        acc[kebunName][month].totalBerat += item.beratAkhir || 0;
-      }
-      return acc;
-    }, {});
-
-    const monthlyDataPerKebun = Object.entries(monthlyDataKebunMap).map(([kebunName, monthlyStats]) => {
-        // Ensure all months in the range are present? Or just the ones with data? 
-        // For simplicity, just the ones with data, sorted by month.
-        const sortedStats = Object.values(monthlyStats).sort((a, b) => a.month.localeCompare(b.month));
-        
-        const statsWithGrowth = sortedStats.map((item, index) => {
-            const previousItem = index > 0 ? sortedStats[index - 1] : null;
-            // Note: This simple previousItem logic assumes consecutive months. 
-            // If a month is missing, growth will be calculated against the last available month.
-            // For more accuracy, we might want to fill gaps, but for now this is acceptable or we can check month diff.
-            const previousBerat = previousItem ? previousItem.totalBerat : 0;
-            const growthKg = previousItem ? item.totalBerat - previousBerat : 0;
-            const growthPercentage = previousBerat > 0 ? (growthKg / previousBerat) * 100 : 0;
-
-            return {
-                ...item,
-                previousBerat,
-                growthKg,
-                growthPercentage,
-                isUp: growthKg >= 0
-            };
-        });
-
-        return {
-            kebunName,
-            data: statsWithGrowth
-        };
-    });
-
-
-    // 3. Kebun Paling Produktif
-    const notaSawitFilter: Prisma.NotaSawitWhereInput = { deletedAt: null };
-    if (pabrikId) notaSawitFilter.pabrikSawitId = parseInt(pabrikId, 10);
-    if (supirId) notaSawitFilter.supirId = parseInt(supirId, 10);
-    if (kendaraanPlatNomor) notaSawitFilter.kendaraanPlatNomor = kendaraanPlatNomor;
-
-    const timbanganWhere: Prisma.TimbanganWhereInput = {
-        date: {
-            gte: range.startUtc,
-            lt: range.endExclusiveUtc,
-        },
-        kebunId: kebunId ? parseInt(kebunId, 10) : undefined,
-        notaSawit: {
-            isNot: null,
-            is: notaSawitFilter
-        }
-    };
-
-    const productiveKebun = await prisma.timbangan.groupBy({
-        by: ['kebunId'],
-        where: timbanganWhere,
-        _sum: {
-            netKg: true,
-        },
-        orderBy: {
-            _sum: {
-                netKg: 'desc',
-            },
-        },
-    });
-
-    const allKebun = await prisma.kebun.findMany({
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    })
-
-    const sumMap = new Map<number, number>()
-    for (const r of productiveKebun as any[]) {
-      if (typeof r?.kebunId === 'number') {
-        sumMap.set(r.kebunId, Number(r?._sum?.netKg || 0))
-      }
+    const getGroupName = (item: any) => {
+      if (groupBy === 'kebun') return item.kebun?.name || item.timbangan?.kebun?.name || 'Tidak diketahui'
+      if (groupBy === 'perusahaan') return item.perusahaan?.name || item.pabrikSawit?.perusahaan?.name || 'Tidak diketahui'
+      if (groupBy === 'pabrik') return item.pabrikSawit?.name || 'Tidak diketahui'
+      return 'Total'
     }
 
-    const topKebun = allKebun
-      .map((k) => ({ nama: k.name, totalBerat: sumMap.get(k.id) || 0 }))
+    const monthlyDataGroupMap = rawData.reduce((acc: Record<string, Record<string, { month: string; totalBerat: number }>>, item) => {
+      if (groupBy === 'total') return acc
+      const name = getGroupName(item)
+      if (item.tanggalBongkar && name) {
+        const month = monthKeyWib(item.tanggalBongkar)
+        if (!acc[name]) acc[name] = {}
+        if (!acc[name][month]) acc[name][month] = { month, totalBerat: 0 }
+        acc[name][month].totalBerat += item.beratAkhir || 0
+      }
+      return acc
+    }, {})
+
+    const monthlyDataPerGroup = Object.entries(monthlyDataGroupMap).map(([groupName, monthlyStats]) => {
+      const sortedStats = Object.values(monthlyStats).sort((a, b) => a.month.localeCompare(b.month))
+      const statsWithGrowth = sortedStats.map((item, index) => {
+        const previousItem = index > 0 ? sortedStats[index - 1] : null
+        const previousBerat = previousItem ? previousItem.totalBerat : 0
+        const growthKg = previousItem ? item.totalBerat - previousBerat : 0
+        const growthPercentage = previousBerat > 0 ? (growthKg / previousBerat) * 100 : 0
+        return {
+          ...item,
+          previousBerat,
+          growthKg,
+          growthPercentage,
+          isUp: growthKg >= 0,
+        }
+      })
+      return { groupName, data: statsWithGrowth }
+    })
+
+
+    const topMap = rawData.reduce((acc: Record<string, number>, item: any) => {
+      if (groupBy === 'total') return acc
+      const name = getGroupName(item)
+      acc[name] = (acc[name] || 0) + Number(item?.beratAkhir || 0)
+      return acc
+    }, {})
+    const topGroups = Object.entries(topMap)
+      .map(([nama, totalBerat]) => ({ nama, totalBerat }))
       .sort((a, b) => {
         if (b.totalBerat !== a.totalBerat) return b.totalBerat - a.totalBerat
         return a.nama.localeCompare(b.nama)
@@ -285,8 +282,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       kpi,
       monthlyData: monthlyDataWithGrowth,
-      monthlyDataPerKebun,
-      topKebun,
+      monthlyDataPerGroup,
+      topGroups,
+      groupBy,
     });
 
   } catch (error) {
