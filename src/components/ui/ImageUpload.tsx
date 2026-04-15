@@ -12,7 +12,7 @@ export default function ImageUpload({ onFileChange, previewUrl }: ImageUploadPro
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles && acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
-      const converted = await convertImageFileToWebp(file, { quality: 0.9, maxDimension: 1920 });
+      const converted = await convertImageFileToWebp(file, { quality: 0.82, maxDimension: 1280 });
       onFileChange(converted);
     }
   }, [onFileChange]);

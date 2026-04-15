@@ -235,6 +235,7 @@ model User {
   karyawanDeleteRequests KaryawanDeleteRequest[] @relation("DeleteRequestKaryawan")
   perusahaanFinanceSnapshots PerusahaanFinanceSnapshot[]
   perusahaanPpnReports PerusahaanPpnReport[]
+  attendanceSelfies AttendanceSelfie[]
 }
 
 model PushSubscription {
@@ -998,3 +999,28 @@ model AbsensiHarian {
 
   @@unique([kebunId, karyawanId, date])
 }
+
+model AttendanceSelfie {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  checkIn     DateTime?
+  checkOut    DateTime?
+  photoInUrl  String?
+  photoOutUrl String?
+  latIn       Float?
+  longIn      Float?
+  latOut      Float?
+  longOut     Float?
+  locationIn  String?
+  locationOut String?
+  status      String   @default("HADIR")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+

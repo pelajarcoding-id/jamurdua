@@ -347,9 +347,13 @@ export default function TambahNotaSawitPage() {
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
 
-    // Set canvas size to the actual resolution of the cropped image to preserve quality
-    canvas.width = Math.floor(crop.width * scaleX);
-    canvas.height = Math.floor(crop.height * scaleY);
+    const srcCropW = Math.floor(crop.width * scaleX);
+    const srcCropH = Math.floor(crop.height * scaleY);
+    const maxDimension = 1280;
+    const resizeScale = Math.min(1, maxDimension / Math.max(srcCropW, srcCropH));
+
+    canvas.width = Math.max(1, Math.floor(srcCropW * resizeScale));
+    canvas.height = Math.max(1, Math.floor(srcCropH * resizeScale));
 
     const ctx = canvas.getContext('2d');
 
@@ -357,6 +361,7 @@ export default function TambahNotaSawitPage() {
       throw new Error('No 2d context');
     }
 
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
     ctx.drawImage(
@@ -384,7 +389,7 @@ export default function TambahNotaSawitPage() {
           resolve(file);
         },
         'image/webp',
-        0.9,
+        0.82,
       );
     });
   }

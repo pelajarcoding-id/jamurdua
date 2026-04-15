@@ -68,6 +68,28 @@ async function validateKasKategoriOrThrow(kategoriRaw: string | undefined, tipe:
   return kategori
 }
 
+async function resolveKendaraanPlatNomorOrThrow(input?: string | null) {
+  const raw = typeof input === 'string' ? input.trim() : ''
+  if (!raw) return null
+
+  const kendaraan = await prisma.kendaraan.findFirst({
+    where: {
+      platNomor: {
+        equals: raw,
+        mode: 'insensitive',
+      },
+    },
+    select: { platNomor: true },
+  })
+
+  if (!kendaraan) {
+    throw new Error('Plat kendaraan tidak ditemukan')
+  }
+
+  // Pakai nilai canonical dari DB agar FK selalu valid.
+  return kendaraan.platNomor
+}
+
 // Fungsi untuk mendapatkan saldo awal hingga tanggal tertentu (tidak termasuk tanggal tersebut)
 async function getSaldoAwal(untilDate: Date, userId?: number | null) {
   const baseWhere: any = {
@@ -282,6 +304,7 @@ export async function POST(request: Request) {
     }
     const { tipe, deskripsi, jumlah, keterangan, gambarUrl, date, kendaraanPlatNomor, kebunId, karyawanId } = parsed.data;
     const kategori = await validateKasKategoriOrThrow(parsed.data.kategori, tipe)
+    const resolvedKendaraanPlatNomor = await resolveKendaraanPlatNomorOrThrow(kendaraanPlatNomor)
 
     const formData = new FormData();
     if (gambarUrl && gambarUrl.length > 0) {
@@ -302,7 +325,7 @@ export async function POST(request: Request) {
         gambarUrl: gambarUrl || null,
         kategori,
         kebunId: kebunId ? Number(kebunId) : null,
-        kendaraanPlatNomor: kendaraanPlatNomor || null,
+        kendaraanPlatNomor: resolvedKendaraanPlatNomor,
         karyawanId: karyawanId ? Number(karyawanId) : null,
         userId: currentUserId,
       },
@@ -313,8 +336,8 @@ export async function POST(request: Request) {
     if (!isNaN(amount) && amount > 0) {
       if (tipe === 'PENGELUARAN') {
         let bebanAkun = 'Beban Operasional';
-        if (kendaraanPlatNomor) {
-          bebanAkun = `Beban Kendaraan:${kendaraanPlatNomor}`;
+        if (resolvedKendaraanPlatNomor) {
+          bebanAkun = `Beban Kendaraan:${resolvedKendaraanPlatNomor}`;
         } else if (kebunId) {
           const kb = await prisma.kebun.findUnique({ where: { id: Number(kebunId) }, select: { name: true } });
           bebanAkun = `Beban Kebun:${kb?.name || kebunId}`;
@@ -379,8 +402,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newTransaction, { status: 201 });
   } catch (error: any) {
-    if (error?.message === 'Kategori tidak valid' || error?.message === 'Kategori tidak aktif' || error?.message === 'Kategori tidak sesuai dengan tipe transaksi') {
+    if (error?.message === 'Kategori tidak valid' || error?.message === 'Kategori tidak aktif' || error?.message === 'Kategori tidak sesuai dengan tipe transaksi' || error?.message === 'Plat kendaraan tidak ditemukan') {
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    if (error?.code === 'P2003') {
+      return NextResponse.json({ error: 'Tag kendaraan tidak valid. Pilih kendaraan yang tersedia.' }, { status: 400 })
     }
     console.error('Error creating kas transaction:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -529,6 +555,9 @@ export async function PUT(request: Request) {
     }
     const { id, tipe, deskripsi, jumlah, keterangan, gambarUrl, date, kendaraanPlatNomor, kebunId, karyawanId } = parsed.data;
     const kategori = parsed.data.kategori === undefined ? undefined : await validateKasKategoriOrThrow(parsed.data.kategori, tipe)
+    const resolvedKendaraanPlatNomor = kendaraanPlatNomor === undefined
+      ? undefined
+      : await resolveKendaraanPlatNomorOrThrow(kendaraanPlatNomor)
 
     // Verify ownership
     const existingTrx = await prisma.kasTransaksi.findUnique({
@@ -550,7 +579,7 @@ export async function PUT(request: Request) {
         gambarUrl: gambarUrl === undefined ? undefined : (gambarUrl || null),
         kategori: kategori === undefined ? undefined : kategori,
         kebunId: kebunId === undefined ? undefined : (kebunId ? Number(kebunId) : null),
-        kendaraanPlatNomor: kendaraanPlatNomor === undefined ? undefined : (kendaraanPlatNomor || null),
+        kendaraanPlatNomor: resolvedKendaraanPlatNomor,
         karyawanId: karyawanId === undefined ? undefined : (karyawanId ? Number(karyawanId) : null),
       },
     });
@@ -573,8 +602,8 @@ export async function PUT(request: Request) {
     if (!isNaN(amount) && amount > 0) {
       if (tipe === 'PENGELUARAN') {
         let bebanAkun = 'Beban Operasional';
-        if (kendaraanPlatNomor) {
-          bebanAkun = `Beban Kendaraan:${kendaraanPlatNomor}`;
+        if (resolvedKendaraanPlatNomor) {
+          bebanAkun = `Beban Kendaraan:${resolvedKendaraanPlatNomor}`;
         } else if (kebunId) {
           const kb = await prisma.kebun.findUnique({ where: { id: Number(kebunId) }, select: { name: true } });
           bebanAkun = `Beban Kebun:${kb?.name || kebunId}`;
@@ -641,8 +670,11 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(updatedTransaction);
   } catch (error: any) {
-    if (error?.message === 'Kategori tidak valid' || error?.message === 'Kategori tidak aktif' || error?.message === 'Kategori tidak sesuai dengan tipe transaksi') {
+    if (error?.message === 'Kategori tidak valid' || error?.message === 'Kategori tidak aktif' || error?.message === 'Kategori tidak sesuai dengan tipe transaksi' || error?.message === 'Plat kendaraan tidak ditemukan') {
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    if (error?.code === 'P2003') {
+      return NextResponse.json({ error: 'Tag kendaraan tidak valid. Pilih kendaraan yang tersedia.' }, { status: 400 })
     }
     console.error('Error updating kas transaction:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

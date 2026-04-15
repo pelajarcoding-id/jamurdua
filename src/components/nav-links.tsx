@@ -15,7 +15,8 @@ import {
   CubeIcon,
   PhotoIcon,
   BuildingOfficeIcon,
-  ArchiveBoxXMarkIcon
+  ArchiveBoxXMarkIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
 
 export interface SubLink {
@@ -35,6 +36,11 @@ export const links: NavLink[] = [
         name: 'Dashboard',
         href: '/',
         icon: HomeIcon,
+    },
+    {
+        name: 'Absensi',
+        href: '/attendance',
+        icon: CameraIcon,
     },
     {
         name: 'Kebun',
