@@ -217,3 +217,35 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const guard = await requireRole(['ADMIN', 'PEMILIK'])
+    if (guard.response) return guard.response
+
+    const { searchParams } = new URL(request.url)
+    const id = Number(searchParams.get('id') || '')
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'ID absensi tidak valid' }, { status: 400 })
+    }
+
+    await ensureAttendanceSelfieTable()
+
+    const existing = await (prisma as any).attendanceSelfie.findUnique({
+      where: { id },
+      select: { id: true },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Data absensi tidak ditemukan' }, { status: 404 })
+    }
+
+    await (prisma as any).attendanceSelfie.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Error deleting admin attendance:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

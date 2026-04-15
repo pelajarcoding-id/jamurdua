@@ -43,6 +43,33 @@ function dataUrlToFile(dataUrl: string, filename: string) {
   return new File([bytes], filename, { type: mime })
 }
 
+function getCurrentPosition(options?: PositionOptions) {
+  return new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options)
+  })
+}
+
+async function reverseGeocodeName(latitude: number, longitude: number) {
+  const fallback = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      {
+        signal: controller.signal,
+        headers: { 'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8' },
+      }
+    )
+    const data = await res.json()
+    return data?.display_name || fallback
+  } catch {
+    return fallback
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export default function AttendancePage() {
   const webcamRef = useRef<Webcam>(null)
   const [imgSrc, setImgSrc] = useState<string | null>(null)
@@ -70,43 +97,71 @@ export default function AttendancePage() {
     getLocation()
   }, [fetchStatus])
 
-  const getLocation = () => {
+  const getLocation = async () => {
     setLocating(true)
     if (!navigator.geolocation) {
       toast.error('Geolokasi tidak didukung oleh browser Anda')
       setLocating(false)
       return
     }
+    if (!window.isSecureContext) {
+      toast.error('Di browser mobile, lokasi butuh HTTPS. Buka aplikasi via HTTPS.')
+      setLocating(false)
+      return
+    }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords
+    try {
+      const permissionsApi = (navigator as any).permissions
+      if (permissionsApi?.query) {
         try {
-          // Reverse geocoding using OpenStreetMap (Nominatim) - Free and no API key required for low volume
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`)
-          const data = await res.json()
-          setLocation({
-            lat: latitude,
-            lng: longitude,
-            name: data.display_name || `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`
-          })
-        } catch (error) {
-          setLocation({
-            lat: latitude,
-            lng: longitude,
-            name: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`
-          })
-        } finally {
-          setLocating(false)
+          const status = await permissionsApi.query({ name: 'geolocation' as PermissionName })
+          if (status?.state === 'denied') {
+            toast.error('Izin lokasi ditolak. Aktifkan izin lokasi di pengaturan browser.')
+            setLocating(false)
+            return
+          }
+        } catch {
+          // ignore unsupported permissions API
         }
-      },
-      (error) => {
-        console.error('Geolocation error:', error)
+      }
+
+      let position: GeolocationPosition
+      try {
+        position = await getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 0,
+        })
+      } catch {
+        // Fallback untuk browser/perangkat yang sulit lock GPS
+        position = await getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 60000,
+        })
+      }
+
+      const { latitude, longitude } = position.coords
+      const locationName = await reverseGeocodeName(latitude, longitude)
+      setLocation({
+        lat: latitude,
+        lng: longitude,
+        name: locationName,
+      })
+    } catch (error: any) {
+      const code = Number(error?.code)
+      if (code === 1) {
+        toast.error('Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini.')
+      } else if (code === 2) {
+        toast.error('Lokasi belum tersedia. Coba aktifkan GPS lalu tekan Perbarui.')
+      } else if (code === 3) {
+        toast.error('Permintaan lokasi timeout. Coba lagi atau pindah ke area sinyal lebih baik.')
+      } else {
         toast.error('Gagal mendapatkan lokasi. Pastikan izin lokasi aktif.')
-        setLocating(false)
-      },
-      { enableHighAccuracy: true }
-    )
+      }
+    } finally {
+      setLocating(false)
+    }
   }
 
   const capture = useCallback(() => {

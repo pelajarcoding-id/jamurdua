@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { ModalFooter, ModalHeader } from '@/components/ui/modal-elements'
+import { useAuth } from '@/components/AuthProvider'
+import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 
 type AttendanceRow = {
   id: number
@@ -79,6 +81,10 @@ const toMapsLink = (lat: number | null, lng: number | null) => {
 }
 
 export default function AttendanceMonitorPage() {
+  const { role } = useAuth()
+  const userRole = String(role || '').toUpperCase()
+  const canCancelAttendance = userRole === 'ADMIN' || userRole === 'PEMILIK'
+
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
   const wibNow = useMemo(() => new Date(Date.now() + WIB_OFFSET_MS), [])
   const todayYmd = useMemo(() => {
@@ -110,6 +116,8 @@ export default function AttendanceMonitorPage() {
     title: '',
     row: null,
   })
+  const [confirmDelete, setConfirmDelete] = useState<AttendanceRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const debouncedSearch = useDebounce(search, 450)
 
@@ -285,6 +293,20 @@ export default function AttendanceMonitorPage() {
       setExportingPdf(false)
     }
   }, [buildParams, periodLabel])
+
+  const handleDeleteAttendance = useCallback(async () => {
+    if (!confirmDelete?.id) return
+    try {
+      setDeleting(true)
+      const res = await fetch(`/api/attendance/admin?id=${confirmDelete.id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(json?.error || 'Gagal membatalkan absensi')
+      setConfirmDelete(null)
+      fetchData()
+    } finally {
+      setDeleting(false)
+    }
+  }, [confirmDelete, fetchData])
 
   useEffect(() => {
     fetchData()
@@ -484,6 +506,18 @@ export default function AttendanceMonitorPage() {
                     </div>
                   </div>
 
+                  {canCancelAttendance ? (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        className="rounded-full border-red-200 text-red-600 hover:bg-red-50"
+                        onClick={() => setConfirmDelete(row)}
+                      >
+                        Batalkan Absensi
+                      </Button>
+                    </div>
+                  ) : null}
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 space-y-2">
                       <p className="text-sm font-semibold text-emerald-700">Absen Masuk</p>
@@ -618,6 +652,17 @@ export default function AttendanceMonitorPage() {
           </ModalFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDeleteAttendance}
+        title="Batalkan Absensi"
+        description={`Yakin ingin membatalkan absensi ${confirmDelete?.userName || ''} pada tanggal ${confirmDelete ? formatDateOnly(confirmDelete.date) : ''}?`}
+        variant="emerald"
+        confirmLabel={deleting ? 'Membatalkan...' : 'Ya, Batalkan'}
+        confirmDisabled={deleting}
+      />
     </RoleGate>
   )
 }
