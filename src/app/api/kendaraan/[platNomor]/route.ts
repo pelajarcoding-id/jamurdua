@@ -29,13 +29,13 @@ const resolveExistingPlatNomor = async (platNomor: string) => {
     })
     if (exact?.platNomor) return exact.platNomor
     if (!platNomor) return null
-    const compact = platNomor.replace(/\s+/g, '').toLowerCase()
+    const compact = platNomor.toLowerCase().replace(/[^a-z0-9]+/g, '')
     if (!compact) return null
     const rows = await prisma.$queryRaw<Array<{ platNomor: string }>>(
         Prisma.sql`
             SELECT "platNomor"
             FROM "Kendaraan"
-            WHERE lower(replace("platNomor", ' ', '')) = ${compact}
+            WHERE regexp_replace(lower("platNomor"), '[^a-z0-9]+', '', 'g') = ${compact}
             LIMIT 1
         `,
     )
@@ -115,7 +115,16 @@ export async function PUT(request: Request, { params }: Params) {
             fotoSpeksiUrl,
         }
 
-        const updated = await (prisma.kendaraan as any).update({ where: { platNomor: existingPlatNomor }, data: updateBase })
+        const updateResult = await prisma.kendaraan.updateMany({ where: { platNomor: existingPlatNomor }, data: updateBase })
+        if (updateResult.count === 0) {
+            return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 404 })
+        }
+
+        const finalPlatNomor = nextPlatNomor || existingPlatNomor
+        const updated = await prisma.kendaraan.findUnique({ where: { platNomor: finalPlatNomor } })
+        if (!updated) {
+            return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 404 })
+        }
 
         if (tanggalIzinTrayek) {
             await prisma.$executeRaw(
@@ -152,20 +161,7 @@ export async function PUT(request: Request, { params }: Params) {
             },
         });
 
-        const fresh = await (async () => {
-            try {
-                const rows = await prisma.$queryRaw(
-                    Prisma.sql`SELECT *
-                               FROM "Kendaraan"
-                               WHERE "platNomor" = ${updated.platNomor}
-                               LIMIT 1`
-                )
-                return Array.isArray(rows) ? rows[0] : rows
-            } catch {
-                return updated
-            }
-        })()
-        return NextResponse.json(fresh);
+        return NextResponse.json(updated);
     } catch (error) {
         console.error(`Error updating kendaraan ${params.platNomor}:`, error);
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -207,9 +203,12 @@ export async function DELETE(request: Request, { params }: Params) {
             );
         }
 
-        await prisma.kendaraan.delete({
+        const del = await prisma.kendaraan.deleteMany({
             where: { platNomor: existingPlatNomor },
-        });
+        })
+        if (del.count === 0) {
+            return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 404 })
+        }
 
         const session = await auth();
         const currentUserId = session?.user?.id ? Number(session.user.id) : 1;

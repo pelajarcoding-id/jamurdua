@@ -160,10 +160,9 @@ export default function AttendanceMonitorPage() {
   const canCancelAttendance = userRole === 'ADMIN' || userRole === 'PEMILIK'
 
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const wibNow = useMemo(() => new Date(Date.now() + WIB_OFFSET_MS), [])
   const todayYmd = useMemo(() => {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(wibNow)
-  }, [wibNow])
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  }, [])
 
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -248,6 +247,7 @@ export default function AttendanceMonitorPage() {
     const formatUtcYmd = (d: Date) =>
       new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 
+    const wibNow = new Date(Date.now() + WIB_OFFSET_MS)
     const year = wibNow.getUTCFullYear()
     const month = String(wibNow.getUTCMonth() + 1).padStart(2, '0')
 

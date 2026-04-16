@@ -52,8 +52,7 @@ async function ensureAbsensiHarianTable() {
   `)
 }
 
-const attendanceEffectiveDateSql = (alias: string) =>
-  Prisma.sql`COALESCE(${Prisma.raw(`${alias}."checkIn"`)}::date, ${Prisma.raw(`${alias}."date"`)})`
+const attendanceEffectiveDateSql = (alias: string) => Prisma.sql`${Prisma.raw(`${alias}."date"`)}`
 
 export async function GET(request: Request) {
   try {
@@ -298,22 +297,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Data absensi tidak ditemukan' }, { status: 404 })
     }
 
-    const effectiveDate: Date = (existing.checkIn || existing.date) as Date
+    const calendarDate: Date = existing.date as Date
 
     await prisma.$transaction(async (tx) => {
       if (mode === 'both') {
-        await tx.$executeRaw(
-          Prisma.sql`
-            UPDATE "AbsensiHarian"
-            SET
-              "kerja" = FALSE,
-              "libur" = FALSE,
-              "jumlah" = 0,
-              "updatedAt" = NOW()
-            WHERE "karyawanId" = ${existing.userId}
-              AND "date" = ${effectiveDate}::date
-          `
-        )
+        await tx.absensiHarian.deleteMany({
+          where: {
+            kebunId: 0,
+            karyawanId: existing.userId,
+            date: new Date(calendarDate),
+          },
+        })
 
         await (tx as any).attendanceSelfie.delete({ where: { id } })
         return
@@ -343,30 +337,37 @@ export async function PATCH(request: Request) {
 
       const stillHasCheckIn = Boolean(updated.checkIn)
       if (!stillHasCheckIn) {
-        await tx.$executeRaw(
-          Prisma.sql`
-            UPDATE "AbsensiHarian"
-            SET
-              "kerja" = FALSE,
-              "libur" = FALSE,
-              "jumlah" = 0,
-              "updatedAt" = NOW()
-            WHERE "karyawanId" = ${existing.userId}
-              AND "date" = ${effectiveDate}::date
-          `
-        )
+        await tx.absensiHarian.deleteMany({
+          where: {
+            kebunId: 0,
+            karyawanId: existing.userId,
+            date: new Date(calendarDate),
+          },
+        })
       } else {
-        await tx.$executeRaw(
-          Prisma.sql`
-            UPDATE "AbsensiHarian"
-            SET
-              "kerja" = TRUE,
-              "libur" = FALSE,
-              "updatedAt" = NOW()
-            WHERE "karyawanId" = ${existing.userId}
-              AND "date" = ${effectiveDate}::date
-          `
-        )
+        await tx.absensiHarian.upsert({
+          where: {
+            kebunId_karyawanId_date: {
+              kebunId: 0,
+              karyawanId: existing.userId,
+              date: new Date(calendarDate),
+            },
+          },
+          update: {
+            kerja: true,
+            libur: false,
+            source: 'SELFIE',
+            updatedAt: new Date(),
+          },
+          create: {
+            kebunId: 0,
+            karyawanId: existing.userId,
+            date: new Date(calendarDate),
+            kerja: true,
+            libur: false,
+            source: 'SELFIE',
+          },
+        })
       }
     })
 
@@ -401,20 +402,19 @@ export async function DELETE(request: Request) {
     await ensureAbsensiHarianTable()
 
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw(
-        Prisma.sql`
-          UPDATE "AbsensiHarian" ah
-          SET
-            "kerja" = FALSE,
-            "libur" = FALSE,
-            "jumlah" = 0,
-            "updatedAt" = NOW()
-          FROM "AttendanceSelfie" a
-          WHERE a."id" = ${id}
-            AND ah."karyawanId" = a."userId"
-            AND ah."date" = COALESCE(a."checkIn"::date, a."date")
-        `
-      )
+      const row = await (tx as any).attendanceSelfie.findUnique({
+        where: { id },
+        select: { userId: true, date: true, checkIn: true },
+      })
+      if (row) {
+        await tx.absensiHarian.deleteMany({
+          where: {
+            kebunId: 0,
+            karyawanId: row.userId,
+            date: new Date(row.date),
+          },
+        })
+      }
 
       await (tx as any).attendanceSelfie.delete({
         where: { id },
