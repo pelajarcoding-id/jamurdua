@@ -277,12 +277,12 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
 
   const handleDeleteTrx = async () => {
     if (!deleteTrxTarget) return
-    const loadingToast = toast.loading('Menghapus pengeluaran...')
+    const loadingToast = toast.loading('Menghapus transaksi...')
     try {
       const res = await fetch(`/api/kebun/${kebunId}/inventory/transactions?id=${deleteTrxTarget.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error || 'Gagal menghapus pengeluaran')
-      toast.success('Pengeluaran dihapus', { id: loadingToast })
+      if (!res.ok) throw new Error(data?.error || 'Gagal menghapus transaksi')
+      toast.success('Transaksi dihapus', { id: loadingToast })
       setDeleteTrxOpen(false)
       setDeleteTrxTarget(null)
       fetchItems()
@@ -291,7 +291,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
         openDetailModal(detailItem)
       }
     } catch (error: any) {
-      toast.error(error.message || 'Gagal menghapus pengeluaran', { id: loadingToast })
+      toast.error(error.message || 'Gagal menghapus transaksi', { id: loadingToast })
     }
   }
 
@@ -374,7 +374,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data?.error || 'Gagal memperbarui pengeluaran')
+        throw new Error(data?.error || 'Gagal memperbarui transaksi')
       }
       toast.success('Perubahan berhasil disimpan', { id: loadingToast })
       setIsEditOpen(false)
@@ -383,6 +383,9 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       setEditTrxPreview(null)
       fetchItems()
       fetchTransactions()
+      if (detailItem) {
+        openDetailModal(detailItem)
+      }
     } catch (error: any) {
       toast.error(error.message || 'Gagal menyimpan perubahan', { id: loadingToast })
     } finally {
@@ -827,10 +830,12 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
           setDeleteTrxTarget(null)
         }}
         onConfirm={handleDeleteTrx}
-        title="Hapus Pengeluaran"
-        description={`Yakin ingin menghapus pengeluaran ${deleteTrxTarget?.item?.name || ''} tanggal ${
+        title="Hapus Transaksi"
+        description={`Yakin ingin menghapus transaksi ${deleteTrxTarget?.type === 'IN' ? 'masuk' : deleteTrxTarget?.type === 'OUT' ? 'keluar' : ''} ${
+          deleteTrxTarget?.item?.name || ''
+        } tanggal ${
           deleteTrxTarget?.date ? format(new Date(deleteTrxTarget.date), 'dd MMM yyyy', { locale: idLocale }) : ''
-        }? Stok akan dikembalikan.`}
+        }? Stok akan disesuaikan.`}
         variant="emerald"
         confirmLabel="Ya, Hapus"
       />
@@ -1228,6 +1233,29 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                               <EyeIcon className="h-4 w-4" />
                             </Button>
                           )}
+                          {trx.type !== 'ADJUSTMENT' ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-full"
+                                onClick={() => openEditModal(trx)}
+                                title="Edit"
+                              >
+                                <PencilSquareIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-full text-red-600 hover:bg-red-50"
+                                onClick={() => {
+                                  setDeleteTrxTarget(trx)
+                                  setDeleteTrxOpen(true)
+                                }}
+                                title="Hapus"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     </div>

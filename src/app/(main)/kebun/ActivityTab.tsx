@@ -162,6 +162,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [userQuery, setUserQuery] = useState('');
   const [openKendaraanSelect, setOpenKendaraanSelect] = useState(false)
   const [kendaraanQuery, setKendaraanQuery] = useState('')
+  const [openKategoriSelect, setOpenKategoriSelect] = useState(false)
+  const [kategoriQuery, setKategoriQuery] = useState('')
+  const [openEditKategoriSelect, setOpenEditKategoriSelect] = useState(false)
+  const [editKategoriQuery, setEditKategoriQuery] = useState('')
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailExporting, setDetailExporting] = useState(false);
   const [listExporting, setListExporting] = useState(false)
@@ -833,7 +837,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         const rows = filteredActivities.map((item, idx) => {
           const jumlah = Number(item.jumlah || 0)
           const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
-          const kategori = String((item as any).kategoriBorongan || '').trim()
+          const kategori = String((item as any).kategoriBorongan || '').trim() || 'Tanpa kategori'
           return [
             idx + 1,
             item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
@@ -1166,13 +1170,72 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             {mode === 'borongan' ? (
               <div>
                 <Label>Kategori Borongan</Label>
-                <Input
-                  list="borongan-kategori-options"
-                  placeholder="Contoh: Panen, Angkut, Perawatan..."
-                  value={(formData as any).kategoriBorongan || ''}
-                  onChange={(e) => setFormData({ ...formData, kategoriBorongan: e.target.value })}
-                  className="bg-white"
-                />
+                <Popover open={openKategoriSelect} onOpenChange={setOpenKategoriSelect}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-expanded={openKategoriSelect}
+                      className="w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between"
+                    >
+                      {(formData as any).kategoriBorongan
+                        ? String((formData as any).kategoriBorongan)
+                        : 'Pilih kategori (opsional)'}
+                      <ChevronUpDownIcon className="h-4 w-4 text-gray-400" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-3" align="start">
+                    <Input
+                      autoFocus
+                      placeholder="Cari kategori..."
+                      value={kategoriQuery}
+                      onChange={(e) => setKategoriQuery(e.target.value)}
+                      className="mb-2 rounded-lg"
+                    />
+                    <div className="max-h-56 overflow-y-auto space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev: any) => ({ ...prev, kategoriBorongan: '' }))
+                          setOpenKategoriSelect(false)
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${!(formData as any).kategoriBorongan ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                      >
+                        <span className="truncate">Tanpa kategori</span>
+                        {!(formData as any).kategoriBorongan ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                      </button>
+                      {kategoriBoronganOptions
+                        .filter((k) => {
+                          const q = kategoriQuery.trim().toLowerCase()
+                          if (!q) return true
+                          return k.toLowerCase().includes(q)
+                        })
+                        .map((k) => {
+                          const checked = String((formData as any).kategoriBorongan || '') === String(k)
+                          return (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => {
+                                setFormData((prev: any) => ({ ...prev, kategoriBorongan: checked ? '' : k }))
+                                setOpenKategoriSelect(false)
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${checked ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                            >
+                              <span className="truncate">{k}</span>
+                              {checked ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                            </button>
+                          )
+                        })}
+                      {kategoriBoronganOptions.filter((k) => {
+                        const q = kategoriQuery.trim().toLowerCase()
+                        if (!q) return true
+                        return k.toLowerCase().includes(q)
+                      }).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">Kategori tidak ditemukan</div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             ) : null}
             <div>
@@ -1403,7 +1466,15 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               }}
             />
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowForm(false)}
+              disabled={isSubmitting}
+            >
+              Batal
+            </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Menyimpan...' : 'Simpan Pekerjaan'}
             </Button>
@@ -1617,7 +1688,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         {mode === 'borongan' ? (
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                              {String((item as any).kategoriBorongan || '-')}
+                              {String((item as any).kategoriBorongan || 'Tanpa kategori')}
                             </span>
                           </td>
                         ) : null}
@@ -1940,13 +2011,72 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               {mode === 'borongan' ? (
                 <div>
                   <Label>Kategori Borongan</Label>
-                  <Input
-                    list="borongan-kategori-options"
-                    placeholder="Contoh: Panen, Angkut, Perawatan..."
-                    value={(editForm as any).kategoriBorongan || ''}
-                    onChange={(e) => setEditForm({ ...editForm, kategoriBorongan: e.target.value })}
-                    className="bg-white"
-                  />
+                  <Popover open={openEditKategoriSelect} onOpenChange={setOpenEditKategoriSelect}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        aria-expanded={openEditKategoriSelect}
+                        className="w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between"
+                      >
+                        {(editForm as any).kategoriBorongan
+                          ? String((editForm as any).kategoriBorongan)
+                          : 'Pilih kategori (opsional)'}
+                        <ChevronUpDownIcon className="h-4 w-4 text-gray-400" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[320px] p-3" align="start">
+                      <Input
+                        autoFocus
+                        placeholder="Cari kategori..."
+                        value={editKategoriQuery}
+                        onChange={(e) => setEditKategoriQuery(e.target.value)}
+                        className="mb-2 rounded-lg"
+                      />
+                      <div className="max-h-56 overflow-y-auto space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditForm((prev: any) => ({ ...prev, kategoriBorongan: '' }))
+                            setOpenEditKategoriSelect(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${!(editForm as any).kategoriBorongan ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                        >
+                          <span className="truncate">Tanpa kategori</span>
+                          {!(editForm as any).kategoriBorongan ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                        </button>
+                        {kategoriBoronganOptions
+                          .filter((k) => {
+                            const q = editKategoriQuery.trim().toLowerCase()
+                            if (!q) return true
+                            return k.toLowerCase().includes(q)
+                          })
+                          .map((k) => {
+                            const checked = String((editForm as any).kategoriBorongan || '') === String(k)
+                            return (
+                              <button
+                                key={k}
+                                type="button"
+                                onClick={() => {
+                                  setEditForm((prev: any) => ({ ...prev, kategoriBorongan: checked ? '' : k }))
+                                  setOpenEditKategoriSelect(false)
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${checked ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                              >
+                                <span className="truncate">{k}</span>
+                                {checked ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                              </button>
+                            )
+                          })}
+                        {kategoriBoronganOptions.filter((k) => {
+                          const q = editKategoriQuery.trim().toLowerCase()
+                          if (!q) return true
+                          return k.toLowerCase().includes(q)
+                        }).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">Kategori tidak ditemukan</div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               ) : null}
               <div>

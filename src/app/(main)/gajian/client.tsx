@@ -1090,7 +1090,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       list.forEach((p: any) => {
         const id = Number(p?.id)
         if (!Number.isFinite(id) || id <= 0) return
-        const kategori = String(p?.kategoriBorongan || p?.kategori || p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
+        const kategori = String(p?.kategoriBorongan || p?.kategori || '').trim() || 'Tanpa kategori'
         const biaya = Number(p?.biaya || 0)
         if (!Number.isFinite(biaya) || biaya <= 0) return
         allIds.push(id)
