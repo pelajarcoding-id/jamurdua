@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from 'sonner';
-import { ArrowDownTrayIcon, ClipboardDocumentListIcon, UserIcon, BanknotesIcon, CalendarIcon, PlusIcon, CheckIcon, ChevronUpDownIcon, XMarkIcon, PencilSquareIcon, EyeIcon, TrashIcon, TruckIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, ClipboardDocumentListIcon, UserIcon, BanknotesIcon, CalendarIcon, PlusIcon, CheckIcon, ChevronUpDownIcon, XMarkIcon, PencilSquareIcon, EyeIcon, TrashIcon, TruckIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import ImageUpload from '@/components/ui/ImageUpload';
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
@@ -162,6 +162,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [kendaraanQuery, setKendaraanQuery] = useState('')
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailExporting, setDetailExporting] = useState(false);
+  const [listExporting, setListExporting] = useState(false)
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Pekerjaan | null>(null);
@@ -184,6 +185,14 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   const [currentPage, setCurrentPage] = useState(1);
   const [perView, setPerView] = useState(20);
+  const [searchDraft, setSearchDraft] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'penggajian' | 'dibayar'>('all')
+
+  const applySearch = useCallback(() => {
+    setSearchQuery(String(searchDraft || '').trim())
+    setCurrentPage(1)
+  }, [searchDraft])
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
@@ -204,6 +213,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   useEffect(() => {
     if (mode === 'borongan') setActivityFilter('upah')
     if (mode === 'aktivitas') setActivityFilter('aktivitas')
+    if (mode !== 'borongan') setStatusFilter('all')
   }, [mode]);
 
   useEffect(() => {
@@ -598,11 +608,33 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     }
   };
 
-  const filteredActivities = activities.filter((item) => {
-    if (activityFilter === 'upah') return !!item.upahBorongan;
-    if (activityFilter === 'aktivitas') return !item.upahBorongan;
-    return true;
-  });
+  const filteredActivities = useMemo(() => {
+    const q = String(searchQuery || '').trim().toLowerCase()
+    return activities.filter((item) => {
+      if (activityFilter === 'upah' && !item.upahBorongan) return false
+      if (activityFilter === 'aktivitas' && item.upahBorongan) return false
+
+      if (mode === 'borongan') {
+        const totalCount = Number(item.totalCount || 0) || 1
+        const inGajianCount = Number(item.inGajianCount || 0)
+        const finalizedCount = Number(item.finalizedCount || 0)
+        const isPaid = !!(item.upahBorongan && finalizedCount > 0 && finalizedCount === totalCount)
+        const isInGajian = !!(item.upahBorongan && inGajianCount > 0 && !isPaid)
+        const isDraft = !!(item.upahBorongan && !isPaid && !isInGajian)
+
+        if (statusFilter === 'dibayar' && !isPaid) return false
+        if (statusFilter === 'penggajian' && !isInGajian) return false
+        if (statusFilter === 'draft' && !isDraft) return false
+      }
+
+      if (!q) return true
+
+      const userNames = (item.users && item.users.length > 0) ? item.users.map((u) => u.name).join(' ') : (item.user?.name || '')
+      const kendaraanText = `${item.kendaraan?.platNomor || item.kendaraanPlatNomor || ''} ${item.kendaraan?.merk || ''} ${item.kendaraan?.jenis || ''}`
+      const haystack = `${item.jenisPekerjaan || ''} ${item.keterangan || ''} ${userNames} ${kendaraanText}`.toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [activities, activityFilter, mode, searchQuery, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredActivities.length / perView));
   const startIndex = (currentPage - 1) * perView;
@@ -610,7 +642,164 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [kebunId, selectedDate, filterType, dateRange, activityFilter]);
+  }, [kebunId, selectedDate, filterType, dateRange, activityFilter, statusFilter]);
+
+  const boronganFooter = useMemo(() => {
+    if (mode !== 'borongan') return null
+    const totalJumlah = filteredActivities.reduce((acc, curr) => acc + Number(curr.jumlah || 0), 0)
+    const totalBiaya = filteredActivities.reduce((acc, curr) => acc + Number(curr.biaya || 0), 0)
+    const avgHargaSatuan = totalJumlah > 0 ? Math.round(totalBiaya / totalJumlah) : 0
+    return { totalJumlah, totalBiaya, avgHargaSatuan }
+  }, [filteredActivities, mode])
+
+  const handleExportListPdf = useCallback(async () => {
+    if (listExporting) return
+    if (!filteredActivities || filteredActivities.length === 0) return
+    setListExporting(true)
+    try {
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      const isBoronganMode = mode === 'borongan'
+      const isAktivitasMode = mode === 'aktivitas'
+      const doc = new jsPDF({ orientation: isBoronganMode ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' })
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+
+      const headerBg = [5, 150, 105] as const
+      const footerBg = [15, 23, 42] as const
+      const headerHeight = 16
+      const footerHeight = 10
+
+      let startYmd: string
+      let endYmd: string
+      if (filterType === 'month') {
+        const ymd = formatWibYmd(selectedDate)
+        const y = Number(ymd.slice(0, 4))
+        const m = Number(ymd.slice(5, 7))
+        const endDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+        startYmd = `${ymd.slice(0, 8)}01`
+        endYmd = `${ymd.slice(0, 5)}${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
+      } else if (filterType === 'year') {
+        const y = Number(formatWibYmd(selectedDate).slice(0, 4))
+        startYmd = `${y}-01-01`
+        endYmd = `${y}-12-31`
+      } else {
+        startYmd = dateRange.start
+        endYmd = dateRange.end
+      }
+
+      const title = isBoronganMode ? 'Laporan Borongan' : isAktivitasMode ? 'Laporan Aktivitas' : 'Laporan Aktivitas & Borongan'
+      const period = `Periode ${startYmd} s/d ${endYmd}`
+
+      const drawChrome = (pageNumber: number, totalPages: number) => {
+        doc.setFillColor(headerBg[0], headerBg[1], headerBg[2])
+        doc.rect(0, 0, pageWidth, headerHeight, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.text(title, 12, 10)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.text(period, pageWidth - 12, 10, { align: 'right' })
+
+        doc.setFillColor(footerBg[0], footerBg[1], footerBg[2])
+        doc.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        doc.text(`Halaman ${pageNumber} / ${totalPages}`, pageWidth - 12, pageHeight - 3, { align: 'right' })
+        doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID')}`, 12, pageHeight - 3)
+      }
+
+      const getStatus = (item: Pekerjaan) => {
+        const isUpah = !!item.upahBorongan
+        const totalCount = Number(item.totalCount || 0) || 1
+        const inGajianCount = Number(item.inGajianCount || 0)
+        const finalizedCount = Number(item.finalizedCount || 0)
+        const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
+        const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+        if (isPaid) return 'Dibayar'
+        if (isInGajian) return 'Penggajian'
+        if (isUpah) return 'Draft'
+        return 'Aktivitas'
+      }
+
+      if (isBoronganMode) {
+        const rows = filteredActivities.map((item, idx) => {
+          const jumlah = Number(item.jumlah || 0)
+          const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
+          return [
+            idx + 1,
+            item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+            item.jenisPekerjaan || '',
+            jumlah ? `${formatNumber(jumlah, 2)} ${item.satuan || ''}` : '',
+            hargaSatuan > 0 ? formatNumber(hargaSatuan) : '',
+            item.biaya > 0 ? formatNumber(item.biaya) : '',
+            getStatus(item),
+          ]
+        })
+
+        const totalJumlah = filteredActivities.reduce((acc, curr) => acc + Number(curr.jumlah || 0), 0)
+        const totalBiaya = filteredActivities.reduce((acc, curr) => acc + Number(curr.biaya || 0), 0)
+        const avgHargaSatuan = totalJumlah > 0 ? Math.round(totalBiaya / totalJumlah) : 0
+
+        autoTable(doc, {
+          startY: headerHeight + 8,
+          head: [['NO', 'TANGGAL', 'PEKERJAAN', 'JUMLAH', 'HARGA SATUAN', 'JUMLAH BIAYA', 'STATUS']],
+          body: rows as any,
+          foot: [[
+            { content: 'JUMLAH', colSpan: 3, styles: { halign: 'center', fontStyle: 'bold' } },
+            { content: totalJumlah ? formatNumber(totalJumlah, 2) : '-', styles: { fontStyle: 'bold' } },
+            { content: avgHargaSatuan > 0 ? formatNumber(avgHargaSatuan) : '-', styles: { fontStyle: 'bold' } },
+            { content: totalBiaya > 0 ? formatNumber(totalBiaya) : '-', styles: { fontStyle: 'bold' } },
+            { content: '', styles: { fontStyle: 'bold' } },
+          ]] as any,
+          showFoot: 'lastPage',
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2.2, textColor: [15, 23, 42] },
+          headStyles: { fillColor: headerBg as any, textColor: 255, fontStyle: 'bold' as const },
+          footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' as const },
+          margin: { left: 12, right: 12, top: headerHeight + 8, bottom: footerHeight + 8 },
+        })
+      } else {
+        const rows = filteredActivities.map((item, idx) => {
+          const karyawanText = (item.users && item.users.length > 0)
+            ? item.users.map((u) => u.name).join(', ')
+            : item.user?.name || ''
+          return [
+            idx + 1,
+            item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+            item.jenisPekerjaan || '',
+            karyawanText,
+            getStatus(item),
+          ]
+        })
+
+        autoTable(doc, {
+          startY: headerHeight + 8,
+          head: [['NO', 'TANGGAL', 'PEKERJAAN', 'KARYAWAN', 'STATUS']],
+          body: rows as any,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2.2, textColor: [15, 23, 42] },
+          headStyles: { fillColor: headerBg as any, textColor: 255, fontStyle: 'bold' as const },
+          margin: { left: 12, right: 12, top: headerHeight + 8, bottom: footerHeight + 8 },
+        })
+      }
+
+      const totalPages = doc.getNumberOfPages()
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p)
+        drawChrome(p, totalPages)
+      }
+
+      const safeMode = mode === 'borongan' ? 'borongan' : mode === 'aktivitas' ? 'aktivitas' : 'aktivitas-borongan'
+      doc.save(`laporan-${safeMode}-${startYmd}-${endYmd}.pdf`)
+    } catch {
+      toast.error('Gagal export PDF')
+    } finally {
+      setListExporting(false)
+    }
+  }, [dateRange.end, dateRange.start, filterType, filteredActivities, listExporting, mode, selectedDate])
 
   const stats = useMemo(() => {
     const totalSemua = filteredActivities.reduce((acc, curr) => acc + Number(curr.biaya || 0), 0)
@@ -725,7 +914,60 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <option value="aktivitas">Aktivitas biasa</option>
               </select>
             ) : null}
+            {mode === 'borongan' ? (
+              <select
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-44"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+              >
+                <option value="all">Semua status</option>
+                <option value="draft">Draft</option>
+                <option value="penggajian">Penggajian</option>
+                <option value="dibayar">Dibayar</option>
+              </select>
+            ) : null}
           </div>
+
+          <div className="w-full sm:w-72 relative">
+            <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              value={searchDraft}
+              onChange={(e) => {
+                const next = e.target.value
+                setSearchDraft(next)
+                if (!String(next || '').trim()) {
+                  setSearchQuery('')
+                  setCurrentPage(1)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  applySearch()
+                }
+              }}
+              placeholder={mode === 'borongan' ? 'Cari borongan...' : mode === 'aktivitas' ? 'Cari aktivitas...' : 'Cari aktivitas / borongan...'}
+              className="pl-9 pr-10 rounded-full h-10"
+            />
+            <button
+              type="button"
+              onClick={applySearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Cari"
+            >
+              <MagnifyingGlassIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full h-10 w-full sm:w-auto"
+            onClick={handleExportListPdf}
+            disabled={listExporting || filteredActivities.length === 0}
+          >
+            <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+            {listExporting ? 'Membuat PDF...' : 'Export PDF'}
+          </Button>
 
           <Button onClick={() => setShowForm(!showForm)} className="whitespace-nowrap rounded-full bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
             <PlusIcon className="w-4 h-4 mr-2" />
@@ -1059,6 +1301,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 const isInGajian = isUpah && inGajianCount > 0 && !isPaid
                 const isUnpaid = isUpah && !isLocked
                 const displayNo = startIndex + idx + 1
+                const jumlah = Number(item.jumlah || 0)
+                const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
 
                 return (
                   <div key={item.id} className="relative bg-white p-4 pt-11 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -1094,24 +1338,43 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                           <CalendarIcon className="w-3 h-3" />
                           {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </div>
-                        {(item.users && item.users.length > 0) ? (
-                          <div className="flex items-center gap-2 text-xs text-blue-600 mt-1 flex-wrap">
-                            <UserIcon className="w-3 h-3" />
-                            <span className="font-medium">{item.users.map(u => u.name).join(', ')}</span>
-                          </div>
-                        ) : item.user ? (
-                          <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
-                            <UserIcon className="w-3 h-3" />
-                            <span className="font-medium">{item.user.name}</span>
-                          </div>
+                        {mode !== 'borongan' ? (
+                          (item.users && item.users.length > 0) ? (
+                            <div className="flex items-center gap-2 text-xs text-blue-600 mt-1 flex-wrap">
+                              <UserIcon className="w-3 h-3" />
+                              <span className="font-medium">{item.users.map(u => u.name).join(', ')}</span>
+                            </div>
+                          ) : item.user ? (
+                            <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
+                              <UserIcon className="w-3 h-3" />
+                              <span className="font-medium">{item.user.name}</span>
+                            </div>
+                          ) : null
                         ) : null}
                       </div>
                       
-                      {item.biaya > 0 && (
-                        <div className="flex items-center gap-1 text-green-600 font-medium bg-green-50 px-2 py-1 rounded-md text-sm w-fit">
-                          <BanknotesIcon className="w-4 h-4" />
-                          Rp {item.biaya.toLocaleString('id-ID')}
+                      {mode === 'borongan' ? (
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="rounded-lg border border-gray-100 bg-gray-50 p-2">
+                            <div className="text-[10px] font-black tracking-wider text-gray-400 uppercase">Jumlah</div>
+                            <div className="font-semibold text-gray-900">{jumlah ? `${formatNumber(jumlah, 2)} ${item.satuan || ''}` : '-'}</div>
+                          </div>
+                          <div className="rounded-lg border border-gray-100 bg-gray-50 p-2">
+                            <div className="text-[10px] font-black tracking-wider text-gray-400 uppercase">Harga Satuan</div>
+                            <div className="font-semibold text-gray-900">{hargaSatuan > 0 ? formatCurrency(hargaSatuan) : '-'}</div>
+                          </div>
+                          <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2">
+                            <div className="text-[10px] font-black tracking-wider text-emerald-700 uppercase">Jumlah Biaya</div>
+                            <div className="font-extrabold text-emerald-800">{item.biaya > 0 ? formatCurrency(item.biaya) : '-'}</div>
+                          </div>
                         </div>
+                      ) : (
+                        mode !== 'aktivitas' && item.biaya > 0 ? (
+                          <div className="flex items-center gap-1 text-green-600 font-medium bg-green-50 px-2 py-1 rounded-md text-sm w-fit">
+                            <BanknotesIcon className="w-4 h-4" />
+                            Rp {item.biaya.toLocaleString('id-ID')}
+                          </div>
+                        ) : null
                       )}
 
                       <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
@@ -1140,14 +1403,38 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               <table className="w-full text-left text-sm border-collapse">
                 <thead className="bg-gray-50 text-gray-500 font-semibold text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="px-4 py-3 border-b border-gray-100 text-center w-12">No</th>
-                    <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
-                    <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
-                    <th className="px-4 py-3 border-b border-gray-100">Karyawan</th>
-                    <th className="px-4 py-3 border-b border-gray-100">Jumlah</th>
-                    <th className="px-4 py-3 border-b border-gray-100 text-right">Biaya</th>
-                    <th className="px-4 py-3 border-b border-gray-100">Status</th>
-                    <th className="px-4 py-3 border-b border-gray-100 text-center w-28">Aksi</th>
+                    {mode === 'borongan' ? (
+                      <>
+                        <th className="px-4 py-3 border-b border-gray-100 text-center w-12">No</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Jumlah</th>
+                        <th className="px-4 py-3 border-b border-gray-100 text-right">Harga Satuan</th>
+                        <th className="px-4 py-3 border-b border-gray-100 text-right">Jumlah Biaya</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Status</th>
+                        <th className="px-4 py-3 border-b border-gray-100 text-center w-28">Aksi</th>
+                      </>
+                    ) : mode === 'aktivitas' ? (
+                      <>
+                        <th className="px-4 py-3 border-b border-gray-100 text-center w-12">No</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Karyawan</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Status</th>
+                        <th className="px-4 py-3 border-b border-gray-100 text-center w-28">Aksi</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-4 py-3 border-b border-gray-100 text-center w-12">No</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Karyawan</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Jumlah</th>
+                        <th className="px-4 py-3 border-b border-gray-100 text-right">Biaya</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Status</th>
+                        <th className="px-4 py-3 border-b border-gray-100 text-center w-28">Aksi</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -1161,6 +1448,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     const isInGajian = isUpah && inGajianCount > 0 && !isPaid
                     const isUnpaid = isUpah && !isLocked
                     const displayNo = startIndex + idx + 1
+                    const jumlah = Number(item.jumlah || 0)
+                    const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
 
                     return (
                       <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -1172,20 +1461,45 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                           <div className="font-semibold text-gray-900">{item.jenisPekerjaan}</div>
                           {item.keterangan && <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{item.keterangan}</div>}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5 text-blue-600 font-medium">
-                            <UserIcon className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate max-w-[150px]">
-                              {(item.users && item.users.length > 0) ? item.users.map(u => u.name).join(', ') : item.user?.name || '-'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                          {item.jumlah ? `${formatNumber(item.jumlah, 2)} ${item.satuan || ''}` : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-600 whitespace-nowrap">
-                          {item.biaya > 0 ? formatCurrency(item.biaya) : '-'}
-                        </td>
+                        {mode === 'borongan' ? (
+                          <>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                              {jumlah ? `${formatNumber(jumlah, 2)} ${item.satuan || ''}` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-800 whitespace-nowrap">
+                              {hargaSatuan > 0 ? formatCurrency(hargaSatuan) : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                              {item.biaya > 0 ? formatCurrency(item.biaya) : '-'}
+                            </td>
+                          </>
+                        ) : mode === 'aktivitas' ? (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                              <UserIcon className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate max-w-[220px]">
+                                {(item.users && item.users.length > 0) ? item.users.map(u => u.name).join(', ') : item.user?.name || '-'}
+                              </span>
+                            </div>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                                <UserIcon className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate max-w-[150px]">
+                                  {(item.users && item.users.length > 0) ? item.users.map(u => u.name).join(', ') : item.user?.name || '-'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                              {item.jumlah ? `${formatNumber(item.jumlah, 2)} ${item.satuan || ''}` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                              {item.biaya > 0 ? formatCurrency(item.biaya) : '-'}
+                            </td>
+                          </>
+                        )}
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
                             {isPaid && (
@@ -1231,6 +1545,23 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     )
                   })}
                 </tbody>
+                {mode === 'borongan' && boronganFooter && filteredActivities.length > 0 ? (
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 font-bold text-gray-700 uppercase tracking-wide">Jumlah</td>
+                      <td className="px-4 py-3 text-gray-700 font-semibold whitespace-nowrap">
+                        {boronganFooter.totalJumlah ? formatNumber(boronganFooter.totalJumlah, 2) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700 font-semibold whitespace-nowrap">
+                        {boronganFooter.avgHargaSatuan > 0 ? formatCurrency(boronganFooter.avgHargaSatuan) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">
+                        {boronganFooter.totalBiaya > 0 ? formatCurrency(boronganFooter.totalBiaya) : '-'}
+                      </td>
+                      <td colSpan={2} className="px-4 py-3" />
+                    </tr>
+                  </tfoot>
+                ) : null}
               </table>
             </div>
 

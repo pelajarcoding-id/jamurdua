@@ -1392,7 +1392,34 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const res = await fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) throw new Error('Gagal mengambil potongan pengajuan')
       const json = await res.json().catch(() => ({} as any))
-      const items = Array.isArray(json?.items) ? json.items : []
+      let items = Array.isArray(json?.items) ? json.items : []
+
+      // Fallback: jika draft potongan kosong, ambil dari detail gajian pada periode yang sama.
+      if (items.length === 0) {
+        const historyParams = new URLSearchParams({
+          fetchHistory: 'true',
+          kebunId: String(kebunId),
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        })
+        const historyRes = await fetch(`/api/gajian?${historyParams.toString()}`, { cache: 'no-store' })
+        if (historyRes.ok) {
+          const historyJson = await historyRes.json().catch(() => ({} as any))
+          const drafts = Array.isArray(historyJson?.drafts) ? historyJson.drafts : []
+          const finalized = Array.isArray(historyJson?.finalized) ? historyJson.finalized : []
+          const allGajian = [...drafts, ...finalized]
+          const pulled: any[] = []
+          for (const g of allGajian) {
+            const detailRes = await fetch(`/api/gajian/${g.id}`, { cache: 'no-store' })
+            if (!detailRes.ok) continue
+            const detailJson = await detailRes.json().catch(() => ({} as any))
+            const pots = Array.isArray(detailJson?.potongan) ? detailJson.potongan : []
+            for (const p of pots) pulled.push(p)
+          }
+          items = pulled
+        }
+      }
+
       if (items.length === 0) {
         toast.error('Tidak ada potongan tersimpan pada pengajuan gajian periode ini.')
         return

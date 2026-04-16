@@ -289,6 +289,8 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         ]],
         body: finalBody as any,
         foot: footerRows as any,
+        showFoot: 'lastPage',
+        showHead: 'everyPage',
         theme: 'grid',
         styles: { 
           fontSize: 8, 
