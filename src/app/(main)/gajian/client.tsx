@@ -1083,34 +1083,37 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const rows = await res.json().catch(() => [])
       const list = Array.isArray(rows) ? rows : []
 
-      const BORONGAN_PREFIX = ''
-      const groups = new Map<string, { total: number; ids: number[] }>()
       const allIds: number[] = []
 
-      list.forEach((p: any) => {
-        const id = Number(p?.id)
-        if (!Number.isFinite(id) || id <= 0) return
-        const kategori = String(p?.kategoriBorongan || p?.kategori || '').trim() || 'Tanpa kategori'
-        const biaya = Number(p?.biaya || 0)
-        if (!Number.isFinite(biaya) || biaya <= 0) return
-        allIds.push(id)
-        const g = groups.get(kategori) || { total: 0, ids: [] }
-        g.total += biaya
-        g.ids.push(id)
-        groups.set(kategori, g)
-      })
+      const imported = list
+        .map((p: any) => {
+          const id = Number(p?.id)
+          if (!Number.isFinite(id) || id <= 0) return null
+          const biaya = Number(p?.biaya || 0)
+          if (!Number.isFinite(biaya) || biaya <= 0) return null
 
-      setSavedBiaya(prev => {
-        const filtered = prev.filter(b => !(String(b.deskripsi || '').startsWith('Upah Borongan - ')))
-        const imported = Array.from(groups.entries()).map(([kategori, g]) => ({
-          id: `auto-borongan-${kategori}-${Date.now()}-${Math.random()}`,
-          deskripsi: `${kategori}`,
-          jumlah: 1,
-          satuan: 'Paket',
-          hargaSatuan: Math.round(g.total),
-          total: Math.round(g.total),
-          keterangan: '',
-        })) as any
+          allIds.push(id)
+          const kategori = String(p?.kategoriBorongan || '').trim()
+          const jenis = String(p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
+          const tanggal = p?.date ? new Date(p.date).toLocaleDateString('id-ID') : ''
+
+          const deskripsi = kategori ? `Upah Borongan - ${kategori} - ${jenis}` : `Upah Borongan - ${jenis}`
+          const keterangan = tanggal ? `Tanggal: ${tanggal}` : ''
+
+          return {
+            id: `auto-borongan-${id}`,
+            deskripsi,
+            jumlah: 1,
+            satuan: 'Paket',
+            hargaSatuan: Math.round(biaya),
+            total: Math.round(biaya),
+            keterangan,
+          } as any
+        })
+        .filter(Boolean) as any[]
+
+      setSavedBiaya((prev) => {
+        const filtered = prev.filter((b) => !(String(b.deskripsi || '').startsWith('Upah Borongan - ')))
         return [...filtered, ...imported]
       })
       setBoronganPekerjaanIds(allIds)

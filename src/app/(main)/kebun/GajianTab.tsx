@@ -192,18 +192,17 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
 
       if (actRes.ok) {
         const activities = await actRes.json()
-        const groupedActivities = activities.reduce((acc: Record<string, number>, curr: any) => {
-          if (!curr?.upahBorongan) return acc
-          const type = (curr.kategoriBorongan && String(curr.kategoriBorongan).trim()) ? String(curr.kategoriBorongan).trim() : 'Tanpa kategori'
-          if (!acc[type]) acc[type] = 0
-          acc[type] += curr.biaya
-          return acc
-        }, {})
-
-        Object.entries(groupedActivities).forEach(([deskripsi, total]) => {
+        const list = Array.isArray(activities) ? activities : []
+        list.forEach((curr: any) => {
+          if (!curr?.upahBorongan) return
+          const total = Number(curr?.biaya || 0)
+          if (!Number.isFinite(total) || total <= 0) return
+          const kategori = String(curr?.kategoriBorongan || '').trim()
+          const jenis = String(curr?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
+          const deskripsi = kategori ? `Upah Borongan - ${kategori} - ${jenis}` : `Upah Borongan - ${jenis}`
           mappedBiaya.push({
-            deskripsi: `${deskripsi}`,
-            total: Number(total) || 0,
+            deskripsi,
+            total,
           })
         })
       }
