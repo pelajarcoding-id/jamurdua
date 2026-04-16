@@ -33,6 +33,17 @@ async function ensurePekerjaanKebunKendaraanColumn() {
   }
 }
 
+async function ensurePekerjaanKebunKategoriBoronganColumn() {
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "PekerjaanKebun"
+    ADD COLUMN IF NOT EXISTS "kategoriBorongan" TEXT;
+  `)
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "PekerjaanKebun_kategoriBorongan_idx"
+    ON "PekerjaanKebun" ("kategoriBorongan");
+  `)
+}
+
 async function resolveKendaraanPlatNomor(input?: string | null) {
   const raw = typeof input === 'string' ? input.trim() : ''
   if (!raw) return null
@@ -68,6 +79,7 @@ export async function GET(
 ) {
   try {
     await ensurePekerjaanKebunKendaraanColumn()
+    await ensurePekerjaanKebunKategoriBoronganColumn()
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR', 'MANDOR', 'MANAGER'])
     if (guard.response) return guard.response
     const kebunId = parseInt(params.id);
@@ -168,6 +180,7 @@ export async function POST(
 ) {
   try {
     await ensurePekerjaanKebunKendaraanColumn()
+    await ensurePekerjaanKebunKategoriBoronganColumn()
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANDOR', 'MANAGER'])
     if (guard.response) return guard.response
 
@@ -179,7 +192,7 @@ export async function POST(
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json();
-    const { jenisPekerjaan, keterangan, biaya, userId, userIds, date, upahBorongan, jumlah, satuan, hargaSatuan, imageUrl, kendaraanPlatNomor } = body;
+    const { jenisPekerjaan, kategoriBorongan, keterangan, biaya, userId, userIds, date, upahBorongan, jumlah, satuan, hargaSatuan, imageUrl, kendaraanPlatNomor } = body;
 
     if (!jenisPekerjaan) {
       return NextResponse.json(
@@ -201,9 +214,11 @@ export async function POST(
       return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 400 })
     }
     const dateYmd = parseWibYmd(date)
+    const kategoriBoronganValue = typeof kategoriBorongan === 'string' && kategoriBorongan.trim() ? kategoriBorongan.trim() : null
     const baseData = {
       kebunId,
       jenisPekerjaan,
+      kategoriBorongan: isUpahBorongan ? kategoriBoronganValue : null,
       keterangan: keterangan?.trim() ? keterangan.trim() : null,
       biaya: computedBiaya || (isUpahBorongan && biaya ? parseFloat(biaya) : 0),
       imageUrl: imageUrl || null,
@@ -262,6 +277,7 @@ export async function PATCH(
 ) {
   try {
     await ensurePekerjaanKebunKendaraanColumn()
+    await ensurePekerjaanKebunKategoriBoronganColumn()
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANDOR', 'MANAGER'])
     if (guard.response) return guard.response
 
@@ -273,7 +289,7 @@ export async function PATCH(
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json();
-    const { id, ids, jenisPekerjaan, keterangan, biaya, userId, date, upahBorongan, jumlah, satuan, hargaSatuan, imageUrl, kendaraanPlatNomor } = body;
+    const { id, ids, jenisPekerjaan, kategoriBorongan, keterangan, biaya, userId, date, upahBorongan, jumlah, satuan, hargaSatuan, imageUrl, kendaraanPlatNomor } = body;
     if ((!id && (!Array.isArray(ids) || ids.length === 0)) || !jenisPekerjaan) {
       return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
@@ -306,9 +322,11 @@ export async function PATCH(
     if (kendaraanPlatNomor && !resolvedKendaraanPlatNomor) {
       return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 400 })
     }
+    const kategoriBoronganValue = typeof kategoriBorongan === 'string' && kategoriBorongan.trim() ? kategoriBorongan.trim() : null
     const updateData = {
       kebunId,
       jenisPekerjaan,
+      kategoriBorongan: isUpahBorongan ? kategoriBoronganValue : null,
       keterangan: keterangan?.trim() ? keterangan.trim() : null,
       biaya: computedBiaya || (isUpahBorongan && biaya ? parseFloat(biaya) : 0),
       ...(typeof imageUrl !== 'undefined' ? { imageUrl: imageUrl || null } : {}),
@@ -354,6 +372,7 @@ export async function DELETE(
 ) {
   try {
     await ensurePekerjaanKebunKendaraanColumn()
+    await ensurePekerjaanKebunKategoriBoronganColumn()
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANDOR', 'MANAGER'])
     if (guard.response) return guard.response
 

@@ -498,6 +498,7 @@ model PekerjaanKebun {
   kendaraanPlatNomor String?
   date           DateTime @default(now())
   jenisPekerjaan String
+  kategoriBorongan String?
   keterangan     String?
   biaya          Float    @default(0)
   imageUrl       String?

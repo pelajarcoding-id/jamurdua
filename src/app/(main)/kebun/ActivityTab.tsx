@@ -18,6 +18,7 @@ type Pekerjaan = {
   ids?: number[];
   date: string;
   jenisPekerjaan: string;
+  kategoriBorongan?: string | null;
   keterangan: string | null;
   biaya: number;
   imageUrl?: string | null;
@@ -146,6 +147,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   // Form State
   const [formData, setFormData] = useState(() => ({
     date: formatWibYmd(new Date()),
+    kategoriBorongan: '',
     jenisPekerjaan: '',
     keterangan: '',
     biaya: 0,
@@ -172,6 +174,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [editKendaraanQuery, setEditKendaraanQuery] = useState('')
   const [editForm, setEditForm] = useState(() => ({
     date: formatWibYmd(new Date()),
+    kategoriBorongan: '',
     jenisPekerjaan: '',
     keterangan: '',
     biaya: 0,
@@ -188,6 +191,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [searchDraft, setSearchDraft] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'penggajian' | 'dibayar'>('all')
+  const [kategoriFilter, setKategoriFilter] = useState<string>('all')
 
   const applySearch = useCallback(() => {
     setSearchQuery(String(searchDraft || '').trim())
@@ -214,6 +218,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     if (mode === 'borongan') setActivityFilter('upah')
     if (mode === 'aktivitas') setActivityFilter('aktivitas')
     if (mode !== 'borongan') setStatusFilter('all')
+    if (mode !== 'borongan') setKategoriFilter('all')
   }, [mode]);
 
   useEffect(() => {
@@ -378,6 +383,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         imageUrl,
       }
       if (mode === 'aktivitas') {
+        delete payload.kategoriBorongan
         delete payload.jumlah
         delete payload.satuan
         delete payload.hargaSatuan
@@ -396,6 +402,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       toast.success('Pekerjaan berhasil dicatat', { id: loadingToast });
       setFormData({
         date: formatWibYmd(new Date()),
+        kategoriBorongan: '',
         jenisPekerjaan: '',
         keterangan: '',
         biaya: 0,
@@ -526,6 +533,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     const userIds = item.users && item.users.length > 0 ? item.users.map(u => u.id) : (item.user ? [item.user.id] : []);
     setEditForm({
       date: item.date ? formatWibYmd(new Date(item.date)) : formatWibYmd(new Date()),
+      kategoriBorongan: String((item as any).kategoriBorongan || ''),
       jenisPekerjaan: item.jenisPekerjaan,
       keterangan: item.keterangan || '',
       biaya: item.biaya || 0,
@@ -558,6 +566,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         biaya: totalBiaya,
       }
       if (mode === 'aktivitas') {
+        delete payload.kategoriBorongan
         delete payload.jumlah
         delete payload.satuan
         delete payload.hargaSatuan
@@ -625,16 +634,26 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         if (statusFilter === 'dibayar' && !isPaid) return false
         if (statusFilter === 'penggajian' && !isInGajian) return false
         if (statusFilter === 'draft' && !isDraft) return false
+
+        if (kategoriFilter !== 'all') {
+          const kategori = String((item as any).kategoriBorongan || '').trim()
+          if (kategoriFilter === '__none__') {
+            if (kategori) return false
+          } else {
+            if (kategori.toLowerCase() !== String(kategoriFilter).toLowerCase()) return false
+          }
+        }
       }
 
       if (!q) return true
 
       const userNames = (item.users && item.users.length > 0) ? item.users.map((u) => u.name).join(' ') : (item.user?.name || '')
       const kendaraanText = `${item.kendaraan?.platNomor || item.kendaraanPlatNomor || ''} ${item.kendaraan?.merk || ''} ${item.kendaraan?.jenis || ''}`
-      const haystack = `${item.jenisPekerjaan || ''} ${item.keterangan || ''} ${userNames} ${kendaraanText}`.toLowerCase()
+      const kategoriText = String((item as any).kategoriBorongan || '')
+      const haystack = `${kategoriText} ${item.jenisPekerjaan || ''} ${item.keterangan || ''} ${userNames} ${kendaraanText}`.toLowerCase()
       return haystack.includes(q)
     })
-  }, [activities, activityFilter, mode, searchQuery, statusFilter])
+  }, [activities, activityFilter, kategoriFilter, mode, searchQuery, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredActivities.length / perView));
   const startIndex = (currentPage - 1) * perView;
@@ -642,7 +661,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [kebunId, selectedDate, filterType, dateRange, activityFilter, statusFilter]);
+  }, [kebunId, selectedDate, filterType, dateRange, activityFilter, statusFilter, kategoriFilter]);
 
   const boronganFooter = useMemo(() => {
     if (mode !== 'borongan') return null
@@ -651,6 +670,17 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     const avgHargaSatuan = totalJumlah > 0 ? Math.round(totalBiaya / totalJumlah) : 0
     return { totalJumlah, totalBiaya, avgHargaSatuan }
   }, [filteredActivities, mode])
+
+  const kategoriBoronganOptions = useMemo(() => {
+    if (mode !== 'borongan') return [] as string[]
+    const set = new Set<string>()
+    activities.forEach((a) => {
+      if (!a?.upahBorongan) return
+      const k = String((a as any).kategoriBorongan || '').trim()
+      if (k) set.add(k)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'id-ID'))
+  }, [activities, mode])
 
   const handleExportListPdf = useCallback(async () => {
     if (listExporting) return
@@ -842,19 +872,41 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 capitalize">
-            {mode === 'borongan' ? 'Borongan' : mode === 'aktivitas' ? 'Aktivitas' : 'Aktivitas & Pekerjaan'}
-          </h2>
-          <p className="text-sm text-gray-500">
-            {mode === 'borongan'
-              ? 'Pekerjaan borongan yang masuk pengajuan gajian'
-              : 'Catatan kegiatan di kebun'}
-          </p>
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 capitalize">
+              {mode === 'borongan' ? 'Borongan' : mode === 'aktivitas' ? 'Aktivitas' : 'Aktivitas & Pekerjaan'}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {mode === 'borongan'
+                ? 'Pekerjaan borongan yang masuk pengajuan gajian'
+                : 'Catatan kegiatan di kebun'}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto lg:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full h-10 w-full sm:w-auto"
+              onClick={handleExportListPdf}
+              disabled={listExporting || filteredActivities.length === 0}
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+              {listExporting ? 'Membuat PDF...' : 'Export PDF'}
+            </Button>
+            <Button
+              onClick={() => setShowForm(!showForm)}
+              className="whitespace-nowrap rounded-full bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
+            >
+              <PlusIcon className="w-4 h-4 mr-2" />
+              {mode === 'borongan' ? 'Catat Borongan' : 'Catat Aktivitas'}
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full lg:w-auto">
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select 
               className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-auto flex-shrink-0"
               value={filterType}
@@ -903,6 +955,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 />
               </div>
             )}
+
             {!mode ? (
               <select
                 className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48"
@@ -914,9 +967,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <option value="aktivitas">Aktivitas biasa</option>
               </select>
             ) : null}
+
             {mode === 'borongan' ? (
               <select
-                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-44"
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-40"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
               >
@@ -926,9 +980,23 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <option value="dibayar">Dibayar</option>
               </select>
             ) : null}
+
+            {mode === 'borongan' ? (
+              <select
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-56"
+                value={kategoriFilter}
+                onChange={(e) => setKategoriFilter(e.target.value)}
+              >
+                <option value="all">Semua kategori</option>
+                <option value="__none__">Tanpa kategori</option>
+                {kategoriBoronganOptions.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+            ) : null}
           </div>
 
-          <div className="w-full sm:w-72 relative">
+          <div className="w-full sm:max-w-sm relative">
             <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               value={searchDraft}
@@ -957,22 +1025,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               <MagnifyingGlassIcon className="h-5 w-5" />
             </button>
           </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full h-10 w-full sm:w-auto"
-            onClick={handleExportListPdf}
-            disabled={listExporting || filteredActivities.length === 0}
-          >
-            <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-            {listExporting ? 'Membuat PDF...' : 'Export PDF'}
-          </Button>
-
-          <Button onClick={() => setShowForm(!showForm)} className="whitespace-nowrap rounded-full bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
-            <PlusIcon className="w-4 h-4 mr-2" />
-            {mode === 'borongan' ? 'Catat Borongan' : 'Catat Aktivitas'}
-          </Button>
         </div>
       </div>
 
@@ -1024,6 +1076,23 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 className="bg-white"
               />
             </div>
+            {mode === 'borongan' ? (
+              <div>
+                <Label>Kategori Borongan</Label>
+                <Input
+                  list="borongan-kategori-options"
+                  placeholder="Contoh: Panen, Angkut, Perawatan..."
+                  value={(formData as any).kategoriBorongan || ''}
+                  onChange={(e) => setFormData({ ...formData, kategoriBorongan: e.target.value })}
+                  className="bg-white"
+                />
+                <datalist id="borongan-kategori-options">
+                  {kategoriBoronganOptions.map((k) => (
+                    <option key={k} value={k} />
+                  ))}
+                </datalist>
+              </div>
+            ) : null}
             <div>
               <Label>{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
               <Input 
@@ -1312,6 +1381,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     <div className="flex flex-col gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
+                          {mode === 'borongan' && (item as any).kategoriBorongan ? (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                              {String((item as any).kategoriBorongan)}
+                            </span>
+                          ) : null}
                           <h4 className="font-semibold text-gray-900">{item.jenisPekerjaan}</h4>
                           {item.upahBorongan && (
                             <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
@@ -1458,6 +1532,13 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                           {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="px-4 py-3">
+                          {mode === 'borongan' && (item as any).kategoriBorongan ? (
+                            <div className="mb-1">
+                              <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                                {String((item as any).kategoriBorongan)}
+                              </span>
+                            </div>
+                          ) : null}
                           <div className="font-semibold text-gray-900">{item.jenisPekerjaan}</div>
                           {item.keterangan && <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{item.keterangan}</div>}
                         </td>
@@ -1773,6 +1854,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   className="bg-white"
                 />
               </div>
+              {mode === 'borongan' ? (
+                <div>
+                  <Label>Kategori Borongan</Label>
+                  <Input
+                    list="borongan-kategori-options"
+                    placeholder="Contoh: Panen, Angkut, Perawatan..."
+                    value={(editForm as any).kategoriBorongan || ''}
+                    onChange={(e) => setEditForm({ ...editForm, kategoriBorongan: e.target.value })}
+                    className="bg-white"
+                  />
+                </div>
+              ) : null}
               <div>
                 <Label>{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
                 <Input

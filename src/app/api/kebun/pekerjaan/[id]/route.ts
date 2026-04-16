@@ -6,26 +6,35 @@ import { ensureKebunAccess } from '@/lib/kebun-access';
 
 export const dynamic = 'force-dynamic'
 
+async function ensurePekerjaanKebunKategoriBoronganColumn() {
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "PekerjaanKebun"
+    ADD COLUMN IF NOT EXISTS "kategoriBorongan" TEXT;
+  `)
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    await ensurePekerjaanKebunKategoriBoronganColumn()
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANDOR', 'MANAGER'])
     if (guard.response) return guard.response
     const currentUserId = guard.id;
     const id = Number(params.id);
     const body = await request.json();
 
-    const before = await prisma.pekerjaanKebun.findUnique({ where: { id } });
+    const before = await (prisma as any).pekerjaanKebun.findUnique({ where: { id } });
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const allowed = await ensureKebunAccess(guard.id, guard.role, Number((before as any).kebunId))
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const updated = await prisma.pekerjaanKebun.update({
+    const updated = await (prisma as any).pekerjaanKebun.update({
       where: { id },
       data: {
         date: body.date ? new Date(body.date) : undefined,
         jenisPekerjaan: body.jenisPekerjaan,
+        kategoriBorongan: typeof body.kategoriBorongan === 'string' ? body.kategoriBorongan : undefined,
         keterangan: body.keterangan,
         biaya: body.biaya !== undefined ? Number(body.biaya) : undefined,
         userId: body.userId ? Number(body.userId) : null,
@@ -48,7 +57,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -57,11 +66,11 @@ export async function DELETE(
     const currentUserId = guard.id;
     const id = Number(params.id);
 
-    const before = await prisma.pekerjaanKebun.findUnique({ where: { id } });
+    const before = await (prisma as any).pekerjaanKebun.findUnique({ where: { id } });
     if (!before) return NextResponse.json({ message: 'Data berhasil dihapus' });
     const allowed = await ensureKebunAccess(guard.id, guard.role, Number((before as any).kebunId))
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    await prisma.pekerjaanKebun.delete({
+    await (prisma as any).pekerjaanKebun.delete({
       where: { id },
     });
 

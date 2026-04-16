@@ -194,7 +194,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
         const activities = await actRes.json()
         const groupedActivities = activities.reduce((acc: Record<string, number>, curr: any) => {
           if (!curr?.upahBorongan) return acc
-          const type = curr.jenisPekerjaan || 'Lainnya'
+          const type = curr.kategoriBorongan || curr.jenisPekerjaan || 'Lainnya'
           if (!acc[type]) acc[type] = 0
           acc[type] += curr.biaya
           return acc

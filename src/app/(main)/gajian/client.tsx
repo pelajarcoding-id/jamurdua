@@ -1090,21 +1090,21 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       list.forEach((p: any) => {
         const id = Number(p?.id)
         if (!Number.isFinite(id) || id <= 0) return
-        const jenis = String(p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
+        const kategori = String(p?.kategoriBorongan || p?.kategori || p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
         const biaya = Number(p?.biaya || 0)
         if (!Number.isFinite(biaya) || biaya <= 0) return
         allIds.push(id)
-        const g = groups.get(jenis) || { total: 0, ids: [] }
+        const g = groups.get(kategori) || { total: 0, ids: [] }
         g.total += biaya
         g.ids.push(id)
-        groups.set(jenis, g)
+        groups.set(kategori, g)
       })
 
       setSavedBiaya(prev => {
         const filtered = prev.filter(b => !(String(b.deskripsi || '').startsWith('Upah Borongan - ')))
-        const imported = Array.from(groups.entries()).map(([jenis, g]) => ({
-          id: `auto-borongan-${jenis}-${Date.now()}-${Math.random()}`,
-          deskripsi: `${jenis}`,
+        const imported = Array.from(groups.entries()).map(([kategori, g]) => ({
+          id: `auto-borongan-${kategori}-${Date.now()}-${Math.random()}`,
+          deskripsi: `${kategori}`,
           jumlah: 1,
           satuan: 'Paket',
           hargaSatuan: Math.round(g.total),
