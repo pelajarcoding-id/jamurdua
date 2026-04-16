@@ -175,7 +175,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
               {filterType === 'month' && (
                 <Input 
                   type="month" 
-                  className="h-10 w-full sm:w-40 bg-white" 
+                  className="h-10 w-full sm:w-44 bg-white !rounded-md pr-10" 
                   value={selectedDate.toISOString().slice(0, 7)}
                   onChange={handleDateChange}
                 />
@@ -197,14 +197,14 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Input 
                     type="date" 
-                    className="h-10 w-full sm:w-32 bg-white" 
+                    className="h-10 w-full sm:w-36 bg-white !rounded-md pr-10" 
                     value={dateRange.start}
                     onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                   />
                   <span className="text-gray-500">-</span>
                   <Input 
                     type="date" 
-                    className="h-10 w-full sm:w-32 bg-white" 
+                    className="h-10 w-full sm:w-36 bg-white !rounded-md pr-10" 
                     value={dateRange.end}
                     onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                   />

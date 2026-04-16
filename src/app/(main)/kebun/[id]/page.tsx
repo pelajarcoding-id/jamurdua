@@ -109,7 +109,7 @@ export default function KebunDetailPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="aktivitas" className="w-full space-y-8">
+        <Tabs defaultValue="borongan" className="w-full space-y-8">
             <div className="w-full overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
               <TabsList className="w-max min-w-full justify-start h-12 rounded-2xl bg-gray-50 border border-gray-100 p-1 gap-1">
                 <TabsTrigger value="aktivitas" className="rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">

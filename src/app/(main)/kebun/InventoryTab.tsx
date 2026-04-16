@@ -760,14 +760,14 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden [&>button.absolute]:hidden">
+        <DialogContent className="w-[92vw] sm:max-w-md max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
           <ModalHeader
             title={trxType === 'IN' ? 'Tambah Stock' : 'Pengeluaran Barang'}
             variant="emerald"
             icon={<ArchiveBoxIcon className="h-5 w-5 text-white" />}
             onClose={() => setIsModalOpen(false)}
           />
-          <ModalContentWrapper className="space-y-4">
+          <ModalContentWrapper className="space-y-4 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
               <div className="text-sm font-semibold text-gray-900">{selectedItem?.name}</div>
               <div className="text-xs text-gray-500">{selectedItem?.category || 'Umum'} • {selectedItem?.unit}</div>
@@ -841,14 +841,14 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       />
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden [&>button.absolute]:hidden">
+        <DialogContent className="w-[92vw] sm:max-w-md max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
           <ModalHeader
             title="Tambah Barang Kebun"
             variant="emerald"
             icon={<ArchiveBoxIcon className="h-5 w-5 text-white" />}
             onClose={() => setIsAddOpen(false)}
           />
-          <ModalContentWrapper className="space-y-4">
+          <ModalContentWrapper className="space-y-4 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="space-y-2">
               <Label>Nama Barang</Label>
               <Input
@@ -960,14 +960,14 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       </Dialog>
 
       <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
-        <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden [&>button.absolute]:hidden">
+        <DialogContent className="w-[92vw] sm:max-w-md max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
           <ModalHeader
             title="Edit Barang Kebun"
             variant="emerald"
             icon={<PencilSquareIcon className="h-5 w-5 text-white" />}
             onClose={() => setIsEditItemOpen(false)}
           />
-          <ModalContentWrapper className="space-y-4">
+          <ModalContentWrapper className="space-y-4 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="space-y-2">
               <Label>Nama Barang</Label>
               <Input
@@ -1085,14 +1085,14 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       />
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden [&>button.absolute]:hidden">
+        <DialogContent className="w-[92vw] sm:max-w-md max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
           <ModalHeader
             title="Edit Pengeluaran"
             variant="emerald"
             icon={<ArchiveBoxIcon className="h-5 w-5 text-white" />}
             onClose={() => setIsEditOpen(false)}
           />
-          <ModalContentWrapper className="space-y-4">
+          <ModalContentWrapper className="space-y-4 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
               <div className="text-sm font-semibold text-gray-900">{editingTrx?.item.name}</div>
               <div className="text-xs text-gray-500">{editingTrx?.item.category || 'Umum'} • {editingTrx?.item.unit}</div>
@@ -1149,7 +1149,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       </Dialog>
 
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="w-[94vw] sm:max-w-2xl p-0 overflow-hidden [&>button.absolute]:hidden">
+        <DialogContent className="w-[94vw] sm:max-w-2xl max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
           <ModalHeader
             title="Detail Barang"
             variant="emerald"
@@ -1168,7 +1168,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
             }
             onClose={() => setIsDetailOpen(false)}
           />
-          <ModalContentWrapper className="space-y-4">
+          <ModalContentWrapper className="space-y-4 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <div className="text-sm font-semibold text-gray-900">{detailItem?.name}</div>
               <div className="text-xs text-gray-500">

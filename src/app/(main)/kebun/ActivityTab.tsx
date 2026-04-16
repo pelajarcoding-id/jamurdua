@@ -197,7 +197,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   }));
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [perView, setPerView] = useState(20);
+  const [perView, setPerView] = useState(mode === 'borongan' ? 50 : 20);
   const [searchDraft, setSearchDraft] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'penggajian' | 'dibayar'>('all')

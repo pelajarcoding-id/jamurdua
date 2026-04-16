@@ -74,7 +74,7 @@ export const authConfig = {
         }
       }
       if (isLoggedIn && userRole === 'MANAGER') {
-        const allowedRoutes = ['/attendance', '/kebun', '/timbangan', '/karyawan', '/karyawan-kebun', '/profile', '/logout'];
+        const allowedRoutes = ['/kebun', '/timbangan', '/karyawan', '/karyawan-kebun', '/profile', '/logout'];
         const isAllowed = allowedRoutes.some(route => nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`));
 
         if (isOnLogin || nextUrl.pathname === '/') {

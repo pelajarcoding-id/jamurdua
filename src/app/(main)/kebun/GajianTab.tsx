@@ -374,11 +374,11 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           <div className="flex flex-col sm:flex-row items-end gap-3">
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Mulai</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-full h-10 w-full sm:w-auto" />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
             </div>
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Selesai</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-full h-10 w-full sm:w-auto" />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
             </div>
             <Button onClick={fetchPreview} variant="outline" className="rounded-full h-10 w-full sm:w-auto">
               Refresh
@@ -564,7 +564,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                             type="date"
                             value={p.tanggal || ''}
                             onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, tanggal: e.target.value } : x)))}
-                            className="h-10 rounded-full"
+                            className="h-10 bg-white !rounded-md pr-10"
                           />
                           <Input
                             placeholder="Total"
@@ -665,11 +665,11 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           <div className="flex flex-col sm:flex-row items-end gap-3">
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Mulai</Label>
-              <Input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} className="rounded-full h-10 w-full sm:w-auto" />
+              <Input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
             </div>
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Selesai</Label>
-              <Input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} className="rounded-full h-10 w-full sm:w-auto" />
+              <Input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
             </div>
             <Button onClick={fetchHistory} variant="outline" className="rounded-full h-10 w-full sm:w-auto">
               Terapkan
