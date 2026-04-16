@@ -74,8 +74,13 @@ export async function GET(request: Request) {
     const end = range?.endExclusiveUtc
 
     const statusFilter: Prisma.NotaSawitWhereInput = gajianIdToEdit
-      ? { OR: [{ statusGajian: 'BELUM_DIPROSES' }, { gajianId: parseInt(gajianIdToEdit) }] }
-      : { statusGajian: 'BELUM_DIPROSES' };
+      ? {
+          OR: [
+            { detailGajian: null },
+            { detailGajian: { gajianId: parseInt(gajianIdToEdit) } }
+          ]
+        }
+      : { detailGajian: null };
 
     const where: Prisma.NotaSawitWhereInput = {
       AND: [

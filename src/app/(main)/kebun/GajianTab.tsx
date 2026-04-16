@@ -106,7 +106,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
     (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num),
     [],
   )
-  const formatNumber = useCallback((num: number) => new Intl.NumberFormat('id-ID').format(num), [])
+  const formatNumber = useCallback((num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num), [])
 
   const handleSavePotongan = useCallback(async () => {
     try {
@@ -475,8 +475,8 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                     <div className="text-sm font-semibold text-gray-900">{b.deskripsi}</div>
                     {b.isAutoKg ? (
                       <div className="text-xs text-gray-500 mt-1">
-                        {formatNumber(Math.round(Number(b.jumlah || 0)))} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
-                      </div>
+                      {formatNumber(Number(b.jumlah || 0), 2)} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
+                    </div>
                     ) : null}
                     <div className="text-xs text-gray-400 mt-1">Total</div>
                     <div className="font-semibold text-blue-700">{formatCurrency(Number(b.total) || 0)}</div>
@@ -513,7 +513,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                           <div className="font-medium text-gray-900">{b.deskripsi}</div>
                           {b.isAutoKg ? (
                             <div className="text-xs text-gray-500">
-                              {formatNumber(Math.round(Number(b.jumlah || 0)))} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
+                              {formatNumber(Number(b.jumlah || 0), 2)} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
                             </div>
                           ) : null}
                         </td>

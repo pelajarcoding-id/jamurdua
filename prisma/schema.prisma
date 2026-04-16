@@ -994,8 +994,9 @@ model AbsensiHarian {
   kerja      Boolean  @default(false)
   libur      Boolean  @default(false)
   note       String?
+  source     String?
   createdAt  DateTime @default(now()) @db.Timestamp(6)
-  updatedAt  DateTime @default(now()) @db.Timestamp(6)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamp(6)
   jamKerja   Decimal? @db.Decimal
   ratePerJam Decimal? @db.Decimal
   uangMakan  Decimal? @db.Decimal

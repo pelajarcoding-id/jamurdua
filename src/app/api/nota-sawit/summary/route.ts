@@ -52,8 +52,10 @@ export async function GET(request: Request) {
     }
     if (statusGajian) {
       const sg = String(statusGajian).toUpperCase()
-      if (sg === 'BELUM_DIPROSES' || sg === 'DIPROSES') {
-        where.statusGajian = sg
+      if (sg === 'BELUM_DIPROSES') {
+        where.detailGajian = null
+      } else if (sg === 'DIPROSES') {
+        where.statusGajian = 'DIPROSES'
       }
     }
     if (perusahaanId) {

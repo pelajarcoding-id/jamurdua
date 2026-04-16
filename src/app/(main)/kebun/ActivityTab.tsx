@@ -66,9 +66,9 @@ const parseMonthToWibDate = (ym: string) => {
   return new Date(`${m[1]}-${m[2]}-01T00:00:00+07:00`)
 }
 
-const formatNumber = (value: number | string) => {
+const formatNumber = (value: number | string, maxFractionDigits = 0) => {
   const numeric = typeof value === 'string' ? parseNumber(value) : value;
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(numeric || 0);
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(numeric || 0);
 };
 
 const formatCurrency = (value: number) => {
@@ -350,7 +350,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       }
 
       const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : formData.upahBorongan
-      const totalBiaya = effectiveUpahBorongan ? Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0) : 0;
+      const totalBiaya = effectiveUpahBorongan ? Math.round(Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0)) : 0;
       const payload: any = {
         ...formData,
         upahBorongan: effectiveUpahBorongan,
@@ -531,7 +531,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     try {
       const ids = selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id];
       const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : editForm.upahBorongan
-      const totalBiaya = effectiveUpahBorongan ? Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0) : 0;
+      const totalBiaya = effectiveUpahBorongan ? Math.round(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0)) : 0;
       const payload: any = {
         ids,
         ...editForm,
@@ -931,6 +931,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   <Label>Jumlah</Label>
                   <Input
                     type="number"
+                    step="any"
                     min="0"
                     value={formData.jumlah}
                     onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })}
@@ -958,7 +959,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <div>
                   <Label>Total Biaya (Rp)</Label>
                   <Input
-                    value={formatNumber(Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0))}
+                    value={formatNumber(Math.round(Number(formData.jumlah || 0) * Number(formData.hargaSatuan || 0)))}
                     className="bg-white"
                     readOnly
                   />
@@ -1195,7 +1196,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     <div className="mt-1 space-y-1 text-sm text-gray-800">
                       <div className="flex items-center justify-between">
                         <span className="text-gray-500">Jumlah</span>
-                        <span className="font-semibold">{(selectedActivity?.jumlah || 0).toLocaleString('id-ID')} {selectedActivity?.satuan || ''}</span>
+                        <span className="font-semibold">{formatNumber(selectedActivity?.jumlah || 0, 2)} {selectedActivity?.satuan || ''}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-gray-500">Biaya / Satuan</span>
@@ -1411,6 +1412,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     <Label>Jumlah</Label>
                     <Input
                       type="number"
+                      step="any"
                       min="0"
                       value={editForm.jumlah}
                       onChange={(e) => setEditForm({ ...editForm, jumlah: Number(e.target.value) })}
@@ -1438,7 +1440,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   <div>
                     <Label>Total Biaya (Rp)</Label>
                     <Input
-                      value={formatNumber(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0))}
+                      value={formatNumber(Math.round(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0)))}
                       className="bg-white"
                       readOnly
                     />

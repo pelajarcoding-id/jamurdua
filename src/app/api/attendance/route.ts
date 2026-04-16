@@ -118,38 +118,44 @@ async function resolveKebunIdsForCalendar(userId: number) {
   `
   const ids = fallbackKebun.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
   if (ids.length > 0) return ids
-  return [0]
+  return []
 }
 
 async function syncSelfieToCalendarKerja(params: { userId: number; date: Date }) {
-  await ensureAbsensiHarianTable()
+  try {
+    await ensureAbsensiHarianTable()
 
-  const kebunIds = await resolveKebunIdsForCalendar(params.userId)
-  for (const kebunId of kebunIds) {
-    if (!Number.isFinite(kebunId) || kebunId < 0) continue
-    await (prisma as any).absensiHarian.upsert({
-      where: {
-        kebunId_karyawanId_date: {
+    const kebunIds = await resolveKebunIdsForCalendar(params.userId)
+    if (kebunIds.length === 0) return
+
+    for (const kebunId of kebunIds) {
+      if (!Number.isFinite(kebunId) || kebunId <= 0) continue
+      await (prisma as any).absensiHarian.upsert({
+        where: {
+          kebunId_karyawanId_date: {
+            kebunId,
+            karyawanId: params.userId,
+            date: params.date,
+          },
+        },
+        update: {
+          kerja: true,
+          libur: false,
+          source: 'SELFIE',
+          updatedAt: new Date(),
+        },
+        create: {
           kebunId,
           karyawanId: params.userId,
           date: params.date,
+          kerja: true,
+          libur: false,
+          source: 'SELFIE',
         },
-      },
-      update: {
-        kerja: true,
-        libur: false,
-        source: 'SELFIE',
-        updatedAt: new Date(),
-      },
-      create: {
-        kebunId,
-        karyawanId: params.userId,
-        date: params.date,
-        kerja: true,
-        libur: false,
-        source: 'SELFIE',
-      },
-    })
+      })
+    }
+  } catch (err) {
+    console.error('syncSelfieToCalendarKerja error:', err)
   }
 }
 

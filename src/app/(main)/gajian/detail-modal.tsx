@@ -45,7 +45,7 @@ type GajianWithDetails = Gajian & {
   hutangTambahan?: HutangTambahanRow[];
 };
 
-const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
+const formatNumber = (num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num);
 const formatDate = (date: Date | string) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date));
 
 const formatKgNota = (nota?: NotaSawitWithRelations | null) => {
@@ -235,7 +235,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         item.detail ? formatKgNota(item.detail.notaSawit) : '',
         item.detail?.keterangan || '',
         item.biaya?.deskripsi || '',
-        item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah)} ${item.biaya.satuan || ''}` : '',
+        item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah, 2)} ${item.biaya.satuan || ''}` : '',
         item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : '',
         item.biaya ? formatNumber(item.biaya.total) : '',
         item.biaya?.keterangan || '',
@@ -783,7 +783,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail ? formatKgNota(item.detail.notaSawit) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail?.keterangan || ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.deskripsi || ''}</td>
-                    <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah)} ${item.biaya.satuan || ''}` : ''}</td>
+                    <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah, 2)} ${item.biaya.satuan || ''}` : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya ? formatNumber(item.biaya.total) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.keterangan || ''}</td>
