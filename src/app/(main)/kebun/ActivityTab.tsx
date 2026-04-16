@@ -1636,6 +1636,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
                         <th className="px-4 py-3 border-b border-gray-100">Kategori</th>
                         <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Karyawan</th>
                         <th className="px-4 py-3 border-b border-gray-100">Jumlah</th>
                         <th className="px-4 py-3 border-b border-gray-100 text-right">Harga Satuan</th>
                         <th className="px-4 py-3 border-b border-gray-100 text-right">Jumlah Biaya</th>
@@ -1698,6 +1699,14 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         </td>
                         {mode === 'borongan' ? (
                           <>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                                <UserIcon className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate max-w-[220px]">
+                                  {(item.users && item.users.length > 0) ? item.users.map(u => u.name).join(', ') : item.user?.name || '-'}
+                                </span>
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
                               {jumlah ? `${formatNumber(jumlah, 2)} ${item.satuan || ''}` : '-'}
                             </td>
@@ -1783,7 +1792,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 {mode === 'borongan' && boronganFooter && filteredActivities.length > 0 ? (
                   <tfoot className="bg-gray-50">
                     <tr>
-                      <td colSpan={4} className="px-4 py-3 font-bold text-gray-700 uppercase tracking-wide">Jumlah</td>
+                      <td colSpan={5} className="px-4 py-3 font-bold text-gray-700 uppercase tracking-wide">Jumlah</td>
                       <td className="px-4 py-3 text-gray-700 font-semibold whitespace-nowrap">
                         {boronganFooter.totalJumlah ? formatNumber(boronganFooter.totalJumlah, 2) : '-'}
                       </td>
