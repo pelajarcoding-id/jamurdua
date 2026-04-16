@@ -275,7 +275,7 @@ export default function AttendanceMonitorPage() {
       setEndDate(todayYmd)
       return
     }
-  }, [quickRange, todayYmd, wibNow])
+  }, [quickRange, todayYmd])
 
   useEffect(() => {
     setCustomStartDate(startDate || todayYmd)
