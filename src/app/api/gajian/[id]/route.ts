@@ -73,6 +73,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       userId: number | null
       date: Date
       jenisPekerjaan: string
+      kategoriBorongan: string | null
       keterangan: string | null
       biaya: number
       upahBorongan: boolean
@@ -81,7 +82,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       hargaSatuan: number | null
     }>>`
       SELECT
-        "id","kebunId","userId","date","jenisPekerjaan","keterangan","biaya","upahBorongan","jumlah","satuan","hargaSatuan"
+        "id","kebunId","userId","date","jenisPekerjaan","kategoriBorongan","keterangan","biaya","upahBorongan","jumlah","satuan","hargaSatuan"
       FROM "PekerjaanKebun"
       WHERE "gajianId" = ${gajian.id}
         AND "upahBorongan" = TRUE

@@ -433,6 +433,7 @@ model Kebun {
   kasTransaksi  KasTransaksi[]
   notas         NotaSawit[]
   pekerjaan     PekerjaanKebun[]
+  boronganKategori KebunBoronganKategori[]
   permintaan    PermintaanKebun[]
   timbang       Timbangan[]
   inventoryItems KebunInventoryItem[]
@@ -442,6 +443,20 @@ model Kebun {
   workLocation  WorkLocation?
   potonganDrafts KebunGajianPotonganDraft[]
   defaultBiaya  KebunDefaultBiaya[]
+}
+
+model KebunBoronganKategori {
+  id        Int      @id @default(autoincrement())
+  kebunId   Int
+  name      String
+  nameLower String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kebun     Kebun    @relation(fields: [kebunId], references: [id], onDelete: Cascade)
+
+  @@unique([kebunId, nameLower])
+  @@index([kebunId])
 }
 
 model KebunDefaultBiaya {

@@ -36,6 +36,22 @@ type HutangTambahanRow = {
   deskripsi: string | null
 }
 
+type PekerjaanKebunBoronganRow = {
+  id: number
+  kebunId: number
+  userId: number | null
+  date: Date | string
+  jenisPekerjaan: string
+  kategoriBorongan?: string | null
+  keterangan: string | null
+  biaya: number
+  upahBorongan: boolean
+  jumlah: number | null
+  satuan: string | null
+  hargaSatuan: number | null
+  user?: { id: number; name: string } | null
+}
+
 type GajianWithDetails = Gajian & {
   kebun: Kebun;
   detailGajian: DetailGajianWithRelations[];
@@ -43,6 +59,7 @@ type GajianWithDetails = Gajian & {
   potongan: (PotonganGajian & { keterangan?: string | null })[];
   detailKaryawan: DetailGajianKaryawanWithUser[];
   hutangTambahan?: HutangTambahanRow[];
+  pekerjaanKebun?: PekerjaanKebunBoronganRow[];
 };
 
 const formatNumber = (num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num);
@@ -332,6 +349,81 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         },
         margin: { top: topContentY, left: 20, right: 20, bottom: footerHeight + 14 },
       })
+
+      const pekerjaanBoronganForPdf = Array.isArray((gajian as any).pekerjaanKebun) ? (gajian as any).pekerjaanKebun : []
+      const boronganMapPdf = new Map<string, { kategori: string; total: number; count: number }>()
+      pekerjaanBoronganForPdf.forEach((r: any) => {
+        const kategori = String(r?.kategoriBorongan || '').trim() || 'Tanpa kategori'
+        const biaya = Number(r?.biaya || 0)
+        if (!Number.isFinite(biaya) || biaya <= 0) return
+        const prev = boronganMapPdf.get(kategori) || { kategori, total: 0, count: 0 }
+        prev.total += biaya
+        prev.count += 1
+        boronganMapPdf.set(kategori, prev)
+      })
+      const boronganListPdf = Array.from(boronganMapPdf.values()).sort((a, b) => {
+        const diff = b.total - a.total
+        if (diff !== 0) return diff
+        return a.kategori.localeCompare(b.kategori, 'id-ID')
+      })
+      const boronganTotalPdf = boronganListPdf.reduce((sum, r) => sum + r.total, 0)
+
+      if (boronganListPdf.length > 0) {
+        const pageWidth = doc.internal.pageSize.getWidth()
+        const lastY = ((doc as any).lastAutoTable?.finalY as number | undefined) ?? topContentY
+        const titleY = lastY + 22
+
+        doc.setTextColor(15, 23, 42)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.text('LAPORAN BORONGAN (PER KATEGORI)', 20, titleY, { maxWidth: pageWidth - 40 })
+
+        const boronganBodyPdf = boronganListPdf.map((r, idx) => [
+          idx + 1,
+          r.kategori,
+          formatNumber(r.count),
+          formatNumber(Math.round(r.total)),
+        ])
+
+        autoTable(doc, {
+          startY: titleY + 10,
+          head: [['NO', 'KATEGORI', 'JUMLAH ITEM', 'TOTAL (RP)']],
+          body: boronganBodyPdf as any,
+          foot: [[
+            { content: 'TOTAL', colSpan: 3, styles: { halign: 'center', fontStyle: 'bold' } },
+            { content: formatNumber(Math.round(boronganTotalPdf)), styles: { halign: 'right', fontStyle: 'bold' } },
+          ]] as any,
+          showFoot: 'lastPage',
+          theme: 'grid',
+          styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            valign: 'middle',
+            textColor: [15, 23, 42],
+            font: 'helvetica',
+            lineColor: [226, 232, 240],
+            lineWidth: 0.5,
+          },
+          headStyles: {
+            fillColor: primary as any,
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center',
+          },
+          footStyles: {
+            fillColor: [241, 245, 249],
+            textColor: [15, 23, 42],
+            lineWidth: 0.5,
+          },
+          columnStyles: {
+            0: { cellWidth: 40, halign: 'center' },
+            1: { cellWidth: 360 },
+            2: { cellWidth: 120, halign: 'center' },
+            3: { cellWidth: 140, halign: 'right' },
+          },
+          margin: { top: topContentY, left: 20, right: 20, bottom: footerHeight + 14 },
+        } as any)
+      }
 
       if (showApprovalFields) {
         const pageHeight = doc.internal.pageSize.getHeight()
@@ -693,6 +785,26 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
   const totalHutangBaru = hutangRows.reduce((sum: number, r) => sum + r.hutangBaru, 0)
   const totalPotonganAll = hasAutoPotonganHutang ? totalPotongan : (totalPotongan + totalPotonganHutang)
 
+  const pekerjaanBoronganRows = Array.isArray((gajian as any).pekerjaanKebun) ? ((gajian as any).pekerjaanKebun as PekerjaanKebunBoronganRow[]) : []
+  const boronganReport = (() => {
+    const map = new Map<string, { kategori: string; total: number; count: number }>()
+    pekerjaanBoronganRows.forEach((r) => {
+      const kategori = String(r?.kategoriBorongan || '').trim() || 'Tanpa kategori'
+      const biaya = Number(r?.biaya || 0)
+      if (!Number.isFinite(biaya) || biaya <= 0) return
+      const prev = map.get(kategori) || { kategori, total: 0, count: 0 }
+      prev.total += biaya
+      prev.count += 1
+      map.set(kategori, prev)
+    })
+    return Array.from(map.values()).sort((a, b) => {
+      const diff = b.total - a.total
+      if (diff !== 0) return diff
+      return a.kategori.localeCompare(b.kategori, 'id-ID')
+    })
+  })()
+  const totalBoronganReport = boronganReport.reduce((sum, r) => sum + r.total, 0)
+
   const hutangCalculations = hutangRows.map((r) => {
     const d = (gajian.detailKaryawan || []).find(x => x.userId === r.userId)
     const currentSaldo = typeof hutangSaldoByUserId[r.userId] === 'number' ? Number(hutangSaldoByUserId[r.userId]) : null
@@ -834,6 +946,39 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                 </tr>
               </tfoot>
             </table>
+            {boronganReport.length > 0 ? (
+              <div className="mt-6">
+                <div className="text-center mb-2">
+                  <h2 className="font-bold text-sm">LAPORAN BORONGAN (PER KATEGORI)</h2>
+                </div>
+                <table className="w-full border-collapse border border-black text-center">
+                  <thead>
+                    <tr className="border border-black">
+                      <th className="border border-black p-2 align-middle whitespace-nowrap">NO</th>
+                      <th className="border border-black p-2 align-middle whitespace-nowrap">KATEGORI</th>
+                      <th className="border border-black p-2 align-middle whitespace-nowrap">JUMLAH ITEM</th>
+                      <th className="border border-black p-2 align-middle whitespace-nowrap">TOTAL (RP)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {boronganReport.map((r, idx) => (
+                      <tr key={`${r.kategori}-${idx}`} className="border border-black">
+                        <td className="border border-black p-2 align-middle">{idx + 1}</td>
+                        <td className="border border-black p-2 align-middle text-left">{r.kategori}</td>
+                        <td className="border border-black p-2 align-middle">{formatNumber(r.count)}</td>
+                        <td className="border border-black p-2 align-middle text-right">{formatNumber(Math.round(r.total))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border border-black font-bold">
+                      <td className="border border-black p-2 align-middle" colSpan={3}>TOTAL</td>
+                      <td className="border border-black p-2 align-middle text-right">{formatNumber(Math.round(totalBoronganReport))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : null}
             {showApprovalFields ? (
               <div className="mt-8 flex justify-end">
                 <div className="w-full flex justify-between gap-8">

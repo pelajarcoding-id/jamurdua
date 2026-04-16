@@ -192,11 +192,78 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'penggajian' | 'dibayar'>('all')
   const [kategoriFilter, setKategoriFilter] = useState<string>('all')
+  const [kategoriMaster, setKategoriMaster] = useState<Array<{ id: number; name: string }>>([])
+  const [kategoriMasterOpen, setKategoriMasterOpen] = useState(false)
+  const [kategoriMasterDraft, setKategoriMasterDraft] = useState('')
+  const [kategoriMasterSaving, setKategoriMasterSaving] = useState(false)
+  const [kategoriMasterDeletingId, setKategoriMasterDeletingId] = useState<number | null>(null)
 
   const applySearch = useCallback(() => {
     setSearchQuery(String(searchDraft || '').trim())
     setCurrentPage(1)
   }, [searchDraft])
+
+  const fetchKategoriMaster = useCallback(async () => {
+    if (mode !== 'borongan') return
+    try {
+      const res = await fetch(`/api/kebun/${kebunId}/borongan/categories`, { cache: 'no-store' })
+      if (!res.ok) {
+        setKategoriMaster([])
+        return
+      }
+      const json = await res.json().catch(() => ({} as any))
+      const rows = Array.isArray(json?.data) ? json.data : []
+      const mapped = rows
+        .map((r: any) => ({ id: Number(r?.id), name: String(r?.name || '').trim() }))
+        .filter((r: any) => Number.isFinite(r.id) && r.id > 0 && r.name)
+      setKategoriMaster(mapped)
+    } catch {
+      setKategoriMaster([])
+    }
+  }, [kebunId, mode])
+
+  const handleAddKategoriMaster = useCallback(async () => {
+    if (mode !== 'borongan') return
+    if (kategoriMasterSaving) return
+    const name = String(kategoriMasterDraft || '').trim()
+    if (!name) return
+    setKategoriMasterSaving(true)
+    try {
+      const res = await fetch(`/api/kebun/${kebunId}/borongan/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menambahkan kategori')
+      setKategoriMasterDraft('')
+      await fetchKategoriMaster()
+      toast.success('Kategori ditambahkan')
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menambahkan kategori')
+    } finally {
+      setKategoriMasterSaving(false)
+    }
+  }, [fetchKategoriMaster, kebunId, kategoriMasterDraft, kategoriMasterSaving, mode])
+
+  const handleDeleteKategoriMaster = useCallback(async (id: number) => {
+    if (mode !== 'borongan') return
+    if (kategoriMasterDeletingId) return
+    setKategoriMasterDeletingId(id)
+    try {
+      const res = await fetch(`/api/kebun/${kebunId}/borongan/categories?id=${encodeURIComponent(String(id))}`, {
+        method: 'DELETE',
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menghapus kategori')
+      await fetchKategoriMaster()
+      toast.success('Kategori dihapus')
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menghapus kategori')
+    } finally {
+      setKategoriMasterDeletingId(null)
+    }
+  }, [fetchKategoriMaster, kebunId, kategoriMasterDeletingId, mode])
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
@@ -224,6 +291,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   useEffect(() => {
     fetchUsers();
   }, [kebunId]);
+
+  useEffect(() => {
+    fetchKategoriMaster()
+  }, [fetchKategoriMaster])
 
   useEffect(() => {
     const fetchKendaraan = async () => {
@@ -674,13 +745,17 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const kategoriBoronganOptions = useMemo(() => {
     if (mode !== 'borongan') return [] as string[]
     const set = new Set<string>()
+    kategoriMaster.forEach((k) => {
+      const name = String(k?.name || '').trim()
+      if (name) set.add(name)
+    })
     activities.forEach((a) => {
       if (!a?.upahBorongan) return
       const k = String((a as any).kategoriBorongan || '').trim()
       if (k) set.add(k)
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'id-ID'))
-  }, [activities, mode])
+  }, [activities, kategoriMaster, mode])
 
   const handleExportListPdf = useCallback(async () => {
     if (listExporting) return
@@ -758,9 +833,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         const rows = filteredActivities.map((item, idx) => {
           const jumlah = Number(item.jumlah || 0)
           const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
+          const kategori = String((item as any).kategoriBorongan || '').trim()
           return [
             idx + 1,
             item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+            kategori,
             item.jenisPekerjaan || '',
             jumlah ? `${formatNumber(jumlah, 2)} ${item.satuan || ''}` : '',
             hargaSatuan > 0 ? formatNumber(hargaSatuan) : '',
@@ -775,10 +852,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
         autoTable(doc, {
           startY: headerHeight + 8,
-          head: [['NO', 'TANGGAL', 'PEKERJAAN', 'JUMLAH', 'HARGA SATUAN', 'JUMLAH BIAYA', 'STATUS']],
+          head: [['NO', 'TANGGAL', 'KATEGORI', 'PEKERJAAN', 'JUMLAH', 'HARGA SATUAN', 'JUMLAH BIAYA', 'STATUS']],
           body: rows as any,
           foot: [[
-            { content: 'JUMLAH', colSpan: 3, styles: { halign: 'center', fontStyle: 'bold' } },
+            { content: 'JUMLAH', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold' } },
             { content: totalJumlah ? formatNumber(totalJumlah, 2) : '-', styles: { fontStyle: 'bold' } },
             { content: avgHargaSatuan > 0 ? formatNumber(avgHargaSatuan) : '-', styles: { fontStyle: 'bold' } },
             { content: totalBiaya > 0 ? formatNumber(totalBiaya) : '-', styles: { fontStyle: 'bold' } },
@@ -994,6 +1071,16 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 ))}
               </select>
             ) : null}
+            {mode === 'borongan' ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-md w-full sm:w-auto"
+                onClick={() => setKategoriMasterOpen(true)}
+              >
+                Master Kategori
+              </Button>
+            ) : null}
           </div>
 
           <div className="w-full sm:max-w-sm relative">
@@ -1086,11 +1173,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   onChange={(e) => setFormData({ ...formData, kategoriBorongan: e.target.value })}
                   className="bg-white"
                 />
-                <datalist id="borongan-kategori-options">
-                  {kategoriBoronganOptions.map((k) => (
-                    <option key={k} value={k} />
-                  ))}
-                </datalist>
               </div>
             ) : null}
             <div>
@@ -1481,6 +1563,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       <>
                         <th className="px-4 py-3 border-b border-gray-100 text-center w-12">No</th>
                         <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
+                        <th className="px-4 py-3 border-b border-gray-100">Kategori</th>
                         <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
                         <th className="px-4 py-3 border-b border-gray-100">Jumlah</th>
                         <th className="px-4 py-3 border-b border-gray-100 text-right">Harga Satuan</th>
@@ -1531,14 +1614,14 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
                           {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </td>
+                        {mode === 'borongan' ? (
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                              {String((item as any).kategoriBorongan || '-')}
+                            </span>
+                          </td>
+                        ) : null}
                         <td className="px-4 py-3">
-                          {mode === 'borongan' && (item as any).kategoriBorongan ? (
-                            <div className="mb-1">
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                                {String((item as any).kategoriBorongan)}
-                              </span>
-                            </div>
-                          ) : null}
                           <div className="font-semibold text-gray-900">{item.jenisPekerjaan}</div>
                           {item.keterangan && <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{item.keterangan}</div>}
                         </td>
@@ -1629,7 +1712,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 {mode === 'borongan' && boronganFooter && filteredActivities.length > 0 ? (
                   <tfoot className="bg-gray-50">
                     <tr>
-                      <td colSpan={3} className="px-4 py-3 font-bold text-gray-700 uppercase tracking-wide">Jumlah</td>
+                      <td colSpan={4} className="px-4 py-3 font-bold text-gray-700 uppercase tracking-wide">Jumlah</td>
                       <td className="px-4 py-3 text-gray-700 font-semibold whitespace-nowrap">
                         {boronganFooter.totalJumlah ? formatNumber(boronganFooter.totalJumlah, 2) : '-'}
                       </td>
@@ -2100,6 +2183,82 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
           )}
         </DialogContent>
       </Dialog>
+
+      {mode === 'borongan' ? (
+        <Dialog open={kategoriMasterOpen} onOpenChange={setKategoriMasterOpen}>
+          <DialogContent className="w-[92vw] sm:max-w-lg max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
+            <ModalHeader
+              title="Master Kategori Borongan"
+              variant="emerald"
+              icon={<BanknotesIcon className="h-5 w-5 text-white" />}
+              onClose={() => setKategoriMasterOpen(false)}
+            />
+            <ModalContentWrapper className="space-y-4 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  value={kategoriMasterDraft}
+                  onChange={(e) => setKategoriMasterDraft(e.target.value)}
+                  placeholder="Tambah kategori..."
+                  className="h-10 bg-white"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddKategoriMaster()
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={handleAddKategoriMaster}
+                  disabled={kategoriMasterSaving || !String(kategoriMasterDraft || '').trim()}
+                >
+                  {kategoriMasterSaving ? '...' : 'Tambah'}
+                </Button>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 text-sm font-semibold text-gray-700">
+                  Daftar Kategori
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {kategoriMaster.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">Belum ada kategori</div>
+                  ) : (
+                    kategoriMaster.map((k) => (
+                      <div key={k.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-gray-900 break-words">{k.name}</div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-9 w-9 p-0 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => handleDeleteKategoriMaster(k.id)}
+                          disabled={kategoriMasterDeletingId === k.id}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </ModalContentWrapper>
+            <ModalFooter className="sm:justify-end">
+              <Button variant="outline" className="rounded-xl" onClick={() => setKategoriMasterOpen(false)}>
+                Tutup
+              </Button>
+            </ModalFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {mode === 'borongan' ? (
+        <datalist id="borongan-kategori-options">
+          {kategoriBoronganOptions.map((k) => (
+            <option key={k} value={k} />
+          ))}
+        </datalist>
+      ) : null}
 
       <ConfirmationModal
         isOpen={deleteOpen}
