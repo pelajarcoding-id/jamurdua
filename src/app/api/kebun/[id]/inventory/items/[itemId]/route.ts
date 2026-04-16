@@ -117,16 +117,15 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     })
     if (!item) return NextResponse.json({ error: 'Item tidak ditemukan' }, { status: 404 })
 
-    const stock = Number(item.stock || 0)
-    if (stock !== 0) {
-      return NextResponse.json({ error: 'Barang tidak dapat dihapus karena stok masih ada' }, { status: 400 })
-    }
-
     const trxCount = await (prisma as any).kebunInventoryTransaction.count({
-      where: { kebunId, itemId },
+      where: {
+        kebunId,
+        itemId,
+        type: { in: ['IN', 'OUT'] },
+      },
     })
     if (Number(trxCount || 0) > 0) {
-      return NextResponse.json({ error: 'Barang tidak dapat dihapus karena sudah memiliki transaksi' }, { status: 400 })
+      return NextResponse.json({ error: 'Barang tidak dapat dihapus karena sudah memiliki riwayat transaksi masuk atau pengeluaran' }, { status: 400 })
     }
 
     await (prisma as any).kebunInventoryItem.delete({ where: { id: itemId } })

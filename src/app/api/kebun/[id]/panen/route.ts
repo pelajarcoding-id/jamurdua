@@ -43,6 +43,7 @@ export async function GET(
     const panen = await prisma.notaSawit.findMany({
       where: {
         kebunId: kebunId,
+        deletedAt: null,
         ...(startDate && endDate ? {
           tanggalBongkar: {
             gte: new Date(startDate),

@@ -792,7 +792,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                 {(gajian.potongan || []).map((item, index) => (
                   <tr key={`potongan-${item.id}`} className="border border-black">
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{combinedData.length + index + 1}</td>
-                    <td className="border border-black p-2 align-middle whitespace-nowrap"></td>
+                    <td className="border border-black p-2 align-middle whitespace-nowrap">{(item as any).tanggal ? formatDate((item as any).tanggal) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap"></td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap"></td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap"></td>

@@ -226,8 +226,8 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     if (!existing) {
       return NextResponse.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 })
     }
-    if (existing.type !== 'OUT') {
-      return NextResponse.json({ error: 'Hanya transaksi pengeluaran yang bisa dihapus' }, { status: 400 })
+    if (existing.type === 'ADJUSTMENT') {
+      return NextResponse.json({ error: 'Transaksi penyesuaian tidak dapat dihapus' }, { status: 400 })
     }
 
     const item = await (prisma as any).kebunInventoryItem.findFirst({ where: { id: existing.itemId, kebunId } })
@@ -236,7 +236,18 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const result = await prisma.$transaction(async (tx) => {
       const currentStock = Number(item?.stock || 0)
       const oldQty = Number(existing.quantity || 0)
-      const newStock = currentStock + oldQty
+      let newStock = currentStock
+
+      if (existing.type === 'IN') {
+        newStock = currentStock - oldQty
+      } else if (existing.type === 'OUT') {
+        newStock = currentStock + oldQty
+      }
+
+      if (newStock < 0) {
+        throw new Error('Stok tidak boleh kurang dari 0')
+      }
+
       const stock = await (tx as any).kebunInventoryItem.update({
         where: { id: existing.itemId },
         data: { stock: newStock },

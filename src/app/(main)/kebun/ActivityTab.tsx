@@ -93,30 +93,36 @@ const FormattedNumberInput = ({
   disabled?: boolean;
 }) => {
   const [localValue, setLocalValue] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
-    if (!isFocused) {
-      setLocalValue(formatNumber(value));
+    // Only update localValue if it differs from the formatted version of the incoming value
+    // This allows users to type while keeping the cursor position mostly stable
+    const formatted = value === 0 ? '' : formatNumber(value);
+    const currentDigits = localValue.replace(/\D/g, '');
+    const valueDigits = value.toString().replace(/\D/g, '');
+    
+    if (currentDigits !== valueDigits) {
+      setLocalValue(formatted);
     }
-  }, [value, isFocused]);
+  }, [value]);
 
   return (
     <Input
       value={localValue}
-      onFocus={() => {
-        setIsFocused(true);
-        setLocalValue(value === 0 ? '' : value.toString().replace('.', ','));
-      }}
-      onBlur={() => setIsFocused(false)}
       onChange={(e) => {
-        const val = e.target.value;
-        setLocalValue(val);
-        onChange(parseNumber(val));
+        const raw = e.target.value;
+        // Remove everything except digits
+        const digits = raw.replace(/\D/g, '');
+        const num = digits ? parseInt(digits, 10) : 0;
+        
+        // Update local display immediately with formatting
+        setLocalValue(num === 0 ? '' : formatNumber(num));
+        // Notify parent of numeric value change
+        onChange(num);
       }}
       className={className}
       placeholder={placeholder}
-      inputMode="decimal"
+      inputMode="numeric"
       disabled={disabled}
     />
   );
@@ -175,6 +181,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     userId: '',
     kendaraanPlatNomor: '',
   }));
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perView, setPerView] = useState(20);
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
@@ -595,6 +604,14 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredActivities.length / perView));
+  const startIndex = (currentPage - 1) * perView;
+  const pagedActivities = filteredActivities.slice(startIndex, startIndex + perView);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [kebunId, selectedDate, filterType, dateRange, activityFilter]);
+
   const stats = useMemo(() => {
     const totalSemua = filteredActivities.reduce((acc, curr) => acc + Number(curr.biaya || 0), 0)
     const totalUpah = filteredActivities.reduce((acc, curr) => acc + (curr.upahBorongan ? Number(curr.biaya || 0) : 0), 0)
@@ -933,8 +950,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     type="number"
                     step="any"
                     min="0"
-                    value={formData.jumlah}
-                    onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })}
+                    value={formData.jumlah === 0 ? '' : formData.jumlah}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setFormData({ ...formData, jumlah: val === '' ? 0 : Number(val) })
+                    }}
                     className="bg-white"
                   />
                 </div>
@@ -1004,125 +1024,264 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         ) : filteredActivities.length === 0 ? (
           <p className="text-center text-gray-500 py-4 bg-gray-50 rounded-lg border border-dashed">Belum ada riwayat pekerjaan</p>
         ) : (
-          filteredActivities.map((item, idx) => {
-            const isUpah = !!item.upahBorongan
-            const totalCount = Number(item.totalCount || 0) || 1
-            const inGajianCount = Number(item.inGajianCount || 0)
-            const finalizedCount = Number(item.finalizedCount || 0)
-            const isLocked = isUpah && inGajianCount > 0
-            const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
-            const isInGajian = isUpah && inGajianCount > 0 && !isPaid
-            const isUnpaid = isUpah && !isLocked
-
-            return (
-            <div key={item.id} className="relative bg-white p-4 pt-11 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="absolute top-3 left-3 h-6 min-w-6 px-2 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center">
-                {idx + 1}
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
+              <div className="text-xs text-gray-500">
+                Menampilkan {filteredActivities.length === 0 ? 0 : startIndex + 1} - {Math.min(startIndex + perView, filteredActivities.length)} dari {filteredActivities.length} data
               </div>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-3">
-                <div className="order-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-semibold text-gray-900">{item.jenisPekerjaan}</h4>
-                    {item.upahBorongan && (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
-                        Upah Borongan
-                      </span>
-                    )}
-                    {isPaid && (
-                      <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
-                        Dibayar
-                      </span>
-                    )}
-                    {isInGajian && (
-                      <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-xs font-semibold">
-                        Masuk penggajian
-                      </span>
-                    )}
-                    {mode === 'borongan' && isUnpaid && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs font-semibold">
-                        Belum dibayar
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                    <CalendarIcon className="w-3 h-3" />
-                    {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                  {mode === 'aktivitas' && item.kendaraan ? (
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <TruckIcon className="w-3 h-3" />
-                      <span>{item.kendaraan.platNomor} • {item.kendaraan.merk} • {item.kendaraan.jenis}</span>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="hidden sm:flex items-center gap-2 w-full sm:w-auto sm:justify-end order-2">
-                  {item.biaya > 0 && (
-                    <div className="flex items-center gap-1 text-green-600 font-medium bg-green-50 px-2 py-1 rounded-md text-sm">
-                      <BanknotesIcon className="w-4 h-4" />
-                      Rp {item.biaya.toLocaleString('id-ID')}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
-                      <EyeIcon className="h-4 w-4" />
-                    </Button>
-                    {!isLocked && (
-                      <>
-                        <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
-                          <PencilSquareIcon className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" className="h-8 w-8 p-0 rounded-full" onClick={() => openDelete(item)}>
-                          <TrashIcon className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {(item.keterangan || item.user || (item.users && item.users.length > 0)) && (
-                <div className="mt-3 pt-3 border-t border-gray-50 flex flex-col gap-2">
-                  {(item.users && item.users.length > 0) ? (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 flex-wrap">
-                      <UserIcon className="w-4 h-4" />
-                      <span className="font-medium">{item.users.map(u => u.name).join(', ')}</span>
-                    </div>
-                  ) : item.user ? (
-                    <div className="flex items-center gap-2 text-sm text-blue-600">
-                      <UserIcon className="w-4 h-4" />
-                      <span className="font-medium">{item.user.name}</span>
-                    </div>
-                  ) : null}
-                  {item.keterangan && (
-                    <p className="text-sm text-gray-600 italic">“{item.keterangan}”</p>
-                  )}
-                </div>
-              )}
-              <div className="mt-3 pt-3 border-t border-gray-50 flex flex-col gap-2 sm:hidden">
-                {item.biaya > 0 && (
-                  <div className="flex items-center gap-1 text-green-600 font-medium bg-green-50 px-2 py-1 rounded-md text-sm w-fit">
-                    <BanknotesIcon className="w-4 h-4" />
-                    Rp {item.biaya.toLocaleString('id-ID')}
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
-                    <EyeIcon className="h-4 w-4" />
-                  </Button>
-                  {!isLocked && (
-                    <>
-                      <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
-                        <PencilSquareIcon className="h-4 w-4" />
-                      </Button>
-                      <Button variant="destructive" className="h-8 w-8 p-0 rounded-full" onClick={() => openDelete(item)}>
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Per View</span>
+                <select
+                  className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={perView}
+                  onChange={(e) => {
+                    setPerView(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
               </div>
             </div>
-          )})
+
+            {/* Mobile Card View */}
+            <div className="grid grid-cols-1 gap-4 md:hidden">
+              {pagedActivities.map((item, idx) => {
+                const isUpah = !!item.upahBorongan
+                const totalCount = Number(item.totalCount || 0) || 1
+                const inGajianCount = Number(item.inGajianCount || 0)
+                const finalizedCount = Number(item.finalizedCount || 0)
+                const isLocked = isUpah && inGajianCount > 0
+                const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
+                const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+                const isUnpaid = isUpah && !isLocked
+                const displayNo = startIndex + idx + 1
+
+                return (
+                  <div key={item.id} className="relative bg-white p-4 pt-11 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="absolute top-3 left-3 h-6 min-w-6 px-2 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center">
+                      {displayNo}
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-semibold text-gray-900">{item.jenisPekerjaan}</h4>
+                          {item.upahBorongan && (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
+                              Borongan
+                            </span>
+                          )}
+                          {isPaid && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
+                              Dibayar
+                            </span>
+                          )}
+                          {isInGajian && (
+                            <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-xs font-semibold">
+                              Masuk penggajian
+                            </span>
+                          )}
+                          {mode === 'borongan' && isUnpaid && (
+                            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs font-semibold">
+                              Belum dibayar
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                          <CalendarIcon className="w-3 h-3" />
+                          {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </div>
+                        {(item.users && item.users.length > 0) ? (
+                          <div className="flex items-center gap-2 text-xs text-blue-600 mt-1 flex-wrap">
+                            <UserIcon className="w-3 h-3" />
+                            <span className="font-medium">{item.users.map(u => u.name).join(', ')}</span>
+                          </div>
+                        ) : item.user ? (
+                          <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
+                            <UserIcon className="w-3 h-3" />
+                            <span className="font-medium">{item.user.name}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                      
+                      {item.biaya > 0 && (
+                        <div className="flex items-center gap-1 text-green-600 font-medium bg-green-50 px-2 py-1 rounded-md text-sm w-fit">
+                          <BanknotesIcon className="w-4 h-4" />
+                          Rp {item.biaya.toLocaleString('id-ID')}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
+                        <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
+                          <EyeIcon className="h-4 w-4" />
+                        </Button>
+                        {!isLocked && (
+                          <>
+                            <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
+                              <PencilSquareIcon className="h-4 w-4" />
+                            </Button>
+                            <Button variant="destructive" className="h-8 w-8 p-0 rounded-full" onClick={() => openDelete(item)}>
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-gray-50 text-gray-500 font-semibold text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3 border-b border-gray-100 text-center w-12">No</th>
+                    <th className="px-4 py-3 border-b border-gray-100">Tanggal</th>
+                    <th className="px-4 py-3 border-b border-gray-100">Pekerjaan</th>
+                    <th className="px-4 py-3 border-b border-gray-100">Karyawan</th>
+                    <th className="px-4 py-3 border-b border-gray-100">Jumlah</th>
+                    <th className="px-4 py-3 border-b border-gray-100 text-right">Biaya</th>
+                    <th className="px-4 py-3 border-b border-gray-100">Status</th>
+                    <th className="px-4 py-3 border-b border-gray-100 text-center w-28">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {pagedActivities.map((item, idx) => {
+                    const isUpah = !!item.upahBorongan
+                    const totalCount = Number(item.totalCount || 0) || 1
+                    const inGajianCount = Number(item.inGajianCount || 0)
+                    const finalizedCount = Number(item.finalizedCount || 0)
+                    const isLocked = isUpah && inGajianCount > 0
+                    const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
+                    const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+                    const isUnpaid = isUpah && !isLocked
+                    const displayNo = startIndex + idx + 1
+
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <td className="px-4 py-3 text-center text-gray-500 font-medium">{displayNo}</td>
+                        <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
+                          {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-gray-900">{item.jenisPekerjaan}</div>
+                          {item.keterangan && <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{item.keterangan}</div>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                            <UserIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate max-w-[150px]">
+                              {(item.users && item.users.length > 0) ? item.users.map(u => u.name).join(', ') : item.user?.name || '-'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                          {item.jumlah ? `${formatNumber(item.jumlah, 2)} ${item.satuan || ''}` : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                          {item.biaya > 0 ? formatCurrency(item.biaya) : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {isPaid && (
+                              <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight">
+                                Dibayar
+                              </span>
+                            )}
+                            {isInGajian && (
+                              <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight">
+                                Penggajian
+                              </span>
+                            )}
+                            {mode === 'borongan' && isUnpaid && (
+                              <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight">
+                                Draft
+                              </span>
+                            )}
+                            {!item.upahBorongan && (
+                              <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight">
+                                Aktivitas
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 hover:text-emerald-600" onClick={() => openDetail(item)} title="Lihat Detail">
+                              <EyeIcon className="h-4 w-4" />
+                            </Button>
+                            {!isLocked && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-blue-50 hover:text-blue-600" onClick={() => openEdit(item)} title="Edit">
+                                  <PencilSquareIcon className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600" onClick={() => openDelete(item)} title="Hapus">
+                                  <TrashIcon className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between gap-4 mt-6 px-1">
+              <div className="hidden sm:block text-xs text-gray-500">
+                Halaman {currentPage} dari {totalPages}
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-xl px-3 text-xs font-semibold"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  Sebelumnya
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum = i + 1;
+                    if (totalPages > 5 && currentPage > 3) {
+                      pageNum = currentPage - 3 + i + 1;
+                      if (pageNum > totalPages) pageNum = totalPages - (4 - i);
+                    }
+                    if (pageNum <= 0) return null;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? 'default' : 'outline'}
+                        size="sm"
+                        className={`h-8 w-8 p-0 rounded-xl text-xs font-bold ${currentPage === pageNum ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600' : ''}`}
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-xl px-3 text-xs font-semibold"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                >
+                  Berikutnya
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -1414,8 +1573,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       type="number"
                       step="any"
                       min="0"
-                      value={editForm.jumlah}
-                      onChange={(e) => setEditForm({ ...editForm, jumlah: Number(e.target.value) })}
+                      value={editForm.jumlah === 0 ? '' : editForm.jumlah}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setEditForm({ ...editForm, jumlah: val === '' ? 0 : Number(val) })
+                      }}
                       className="bg-white"
                     />
                   </div>

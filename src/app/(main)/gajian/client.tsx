@@ -1083,7 +1083,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const rows = await res.json().catch(() => [])
       const list = Array.isArray(rows) ? rows : []
 
-      const BORONGAN_PREFIX = 'Upah Borongan - '
+      const BORONGAN_PREFIX = ''
       const groups = new Map<string, { total: number; ids: number[] }>()
       const allIds: number[] = []
 
@@ -1101,15 +1101,15 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       })
 
       setSavedBiaya(prev => {
-        const filtered = prev.filter(b => !(String(b.deskripsi || '').startsWith(BORONGAN_PREFIX)))
+        const filtered = prev.filter(b => !(String(b.deskripsi || '').startsWith('Upah Borongan - ')))
         const imported = Array.from(groups.entries()).map(([jenis, g]) => ({
           id: `auto-borongan-${jenis}-${Date.now()}-${Math.random()}`,
-          deskripsi: `${BORONGAN_PREFIX}${jenis}`,
+          deskripsi: `${jenis}`,
           jumlah: 1,
           satuan: 'Paket',
           hargaSatuan: Math.round(g.total),
           total: Math.round(g.total),
-          keterangan: 'Otomatis dari Pekerjaan Kebun',
+          keterangan: '',
         })) as any
         return [...filtered, ...imported]
       })

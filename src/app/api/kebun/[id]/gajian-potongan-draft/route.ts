@@ -11,7 +11,7 @@ function toDateKey(ymd: { y: number; m: number; d: number }) {
   return `${String(ymd.y).padStart(4, '0')}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`
 }
 
-type DraftItem = { id: string; deskripsi: string; total: number; keterangan?: string }
+type DraftItem = { id: string; deskripsi: string; total: number; keterangan?: string; tanggal?: string }
 
 function normalizeItems(input: any): DraftItem[] {
   if (!Array.isArray(input)) return []
@@ -22,8 +22,9 @@ function normalizeItems(input: any): DraftItem[] {
     const deskripsi = typeof row?.deskripsi === 'string' ? row.deskripsi.trim() : ''
     const total = Math.round(Number(row?.total || 0))
     const keterangan = typeof row?.keterangan === 'string' ? row.keterangan : undefined
+    const tanggal = typeof row?.tanggal === 'string' ? row.tanggal : undefined
     if (!deskripsi && total <= 0 && !(keterangan || '').trim()) continue
-    out.push({ id, deskripsi, total, ...(keterangan ? { keterangan } : {}) })
+    out.push({ id, deskripsi, total, ...(keterangan ? { keterangan } : {}), ...(tanggal ? { tanggal } : {}) })
   }
   return out
 }

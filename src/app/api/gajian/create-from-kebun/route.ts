@@ -133,7 +133,7 @@ export async function POST(request: Request) {
           satuan: 'Paket',
           hargaSatuan: b.hargaSatuan || b.total,
           total: b.total,
-          keterangan: b.keterangan || 'Dari Aktivitas Kebun',
+          keterangan: b.keterangan || null,
         })),
       };
     }

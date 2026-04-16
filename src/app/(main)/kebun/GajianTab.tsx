@@ -33,6 +33,7 @@ type PotonganItem = {
   deskripsi: string
   total: number
   keterangan?: string
+  tanggal?: string
 }
 
 type GajianHistoryItem = {
@@ -201,7 +202,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
 
         Object.entries(groupedActivities).forEach(([deskripsi, total]) => {
           mappedBiaya.push({
-            deskripsi: `Upah Borongan - ${deskripsi}`,
+            deskripsi: `${deskripsi}`,
             total: Number(total) || 0,
           })
         })
@@ -307,6 +308,61 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
     fetchHistory()
   }, [])
 
+  const [isPullingPotongan, setIsPullingPotongan] = useState(false)
+
+  const handlePullPotonganFromGajian = useCallback(async () => {
+     setIsPullingPotongan(true)
+     try {
+       const qs = new URLSearchParams({ fetchHistory: 'true', kebunId: String(kebunId), startDate, endDate })
+       const res = await fetch(`/api/gajian?${qs.toString()}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Gagal mengambil data gajian')
+      const json = await res.json()
+      const drafts = Array.isArray(json.drafts) ? json.drafts : []
+      const finalized = Array.isArray(json.finalized) ? json.finalized : []
+      const allGajian = [...drafts, ...finalized]
+
+      if (allGajian.length === 0) {
+        toast.error('Tidak ada data gajian (draft/final) pada periode ini')
+        return
+      }
+
+      // Fetch details for each gajian to get potongan
+      const allPotongan: PotonganItem[] = []
+      for (const g of allGajian) {
+        const detailRes = await fetch(`/api/gajian/${g.id}`)
+        if (detailRes.ok) {
+          const detail = await detailRes.json()
+          const pots = Array.isArray(detail.potongan) ? detail.potongan : []
+          pots.forEach((p: any) => {
+            // Avoid duplicates by description and total if needed, or just add all
+            allPotongan.push({
+              id: `p-pulled-${Date.now()}-${Math.random()}`,
+              deskripsi: p.deskripsi,
+              total: Number(p.total || 0),
+              keterangan: p.keterangan || '',
+              tanggal: p.tanggal || '',
+            })
+          })
+        }
+      }
+
+      if (allPotongan.length === 0) {
+        toast.success('Tidak ada data potongan ditemukan di gajian periode ini')
+      } else {
+        setPotonganList((prev) => {
+          // Filter out existing pulled or same desc/total to avoid duplication if desired
+          // For now, let's just append and let user manage
+          return [...prev, ...allPotongan]
+        })
+        toast.success(`${allPotongan.length} potongan berhasil ditarik`)
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal menarik data potongan')
+    } finally {
+      setIsPullingPotongan(false)
+    }
+  }, [kebunId, startDate, endDate])
+
   const totalGajiUnpaid = useMemo(() => unpaidList.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [unpaidList])
   const totalBiayaLain = useMemo(() => biayaLain.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [biayaLain])
   const totalPotongan = useMemo(() => potonganList.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [potonganList])
@@ -341,6 +397,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
             deskripsi: String(p.deskripsi || '').trim(),
             total: Math.round(Number(p.total || 0)),
             keterangan: p.keterangan || undefined,
+            tanggal: p.tanggal || undefined,
           }))
           .filter((p) => p.deskripsi && p.total > 0),
       }
@@ -533,10 +590,19 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="rounded-full"
+                  className="rounded-full h-8 text-xs"
+                  onClick={handlePullPotonganFromGajian}
+                  disabled={isPullingPotongan}
+                >
+                  {isPullingPotongan ? '...' : 'Tarik'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full h-8 text-xs"
                   onClick={() => {
                     const newId = `p-${Date.now()}`
-                    setPotonganList((prev) => [...prev, { id: newId, deskripsi: '', total: 0, keterangan: '' }])
+                    setPotonganList((prev) => [...prev, { id: newId, deskripsi: '', total: 0, keterangan: '', tanggal: '' }])
                     setEditingPotonganId(newId)
                   }}
                 >
@@ -558,16 +624,24 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                           onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, deskripsi: e.target.value } : x)))}
                           className="h-10 rounded-full"
                         />
-                        <Input
-                          placeholder="Total"
-                          inputMode="numeric"
-                          value={formatNumber(Number(p.total || 0))}
-                          onChange={(e) => {
-                            const numericValue = Number(String(e.target.value || '').replace(/\D/g, '')) || 0
-                            setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, total: numericValue } : x)))
-                          }}
-                          className="h-10 rounded-full text-right"
-                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="date"
+                            value={p.tanggal || ''}
+                            onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, tanggal: e.target.value } : x)))}
+                            className="h-10 rounded-full"
+                          />
+                          <Input
+                            placeholder="Total"
+                            inputMode="numeric"
+                            value={formatNumber(Number(p.total || 0))}
+                            onChange={(e) => {
+                              const numericValue = Number(String(e.target.value || '').replace(/\D/g, '')) || 0
+                              setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, total: numericValue } : x)))
+                            }}
+                            className="h-10 rounded-full text-right"
+                          />
+                        </div>
                         <Input
                           placeholder="Keterangan (opsional)"
                           value={p.keterangan || ''}
@@ -594,7 +668,10 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                     ) : (
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="text-sm font-semibold text-gray-900 break-words">{p.deskripsi || '-'}</div>
+                          <div className="space-y-1">
+                            <div className="text-sm font-semibold text-gray-900 break-words">{p.deskripsi || '-'}</div>
+                            {p.tanggal && <div className="text-xs text-gray-400">{format(new Date(p.tanggal), 'dd MMM yyyy', { locale: localeId })}</div>}
+                          </div>
                           <div className="flex items-center gap-1">
                             <Button
                               size="icon"
