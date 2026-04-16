@@ -324,11 +324,11 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
           3: { cellWidth: 70 }, // Supir
           4: { cellWidth: 50 }, // Kg
           5: { cellWidth: 80 }, // Keterangan Nota
-          6: { cellWidth: 80 }, // Jenis Pekerjaan
-          7: { cellWidth: 60 }, // Jumlah
+          6: { cellWidth: 110 }, // Jenis Pekerjaan
+          7: { cellWidth: 70 }, // Jumlah
           8: { cellWidth: 70 }, // Harga
           9: { cellWidth: 70 }, // Total
-          10: { cellWidth: 'auto' } // Keterangan Biaya
+          10: { cellWidth: 110 } // Keterangan Biaya
         },
         margin: { top: topContentY, left: 20, right: 20, bottom: footerHeight + 14 },
       })

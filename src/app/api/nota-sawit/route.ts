@@ -652,7 +652,10 @@ export async function DELETE(request: Request) {
     }
 
     const linkedToGajian = await prisma.detailGajian.findFirst({
-      where: { notaSawitId: { in: ids } },
+      where: {
+        notaSawitId: { in: ids },
+        gajian: { status: 'FINALIZED' },
+      },
       select: { id: true },
     })
 

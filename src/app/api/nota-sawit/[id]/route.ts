@@ -84,7 +84,10 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       }
 
       const linkedToGajian = await tx.detailGajian.findFirst({
-        where: { notaSawitId: id },
+        where: {
+          notaSawitId: id,
+          gajian: { status: 'FINALIZED' },
+        },
         select: { id: true },
       })
       if (linkedToGajian) {
@@ -223,7 +226,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         const tareKgNum = roundInt(tareKgVal)
         const netKgNum = Math.max(0, grossKgNum - tareKgNum)
 
-        if (existingNota.timbanganId) {
+        if (existingNota.timbanganId && !(disconnectTimbangan && isManual)) {
           await prisma.timbangan.update({
             where: { id: existingNota.timbanganId },
             data: {
@@ -234,7 +237,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           })
           const targetKebunId = existingNota.timbangan?.kebunId || existingNota.kebunId
           if (targetKebunId) dataToUpdate.kebun = { connect: { id: Number(targetKebunId) } }
-        } else {
+        } else if (!existingNota.timbanganId) {
           const targetKebunId = kebunId ? Number(kebunId) : existingNota.kebunId
           if (!targetKebunId) {
             return new Response('Kebun harus dipilih untuk input timbangan kebun', { status: 400 })
@@ -261,12 +264,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         const targetKebunId = kebunId ? Number(kebunId) : existingNota.timbangan?.kebunId;
         
         if (targetKebunId) {
+             const grossCandidate = body.grossKg !== undefined && body.grossKg !== null && String(body.grossKg).trim() !== '' ? roundInt(body.grossKg) : roundInt(bruto || existingNota.bruto || 0)
+             const tareCandidate = body.tareKg !== undefined && body.tareKg !== null && String(body.tareKg).trim() !== '' ? roundInt(body.tareKg) : roundInt(tara || existingNota.tara || 0)
+             const netCandidate = Math.max(0, grossCandidate - tareCandidate)
              const newTimbangan = await prisma.timbangan.create({
                  data: {
                      kebunId: targetKebunId,
-                     grossKg: roundInt(bruto || existingNota.bruto || 0),
-                     tareKg: roundInt(tara || existingNota.tara || 0),
-                     netKg: roundInt(netto || existingNota.netto || 0),
+                     grossKg: grossCandidate,
+                     tareKg: tareCandidate,
+                     netKg: netCandidate,
                      date: new Date(existingNota.tanggalBongkar || new Date()),
                      supirId: existingNota.supirId,
                      notes: "Input Manual (Disconnected from Kebun Timbangan)",

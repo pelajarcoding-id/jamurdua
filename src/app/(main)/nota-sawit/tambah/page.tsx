@@ -42,7 +42,7 @@ export default function TambahNotaSawitPage() {
   const [tanggalBongkar, setTanggalBongkar] = useState<string>('');
   const [keterangan, setKeterangan] = useState('');
   
-  const [isManualInput, setIsManualInput] = useState(true);
+  const [isManualInput, setIsManualInput] = useState(false);
   const [manualGross, setManualGross] = useState(0);
   const [manualTare, setManualTare] = useState(0);
   const [manualNet, setManualNet] = useState(0);
@@ -565,6 +565,10 @@ export default function TambahNotaSawitPage() {
                         setSelectedTimbangan(null)
                         setTimbanganGross(0)
                         setTimbanganTare(0)
+                      } else {
+                        setManualGross(0)
+                        setManualTare(0)
+                        setManualNet(0)
                       }
                     }}
                     className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"

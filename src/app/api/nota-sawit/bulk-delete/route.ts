@@ -22,7 +22,10 @@ export async function POST(request: Request) {
     }
 
     const linked = await prisma.detailGajian.findMany({
-      where: { notaSawitId: { in: uniqIds } },
+      where: {
+        notaSawitId: { in: uniqIds },
+        gajian: { status: 'FINALIZED' },
+      },
       select: { notaSawitId: true },
       take: 50,
     })

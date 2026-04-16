@@ -150,7 +150,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   }>({});
 
   const [isManualInput, setIsManualInput] = useState(false);
-  const [useTimbanganKebunInput, setUseTimbanganKebunInput] = useState(true);
+  const [useTimbanganKebunInput, setUseTimbanganKebunInput] = useState(false);
   const [selectedTimbangan, setSelectedTimbangan] = useState<TimbanganWithKebun | null>(null);
   const [isEditingComparison, setIsEditingComparison] = useState(false);
   const [originalComparison, setOriginalComparison] = useState<{ grossKg: number; tareKg: number } | null>(null);
@@ -208,7 +208,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             });
             setPreview(nota.gambarNotaUrl || null);
             setIsManualInput(false); 
-            setUseTimbanganKebunInput(!nota?.timbanganId);
+            setUseTimbanganKebunInput(Boolean((nota as any)?.useTimbanganKebun));
             
             // Recalculate derived
             // @ts-ignore
@@ -243,7 +243,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
             });
             setPreview(null);
             setIsManualInput(false);
-            setUseTimbanganKebunInput(true);
+            setUseTimbanganKebunInput(false);
             setSelectedTimbangan(null);
             setBeratTotal(0);
             setTotalPembayaran(0);
@@ -353,7 +353,17 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     
     if (value === "") {
         setSelectedTimbangan(null);
-        setFormData(prev => ({ ...prev, timbanganId: undefined }));
+        setFormData(prev => ({
+          ...prev,
+          timbanganId: undefined,
+          ...(nota
+            ? {
+                timbangan: prev.timbangan
+                  ? { ...prev.timbangan, grossKg: 0, tareKg: 0, netKg: 0 }
+                  : ({ grossKg: 0, tareKg: 0, netKg: 0 } as any),
+              }
+            : { manualGross: 0, manualTare: 0, manualNet: 0 }),
+        }));
         return;
     }
 
@@ -365,9 +375,17 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
         setFormData(prev => ({
             ...prev,
             timbanganId: id,
-            manualGross: timbangan.grossKg,
-            manualTare: timbangan.tareKg,
-            manualNet: timbangan.netKg,
+            ...(nota
+              ? {
+                  timbangan: prev.timbangan
+                    ? { ...prev.timbangan, grossKg: timbangan.grossKg, tareKg: timbangan.tareKg, netKg: timbangan.netKg }
+                    : ({ grossKg: timbangan.grossKg, tareKg: timbangan.tareKg, netKg: timbangan.netKg } as any),
+                }
+              : {
+                  manualGross: timbangan.grossKg,
+                  manualTare: timbangan.tareKg,
+                  manualNet: timbangan.netKg,
+                }),
             supirId: timbangan.supirId || prev.supirId,
             kendaraanPlatNomor: timbangan.kendaraan?.platNomor || prev.kendaraanPlatNomor,
             kebunId: timbangan.kebunId || prev.kebunId,
@@ -679,7 +697,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     finalData.pph25 = formData.pph25 || 0;
     finalData.perusahaanId = (formData as any).perusahaanId || undefined;
     
-    const isManual = !formData.timbanganId && useTimbanganKebunInput;
+    const isManual = useTimbanganKebunInput;
     finalData.isManual = isManual;
     finalData.useTimbanganKebun = useTimbanganKebunInput;
     finalData.disconnectTimbangan = !!nota?.timbanganId && isManual && !formData.timbanganId
@@ -733,9 +751,18 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                         setFormData(prev => ({
                           ...prev,
                           timbanganId: undefined,
-                          manualGross: prev.manualGross || 0,
-                          manualTare: prev.manualTare || 0,
-                          manualNet: prev.manualNet || 0,
+                          ...(nota
+                            ? {
+                                timbangan: prev.timbangan
+                                  ? { ...prev.timbangan, grossKg: 0, tareKg: 0, netKg: 0 }
+                                  : ({ grossKg: 0, tareKg: 0, netKg: 0 } as any),
+                              }
+                            : { manualGross: 0, manualTare: 0, manualNet: 0 }),
+                        }))
+                      } else {
+                        setFormData(prev => ({
+                          ...prev,
+                          ...(nota ? {} : { manualGross: 0, manualTare: 0, manualNet: 0 }),
                         }))
                       }
                     }}

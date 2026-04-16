@@ -457,6 +457,8 @@ export default function KaryawanKebunPage() {
             if (r.libur) nextOff[key] = true
             if (r.note) nextNote[key] = r.note
             if (r.source) nextSource[key] = String(r.source)
+            const isSelfieMasuk = String(r.source || '').toUpperCase() === 'SELFIE'
+            if (isSelfieMasuk && !r.libur) nextWork[key] = true
             if (r.useHourly) {
               nextHourly[key] = true
               nextHour[key] = r.jamKerja != null ? String(r.jamKerja) : ''
@@ -487,6 +489,7 @@ export default function KaryawanKebunPage() {
             work: nextWork,
             off: nextOff,
             note: nextNote,
+            source: nextSource,
             hourly: nextHourly,
             hour: nextHour,
             rate: nextRate,
@@ -516,6 +519,7 @@ export default function KaryawanKebunPage() {
           work?: Record<string, boolean>
           off?: Record<string, boolean>
           note?: Record<string, string>
+          source?: Record<string, string>
           hourly?: Record<string, boolean>
           hour?: Record<string, string>
           rate?: Record<string, string>
@@ -523,10 +527,21 @@ export default function KaryawanKebunPage() {
           meal?: Record<string, string>
         }
         // Only set if current maps are empty to avoid overwriting server data if it loaded faster
-        setAbsenMap(prev => Object.keys(prev).length === 0 ? (parsed.amount || {}) : prev)
-        setAbsenWorkMap(prev => Object.keys(prev).length === 0 ? (parsed.work || {}) : prev)
-        setAbsenOffMap(prev => Object.keys(prev).length === 0 ? (parsed.off || {}) : prev)
+        const parsedAmount = parsed.amount || {}
+        const parsedOff = parsed.off || {}
+        const parsedSource = parsed.source || {}
+        const parsedWorkBase = parsed.work || {}
+        const parsedWork = { ...parsedWorkBase }
+        Object.entries(parsedSource).forEach(([date, src]) => {
+          const isSelfie = String(src || '').toUpperCase() === 'SELFIE'
+          if (isSelfie && !parsedOff[date]) parsedWork[date] = true
+        })
+
+        setAbsenMap(prev => Object.keys(prev).length === 0 ? parsedAmount : prev)
+        setAbsenWorkMap(prev => Object.keys(prev).length === 0 ? parsedWork : prev)
+        setAbsenOffMap(prev => Object.keys(prev).length === 0 ? parsedOff : prev)
         setAbsenNoteMap(prev => Object.keys(prev).length === 0 ? (parsed.note || {}) : prev)
+        setAbsenSourceMap(prev => Object.keys(prev).length === 0 ? parsedSource : prev)
         setAbsenHourlyMap(prev => Object.keys(prev).length === 0 ? (parsed.hourly || {}) : prev)
         setAbsenHourMap(prev => Object.keys(prev).length === 0 ? (parsed.hour || {}) : prev)
         setAbsenRateMap(prev => Object.keys(prev).length === 0 ? (parsed.rate || {}) : prev)
@@ -537,6 +552,7 @@ export default function KaryawanKebunPage() {
         setAbsenWorkMap({})
         setAbsenOffMap({})
         setAbsenNoteMap({})
+        setAbsenSourceMap({})
         setAbsenHourlyMap({})
         setAbsenHourMap({})
         setAbsenRateMap({})
@@ -2618,7 +2634,7 @@ export default function KaryawanKebunPage() {
                             setAbsenValue('');
                           }
                           const nextHasAmount = !!val || absenDefaultAmount > 0;
-                          setAbsenWork(!!absenWorkMap[key] || nextHasAmount);
+                          setAbsenWork(isSelfie || !!absenWorkMap[key] || nextHasAmount);
                           setAbsenOff(!!absenOffMap[key]);
                           setAbsenUseHourly(!!absenHourlyMap[key]);
                           setAbsenHour(absenHourMap[key] || '');
