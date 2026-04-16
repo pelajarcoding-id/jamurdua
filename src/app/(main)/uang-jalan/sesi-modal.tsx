@@ -511,7 +511,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                                             return
                                                         }
                                                         ;(async () => {
-                                                            const converted = await convertImageFileToWebp(file, { quality: 0.9, maxDimension: 1920 })
+                                                            const converted = await convertImageFileToWebp(file, { quality: 0.82, maxDimension: 1280 })
                                                             setRincianFile(converted)
                                                         })()
                                                     }}

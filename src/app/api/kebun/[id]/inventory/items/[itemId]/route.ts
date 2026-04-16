@@ -24,6 +24,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       category: z.string().trim().max(64).optional(),
       unit: z.string().trim().min(1).max(32),
       minStock: z.coerce.number().nonnegative(),
+      initialStock: z.coerce.number().optional(),
       kendaraanPlatNomor: z.string().trim().max(32).optional(),
       imageUrl: z.string().trim().max(2048).nullable().optional(),
     }).superRefine((data, ctx) => {
@@ -46,29 +47,48 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     })
     if (!existing) return NextResponse.json({ error: 'Item tidak ditemukan' }, { status: 404 })
 
-    const { name, category, unit, minStock, kendaraanPlatNomor, imageUrl } = parsed.data
-    const updated = await (prisma as any).kebunInventoryItem.update({
-      where: { id: itemId },
-      data: {
-        name,
-        category: category && category.length > 0 ? category : null,
-        unit,
-        minStock,
-        kendaraanPlatNomor: kendaraanPlatNomor || null,
-        ...(typeof imageUrl !== 'undefined' ? { imageUrl: imageUrl || null } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        unit: true,
-        minStock: true,
-        stock: true,
-        imageUrl: true,
-        kendaraanPlatNomor: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const { name, category, unit, minStock, initialStock, kendaraanPlatNomor, imageUrl } = parsed.data
+
+    const updated = await prisma.$transaction(async (tx) => {
+      let newStock = Number(existing.stock || 0)
+
+      if (typeof initialStock === 'number') {
+        const trxs = await (tx as any).kebunInventoryTransaction.findMany({
+          where: { itemId, kebunId },
+          select: { type: true, quantity: true }
+        })
+
+        const totalIn = trxs.filter((t: any) => t.type === 'IN').reduce((sum: number, t: any) => sum + Number(t.quantity || 0), 0)
+        const totalOut = trxs.filter((t: any) => t.type === 'OUT').reduce((sum: number, t: any) => sum + Number(t.quantity || 0), 0)
+        newStock = initialStock + totalIn - totalOut
+      }
+
+      return await (tx as any).kebunInventoryItem.update({
+        where: { id: itemId },
+        data: {
+          name,
+          category: category && category.length > 0 ? category : null,
+          unit,
+          minStock,
+          stock: newStock,
+          initialStock: typeof initialStock === 'number' ? initialStock : existing.initialStock,
+          kendaraanPlatNomor: kendaraanPlatNomor || null,
+          ...(typeof imageUrl !== 'undefined' ? { imageUrl: imageUrl || null } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          unit: true,
+          minStock: true,
+          stock: true,
+          initialStock: true,
+          imageUrl: true,
+          kendaraanPlatNomor: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
     })
 
     return NextResponse.json({ data: updated })

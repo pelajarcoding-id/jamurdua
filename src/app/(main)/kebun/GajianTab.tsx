@@ -148,7 +148,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
 
   const historyItems = useMemo(() => {
     return [...drafts, ...finalized].sort(
-      (a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime(),
+      (a, b) => new Date(b.tanggalSelesai).getTime() - new Date(a.tanggalSelesai).getTime(),
     )
   }, [drafts, finalized])
   const historyTotalPages = useMemo(() => Math.max(1, Math.ceil(historyItems.length / historyPerView)), [historyItems.length, historyPerView])

@@ -48,12 +48,12 @@ export async function GET(request: Request) {
       const [drafts, finalized] = await prisma.$transaction([
         prisma.gajian.findMany({
           where: { ...where, status: 'DRAFT' },
-          orderBy: { updatedAt: 'desc' },
+          orderBy: { tanggalSelesai: 'desc' },
           include: { kebun: true },
         }),
         prisma.gajian.findMany({
           where: { ...where, status: 'FINALIZED' },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { tanggalSelesai: 'desc' },
           include: { kebun: true },
         }),
       ]);

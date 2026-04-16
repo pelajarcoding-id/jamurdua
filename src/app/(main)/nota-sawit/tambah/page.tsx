@@ -466,7 +466,7 @@ export default function TambahNotaSawitPage() {
 
       if (gambarNota) {
           const uploadFormData = new FormData();
-          const converted = await convertImageFileToWebp(gambarNota, { quality: 0.9, maxDimension: 1920 })
+          const converted = await convertImageFileToWebp(gambarNota, { quality: 0.82, maxDimension: 1280 })
           uploadFormData.append('file', converted);
           
           const uploadRes = await fetch('/api/upload', {

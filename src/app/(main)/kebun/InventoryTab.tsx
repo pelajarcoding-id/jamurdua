@@ -21,6 +21,7 @@ type InventoryItem = {
   category?: string | null
   unit: string
   minStock: number
+  initialStock: number
   imageUrl?: string | null
   stock: number
   kendaraanPlatNomor?: string | null
@@ -92,6 +93,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     category: '',
     unit: '',
     minStock: '',
+    initialStock: '',
     kendaraanPlatNomor: '',
   })
   const [editItemFile, setEditItemFile] = useState<File | null>(null)
@@ -201,6 +203,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       category: item.category || '',
       unit: item.unit || '',
       minStock: String(item.minStock ?? 0),
+      initialStock: String(item.initialStock ?? 0),
       kendaraanPlatNomor: item.kendaraanPlatNomor || '',
     })
     setEditItemFile(null)
@@ -413,6 +416,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
           category: editItem.category.trim() || undefined,
           unit: editItem.unit.trim(),
           minStock: Number(editItem.minStock) || 0,
+          initialStock: Number(editItem.initialStock) || 0,
           kendaraanPlatNomor: editItem.category.trim().toLowerCase() === 'kendaraan' ? editItem.kendaraanPlatNomor || undefined : undefined,
           ...(typeof imageUrl !== 'undefined' ? { imageUrl } : {}),
         }),
@@ -487,7 +491,8 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       doc.setFontSize(10)
       doc.text(`Kebun ID: ${kebunId}`, 14, 23)
       doc.text(`Item: ${detailItem.name}`, 14, 28)
-      doc.text(`Stok: ${detailItem.stock} ${detailItem.unit}`, 14, 33)
+      doc.text(`Stok Awal: ${detailItem.initialStock} ${detailItem.unit}`, 14, 33)
+      doc.text(`Stok Saat Ini: ${detailItem.stock} ${detailItem.unit}`, 14, 38)
 
       const rows: Array<[string, string]> = [
         ['Kategori', detailItem.category || '-'],
@@ -499,7 +504,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       autoTable(doc, {
         head: [['Field', 'Nilai']],
         body: rows,
-        startY: 38,
+        startY: 43,
         theme: 'grid',
         styles: { fontSize: 10, cellPadding: 3 },
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -1020,15 +1025,25 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Min Stok</Label>
+                <Label>Stok Awal</Label>
                 <Input
                   type="number"
                   min="0"
-                  value={editItem.minStock}
-                  onChange={(e) => setEditItem(prev => ({ ...prev, minStock: e.target.value }))}
+                  value={editItem.initialStock}
+                  onChange={(e) => setEditItem(prev => ({ ...prev, initialStock: e.target.value }))}
                   className="rounded-xl"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Min Stok</Label>
+              <Input
+                type="number"
+                min="0"
+                value={editItem.minStock}
+                onChange={(e) => setEditItem(prev => ({ ...prev, minStock: e.target.value }))}
+                className="rounded-xl"
+              />
             </div>
             <div className="space-y-2">
               <Label>Foto Barang (Opsional)</Label>
@@ -1155,16 +1170,22 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                 {detailItem?.category || 'Umum'}
                 {detailItem?.kendaraanPlatNomor ? ` • ${detailItem?.kendaraanPlatNomor}` : ''}
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
-                  <div className="text-xs text-gray-500">Stok</div>
-                  <div className="text-lg font-bold text-gray-900">
+                  <div className="text-xs text-gray-500">Stok Awal</div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {detailItem?.initialStock || 0} {detailItem?.unit}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Stok Saat Ini</div>
+                  <div className="text-sm font-bold text-emerald-600">
                     {detailItem?.stock || 0} {detailItem?.unit}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Minimum</div>
-                  <div className="text-lg font-bold text-gray-900">{detailItem?.minStock || 0}</div>
+                  <div className="text-sm font-bold text-gray-900">{detailItem?.minStock || 0}</div>
                 </div>
               </div>
             </div>

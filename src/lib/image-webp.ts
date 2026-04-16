@@ -2,24 +2,40 @@ export async function convertImageFileToWebp(
   file: File,
   options?: { quality?: number; maxDimension?: number }
 ): Promise<File> {
-  const quality = typeof options?.quality === 'number' ? options!.quality : 0.9
-  const maxDimension = typeof options?.maxDimension === 'number' ? options!.maxDimension : 1920
+  const quality = typeof options?.quality === 'number' ? options!.quality : 0.82
+  const maxDimension = typeof options?.maxDimension === 'number' ? options!.maxDimension : 1280
 
   if (!file) return file
-  if (file.type === 'image/webp') return file
   if (typeof window === 'undefined') return file
 
   const objectUrl = URL.createObjectURL(file)
   try {
-    let bitmap: ImageBitmap | null = null
+    let imgSource: ImageBitmap | HTMLImageElement | null = null
+    
+    // Try to load as Image object first for better stability on iOS/Safari
+    // before potentially using the more memory-heavy createImageBitmap
+    const loadImage = (): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = (e) => reject(e)
+      img.src = objectUrl
+    })
+
     try {
-      bitmap = await createImageBitmap(file as any, { imageOrientation: 'from-image' } as any)
+      imgSource = await loadImage()
     } catch {
-      bitmap = await createImageBitmap(file as any)
+      try {
+        imgSource = await createImageBitmap(file as any, { imageOrientation: 'from-image' } as any)
+      } catch {
+        imgSource = await createImageBitmap(file as any)
+      }
     }
 
-    const srcW = bitmap.width
-    const srcH = bitmap.height
+    if (!imgSource) return file
+
+    const srcW = 'naturalWidth' in imgSource ? imgSource.naturalWidth : imgSource.width
+    const srcH = 'naturalHeight' in imgSource ? imgSource.naturalHeight : imgSource.height
+    
     const scale = Math.min(1, maxDimension / Math.max(srcW, srcH))
     const dstW = Math.max(1, Math.round(srcW * scale))
     const dstH = Math.max(1, Math.round(srcH * scale))
@@ -29,9 +45,10 @@ export async function convertImageFileToWebp(
     canvas.height = dstH
     const ctx = canvas.getContext('2d')
     if (!ctx) return file
+    
     ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(bitmap, 0, 0, dstW, dstH)
+    ctx.imageSmoothingQuality = 'medium' // 'medium' often uses less memory than 'high'
+    ctx.drawImage(imgSource as any, 0, 0, dstW, dstH)
 
     const blob: Blob | null = await new Promise((resolve) => {
       canvas.toBlob((b) => resolve(b), 'image/webp', quality)
@@ -42,7 +59,8 @@ export async function convertImageFileToWebp(
     const base = file.name.replace(/\.[^/.]+$/, '')
     const outName = `${base || 'image'}.webp`
     return new File([blob], outName, { type: 'image/webp' })
-  } catch {
+  } catch (err) {
+    console.error('WebP conversion error:', err)
     return file
   } finally {
     try {

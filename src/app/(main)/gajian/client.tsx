@@ -839,7 +839,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const response = await fetch(`/api/gajian?${params.toString()}`);
       if (!response.ok) throw new Error('Gagal mengambil data nota');
       const { data, total } = await response.json();
-      setNotas(data);
+      
+      // Prevent duplicates by filtering out notas already in notasToProcess
+      const processedIds = new Set(notasToProcess.map(n => n.id));
+      const filteredData = Array.isArray(data) ? data.filter((n: any) => !processedIds.has(n.id)) : [];
+      
+      setNotas(filteredData);
       setTotalNotas(total);
       setRowSelection({});
 
@@ -862,6 +867,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   const handleMoveToProcess = async () => {
     if (selectedNotas.length === 0) return;
+
+    // Check for duplicate notas that might have been added manually or otherwise
+    const processedIds = new Set(notasToProcess.map(n => n.id));
+    const duplicates = selectedNotas.filter(n => processedIds.has(n.id));
+    if (duplicates.length > 0) {
+      toast.error(`Nota ${duplicates.map(d => d.id).join(', ')} sudah ada di daftar rincian gaji.`);
+      return;
+    }
 
     const totalBerat = selectedNotas.reduce((sum, nota) => sum + nota.beratAkhir, 0);
 

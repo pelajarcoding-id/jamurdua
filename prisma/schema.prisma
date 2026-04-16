@@ -380,6 +380,7 @@ model KebunInventoryItem {
   category  String?
   unit      String
   stock     Float         @default(0)
+  initialStock Float      @default(0)
   minStock  Float         @default(0)
   imageUrl  String?
   kendaraanPlatNomor String?

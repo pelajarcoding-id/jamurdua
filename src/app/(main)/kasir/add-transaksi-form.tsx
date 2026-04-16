@@ -446,12 +446,12 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
     }
 
     try {
-      let finalGambarUrl = initialData?.gambarUrl || '';
+      let finalGambarUrl = preview && !preview.startsWith('data:') ? preview : '';
 
       if (selectedFile) {
           // Use FormData for file upload instead of separate API call
           const formData = new FormData();
-          const converted = await convertImageFileToWebp(selectedFile, { quality: 0.9, maxDimension: 1920 })
+          const converted = await convertImageFileToWebp(selectedFile, { quality: 0.82, maxDimension: 1280 })
           formData.append('file', converted);
           
           const uploadRes = await fetch('/api/upload', {
@@ -515,7 +515,7 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
         tipe,
         deskripsi,
         keterangan,
-        gambarUrl: finalGambarUrl || undefined,
+        gambarUrl: finalGambarUrl,
         date: transactionDate,
         kategori,
       }

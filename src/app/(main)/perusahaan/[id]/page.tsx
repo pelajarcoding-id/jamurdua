@@ -1442,7 +1442,7 @@ export default function PerusahaanDetailPage() {
 
   async function handleUploadDoc(type: string, file: File) {
     if (!perusahaan) return
-    const safeFile = isLikelyImageFile(file) ? await convertImageFileToWebp(file, { quality: 0.9, maxDimension: 1920 }) : file
+    const safeFile = isLikelyImageFile(file) ? await convertImageFileToWebp(file, { quality: 0.82, maxDimension: 1280 }) : file
     const fd = new FormData()
     fd.append('file', safeFile)
     const loadingToast = toast.loading('Mengunggah dokumen...')
@@ -1514,7 +1514,7 @@ export default function PerusahaanDetailPage() {
       addKategori(kategori)
       let gambarUrl: string | null = null
       if (biayaFile) {
-        const safeFile = isLikelyImageFile(biayaFile) ? await convertImageFileToWebp(biayaFile, { quality: 0.9, maxDimension: 1920 }) : biayaFile
+        const safeFile = isLikelyImageFile(biayaFile) ? await convertImageFileToWebp(biayaFile, { quality: 0.82, maxDimension: 1280 }) : biayaFile
         const fd = new FormData()
         fd.append('file', safeFile)
         const up = await fetch('/api/upload', { method: 'POST', body: fd })
