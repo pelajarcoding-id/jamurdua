@@ -80,13 +80,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const [
     linkedPekerjaan,
     linkedKas,
-    linkedDetailGaji,
+    detailGajiRows,
     linkedNota,
     linkedTimbangan,
     linkedInv,
     linkedKebunInv,
     linkedPermintaan,
-    linkedSesi
+    linkedSesi,
+    linkedHariKerja,
+    linkedHutang
   ] = await Promise.all([
     prisma.pekerjaanKebun.findFirst({ where: { userId: karyawanId } }),
     prisma.kasTransaksi.findFirst({ 
@@ -97,21 +99,88 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         ]
       } 
     }),
-    prisma.detailGajianKaryawan.findFirst({ where: { userId: karyawanId } }),
+    prisma.detailGajianKaryawan.findMany({
+      where: { userId: karyawanId },
+      select: {
+        id: true,
+        gajianId: true,
+        hariKerja: true,
+        gajiPokok: true,
+        bonus: true,
+        lembur: true,
+        potongan: true,
+        saldoHutang: true,
+        total: true,
+        gajian: { select: { id: true, status: true } },
+      },
+    }),
     prisma.notaSawit.findFirst({ where: { supirId: karyawanId } }),
     prisma.timbangan.findFirst({ where: { supirId: karyawanId } }),
     prisma.inventoryTransaction.findFirst({ where: { userId: karyawanId } }),
     prisma.kebunInventoryTransaction.findFirst({ where: { userId: karyawanId } }),
     prisma.permintaanKebun.findFirst({ where: { userId: karyawanId } }),
     prisma.sesiUangJalan.findFirst({ where: { supirId: karyawanId } }),
+    (prisma as any).absensiHarian?.findFirst
+      ? (prisma as any).absensiHarian.findFirst({
+          where: {
+            karyawanId,
+            OR: [
+              { kerja: true },
+              { jumlah: { gt: 0 } },
+              { useHourly: true },
+              { jamKerja: { gt: 0 } },
+              { uangMakan: { gt: 0 } },
+            ],
+          },
+          select: { id: true },
+        })
+      : prisma.$queryRaw<Array<{ id: number }>>`
+          SELECT "id" FROM "AbsensiHarian"
+          WHERE "karyawanId" = ${karyawanId}
+            AND (
+              "kerja" = TRUE
+              OR "jumlah" > 0
+              OR COALESCE("useHourly", FALSE) = TRUE
+              OR COALESCE("jamKerja", 0) > 0
+              OR COALESCE("uangMakan", 0) > 0
+            )
+          LIMIT 1
+        `.then((rows) => (Array.isArray(rows) && rows.length > 0 ? rows[0] : null)),
+    prisma.kasTransaksi.findFirst({
+      where: {
+        karyawanId: karyawanId,
+        kategori: { in: ['HUTANG_KARYAWAN', 'PEMBAYARAN_HUTANG'] },
+        deletedAt: null,
+      },
+      select: { id: true },
+    }),
   ])
 
-  if (linkedPekerjaan || linkedKas || linkedDetailGaji || linkedNota || linkedTimbangan || linkedInv || linkedKebunInv || linkedPermintaan || linkedSesi) {
+  const hasDetailGaji = Array.isArray(detailGajiRows) && detailGajiRows.length > 0
+  const hasNonZeroDetailGaji = hasDetailGaji && detailGajiRows.some((r) => {
+    const hariKerja = Number(r.hariKerja || 0)
+    const gajiPokok = Number(r.gajiPokok || 0)
+    const bonus = Number(r.bonus || 0)
+    const lembur = Number(r.lembur || 0)
+    const potongan = Number(r.potongan || 0)
+    const saldoHutang = Number(r.saldoHutang || 0)
+    const total = Number(r.total || 0)
+    return hariKerja > 0 || gajiPokok > 0 || bonus > 0 || lembur > 0 || potongan > 0 || saldoHutang > 0 || total > 0
+  })
+  const canIgnoreDetailGajiForDelete =
+    hasDetailGaji && !hasNonZeroDetailGaji && !linkedHariKerja && !linkedHutang
+
+  if (linkedPekerjaan || linkedKas || (!canIgnoreDetailGajiForDelete && hasDetailGaji) || linkedNota || linkedTimbangan || linkedInv || linkedKebunInv || linkedPermintaan || linkedSesi) {
     let errorMsg = 'Tidak bisa hapus: karyawan memiliki referensi data '
     const details = []
     if (linkedPekerjaan) details.push('pekerjaan kebun')
     if (linkedKas) details.push('kas transaksi')
-    if (linkedDetailGaji) details.push('riwayat gajian')
+    if (hasDetailGaji) {
+      if (hasNonZeroDetailGaji) details.push('riwayat gajian (ada nilai)')
+      else details.push('riwayat gajian')
+    }
+    if (linkedHariKerja) details.push('absensi (hari kerja)')
+    if (linkedHutang) details.push('hutang karyawan')
     if (linkedNota) details.push('nota sawit')
     if (linkedTimbangan) details.push('timbangan')
     if (linkedInv || linkedKebunInv) details.push('inventaris')
@@ -129,6 +198,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     await tx.karyawanAssignment.deleteMany({
       where: { userId: karyawanId }
     })
+
+    if (canIgnoreDetailGajiForDelete) {
+      await tx.detailGajianKaryawan.deleteMany({
+        where: { userId: karyawanId },
+      })
+    }
 
     // 2. Update the delete request status
     const txClient = tx as unknown as { karyawanDeleteRequest: KaryawanDeleteRequestDelegate }

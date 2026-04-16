@@ -187,10 +187,20 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   const rows = summaryRowsData?.data ?? []
 
   const filteredRows = useMemo(() => {
-    if (!karyawanSearch.trim()) return rows
+    const base = rows.filter((r) => !r?.karyawan?.deleteRequestPending)
+    if (!karyawanSearch.trim()) return base
     const s = karyawanSearch.toLowerCase()
-    return rows.filter(r => r.karyawan.name.toLowerCase().includes(s))
+    return base.filter((r) => r.karyawan.name.toLowerCase().includes(s))
   }, [rows, karyawanSearch])
+
+  useEffect(() => {
+    if (!selectedUser) return
+    const exists = filteredRows.some((r) => r.karyawan.id === selectedUser.id)
+    if (!exists) {
+      setSelectedUser(null)
+      setAbsenUserId(null)
+    }
+  }, [filteredRows, selectedUser])
 
   const karyawanTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / karyawanPerView)), [filteredRows.length, karyawanPerView])
   const karyawanStartIndex = useMemo(() => (karyawanPage - 1) * karyawanPerView, [karyawanPage, karyawanPerView])

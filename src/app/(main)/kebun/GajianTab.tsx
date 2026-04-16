@@ -197,9 +197,8 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           if (!curr?.upahBorongan) return
           const total = Number(curr?.biaya || 0)
           if (!Number.isFinite(total) || total <= 0) return
-          const kategori = String(curr?.kategoriBorongan || '').trim()
           const jenis = String(curr?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
-          const deskripsi = kategori ? `Upah Borongan - ${kategori} - ${jenis}` : `Upah Borongan - ${jenis}`
+          const deskripsi = jenis
           mappedBiaya.push({
             deskripsi,
             total,

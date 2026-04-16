@@ -48,6 +48,16 @@ type GajianWithDetails = Gajian & {
 const formatNumber = (num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num);
 const formatDate = (date: Date | string) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date));
 
+const normalizeBoronganJenis = (raw: any) => {
+  const s = String(raw || '').trim()
+  if (!s) return ''
+  if (!/^upah\s*borongan/i.test(s)) return s
+  const rest = s.replace(/^upah\s*borongan\s*-\s*/i, '').trim()
+  if (!rest) return ''
+  const parts = rest.split(' - ').map((p) => p.trim()).filter(Boolean)
+  return parts.length > 0 ? parts[parts.length - 1] : rest
+}
+
 const formatKgNota = (nota?: NotaSawitWithRelations | null) => {
   if (!nota) return ''
   const kg = nota.beratAkhir
@@ -234,7 +244,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         item.detail?.notaSawit?.supir?.name || '',
         item.detail ? formatKgNota(item.detail.notaSawit) : '',
         item.detail?.keterangan || '',
-        item.biaya?.deskripsi || '',
+        normalizeBoronganJenis(item.biaya?.deskripsi || ''),
         item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah, 2)} ${item.biaya.satuan || ''}` : '',
         item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : '',
         item.biaya ? formatNumber(item.biaya.total) : '',
@@ -784,7 +794,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail?.notaSawit?.supir?.name || ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail ? formatKgNota(item.detail.notaSawit) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail?.keterangan || ''}</td>
-                    <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.deskripsi || ''}</td>
+                    <td className="border border-black p-2 align-middle whitespace-nowrap">{normalizeBoronganJenis(item.biaya?.deskripsi || '')}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah, 2)} ${item.biaya.satuan || ''}` : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya ? formatNumber(item.biaya.total) : ''}</td>

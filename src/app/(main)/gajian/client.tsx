@@ -1093,11 +1093,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           if (!Number.isFinite(biaya) || biaya <= 0) return null
 
           allIds.push(id)
-          const kategori = String(p?.kategoriBorongan || '').trim()
           const jenis = String(p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
           const tanggal = p?.date ? new Date(p.date).toLocaleDateString('id-ID') : ''
 
-          const deskripsi = kategori ? `Upah Borongan - ${kategori} - ${jenis}` : `Upah Borongan - ${jenis}`
+          const deskripsi = jenis
           const keterangan = tanggal ? `Tanggal: ${tanggal}` : ''
 
           return {
@@ -1113,7 +1112,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         .filter(Boolean) as any[]
 
       setSavedBiaya((prev) => {
-        const filtered = prev.filter((b) => !(String(b.deskripsi || '').startsWith('Upah Borongan - ')))
+        const filtered = prev.filter((b) => !(String((b as any)?.id || '').startsWith('auto-borongan-')))
         return [...filtered, ...imported]
       })
       setBoronganPekerjaanIds(allIds)

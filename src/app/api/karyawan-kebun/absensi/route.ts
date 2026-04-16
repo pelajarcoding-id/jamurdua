@@ -188,7 +188,7 @@ export async function GET(request: Request) {
       }>>`
         SELECT
           TO_CHAR("date", 'YYYY-MM-DD') as "date",
-          COALESCE(SUM("jumlah"), 0) as "jumlah",
+          COALESCE(MAX("jumlah"), 0) as "jumlah",
           BOOL_OR("kerja") as "kerja",
           BOOL_OR("libur") as "libur",
           MAX("note") as "note",
@@ -196,16 +196,11 @@ export async function GET(request: Request) {
           MAX("jamKerja") as "jamKerja",
           MAX("ratePerJam") as "ratePerJam",
           MAX("uangMakan") as "uangMakan",
-          MAX("useHourly") as "useHourly"
+          BOOL_OR(COALESCE("useHourly", FALSE)) as "useHourly"
         FROM "AbsensiHarian"
         WHERE "karyawanId" = ${karyawanId}
           AND "date" >= ${startKey}::DATE
           AND "date" <= ${endKey}::DATE
-          AND (
-            ${kebunId} = 0
-            OR "kebunId" = ${kebunId}
-            OR "kebunId" = 0
-          )
         GROUP BY "date"
         ORDER BY "date" ASC
       `
