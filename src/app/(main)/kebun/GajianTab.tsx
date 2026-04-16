@@ -17,6 +17,7 @@ type UnpaidKaryawan = {
   karyawanId: number
   name: string
   total: number
+  hariKerja?: number
 }
 
 type BiayaLainItem = {
@@ -318,7 +319,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
         .filter((u) => Number(u.total) > 0)
         .map((u) => ({
           userId: u.karyawanId,
-          hariKerja: 0,
+          hariKerja: Number(u.hariKerja || 0),
           gajiPokok: Math.round(Number(u.total) || 0),
           potongan: 0,
           total: Math.round(Number(u.total) || 0),
@@ -373,11 +374,11 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           <div className="flex flex-col sm:flex-row items-end gap-3">
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Mulai</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
             </div>
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Selesai</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
             </div>
             <Button onClick={fetchPreview} variant="outline" className="rounded-full h-10 w-full sm:w-auto">
               Refresh
@@ -420,7 +421,12 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
               ) : (
                 unpaidList.map((u) => (
                   <div key={`unpaid-${u.karyawanId}`} className="rounded-2xl border border-gray-100 bg-white p-4">
-                    <div className="text-sm font-semibold text-gray-900">{u.name}</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-gray-900 truncate">{u.name}</div>
+                      <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                        {Number(u.hariKerja || 0)} HK
+                      </span>
+                    </div>
                     <div className="text-xs text-gray-400 mt-1">Total</div>
                     <div className="font-semibold text-emerald-700">{formatCurrency(Number(u.total) || 0)}</div>
                   </div>
@@ -452,7 +458,14 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                   ) : (
                     unpaidList.map((u) => (
                       <tr key={u.karyawanId}>
-                        <td className="px-4 py-2">{u.name}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate">{u.name}</span>
+                            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                              {Number(u.hariKerja || 0)} HK
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-4 py-2 text-right font-semibold">{formatCurrency(Number(u.total) || 0)}</td>
                       </tr>
                     ))
@@ -664,11 +677,11 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           <div className="flex flex-col sm:flex-row items-end gap-3">
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Mulai</Label>
-              <Input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
+              <Input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
             </div>
             <div className="space-y-1 w-full sm:w-auto">
               <Label>Selesai</Label>
-              <Input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-md pr-10" />
+              <Input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
             </div>
             <Button onClick={fetchHistory} variant="outline" className="rounded-full h-10 w-full sm:w-auto">
               Terapkan
