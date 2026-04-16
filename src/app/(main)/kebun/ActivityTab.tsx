@@ -207,6 +207,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [kategoriMasterDraft, setKategoriMasterDraft] = useState('')
   const [kategoriMasterSaving, setKategoriMasterSaving] = useState(false)
   const [kategoriMasterDeletingId, setKategoriMasterDeletingId] = useState<number | null>(null)
+  const [kategoriEditId, setKategoriEditId] = useState<number | null>(null)
+  const [kategoriEditName, setKategoriEditName] = useState('')
+  const [kategoriEditSaving, setKategoriEditSaving] = useState(false)
+  const [kategoriDeleteOpen, setKategoriDeleteOpen] = useState(false)
+  const [kategoriDeleteTarget, setKategoriDeleteTarget] = useState<{ id: number; name: string } | null>(null)
 
   const applySearch = useCallback(() => {
     setSearchQuery(String(searchDraft || '').trim())
@@ -268,12 +273,53 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       if (!res.ok) throw new Error(json?.error || 'Gagal menghapus kategori')
       await fetchKategoriMaster()
       toast.success('Kategori dihapus')
+      return true
     } catch (e: any) {
       toast.error(e?.message || 'Gagal menghapus kategori')
+      return false
     } finally {
       setKategoriMasterDeletingId(null)
     }
   }, [fetchKategoriMaster, kebunId, kategoriMasterDeletingId, mode])
+
+  const handleStartEditKategoriMaster = useCallback((k: { id: number; name: string }) => {
+    setKategoriEditId(k.id)
+    setKategoriEditName(k.name)
+  }, [])
+
+  const handleCancelEditKategoriMaster = useCallback(() => {
+    setKategoriEditId(null)
+    setKategoriEditName('')
+  }, [])
+
+  const handleSaveEditKategoriMaster = useCallback(async () => {
+    if (mode !== 'borongan') return
+    if (!kategoriEditId) return
+    if (kategoriEditSaving) return
+    const name = String(kategoriEditName || '').trim()
+    if (!name) {
+      toast.error('Nama kategori wajib diisi')
+      return
+    }
+    setKategoriEditSaving(true)
+    try {
+      const res = await fetch(`/api/kebun/${kebunId}/borongan/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: kategoriEditId, name }),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(json?.error || 'Gagal mengubah kategori')
+      await fetchKategoriMaster()
+      toast.success('Kategori diperbarui')
+      setKategoriEditId(null)
+      setKategoriEditName('')
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal mengubah kategori')
+    } finally {
+      setKategoriEditSaving(false)
+    }
+  }, [fetchKategoriMaster, kebunId, kategoriEditId, kategoriEditName, kategoriEditSaving, mode])
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
@@ -1026,7 +1072,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             <Button
               type="button"
               variant="outline"
-              className="rounded-full h-10 w-full sm:w-auto"
+              className="rounded-full h-10 w-full sm:w-auto border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
               onClick={handleExportListPdf}
               disabled={listExporting || filteredActivities.length === 0}
             >
@@ -1058,7 +1104,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             {filterType === 'month' && (
               <Input 
                 type="month" 
-                className="h-10 w-full sm:w-44 bg-white !rounded-md pr-10" 
+                className="h-10 w-full sm:w-44 bg-white !rounded-full pr-10" 
                 value={formatWibYm(selectedDate)}
                 onChange={handleDateChange}
               />
@@ -1080,14 +1126,14 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Input 
                   type="date" 
-                  className="h-10 w-full sm:w-36 bg-white !rounded-md pr-10" 
+                  className="h-10 w-full sm:w-36 bg-white !rounded-full pr-10" 
                   value={dateRange.start}
                   onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                 />
                 <span className="text-gray-500">-</span>
                 <Input 
                   type="date" 
-                  className="h-10 w-full sm:w-36 bg-white !rounded-md pr-10" 
+                  className="h-10 w-full sm:w-36 bg-white !rounded-full pr-10" 
                   value={dateRange.end}
                   onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                 />
@@ -1136,7 +1182,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-md w-full sm:w-auto"
+                className="h-10 rounded-full w-full sm:w-auto border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                 onClick={() => setKategoriMasterOpen(true)}
               >
                 Master Kategori
@@ -1189,9 +1235,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
           </div>
           <div className="mt-4">
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3 w-full sm:w-1/2 lg:w-1/4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Total</p>
-              <p className="text-lg font-bold mt-1 text-emerald-900">{formatCurrency(stats.totalSemua)}</p>
-              <p className="text-xs text-emerald-700/80 mt-1">{stats.jumlahItem.toLocaleString('id-ID')} item</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Upah belum dibayar</p>
+              <p className="text-lg font-bold mt-1 text-emerald-900">{formatCurrency(Math.round(stats.upahBelumDibayar || 0))}</p>
+              <p className="text-xs text-emerald-700/80 mt-1">{(stats.upahBelumDibayarItem || 0).toLocaleString('id-ID')} item</p>
               <div className="mt-3 border-t border-emerald-100 pt-3 space-y-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-emerald-700/90">Upah sudah dibayar</span>
@@ -1200,9 +1246,15 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-emerald-700/90">Upah belum dibayar</span>
+                  <span className="text-emerald-700/90">Total upah</span>
                   <span className="font-semibold text-emerald-900">
-                    {formatCurrency(Math.round(stats.upahBelumDibayar || 0))} ({(stats.upahBelumDibayarItem || 0).toLocaleString('id-ID')})
+                    {formatCurrency(Math.round(stats.totalUpah || 0))} ({(stats.jumlahUpah || 0).toLocaleString('id-ID')})
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-emerald-700/90">Total semua</span>
+                  <span className="font-semibold text-emerald-900">
+                    {formatCurrency(Math.round(stats.totalSemua || 0))} ({(stats.jumlahItem || 0).toLocaleString('id-ID')})
                   </span>
                 </div>
               </div>
@@ -2425,16 +2477,78 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   ) : (
                     kategoriMaster.map((k) => (
                       <div key={k.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-gray-900 break-words">{k.name}</div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-9 w-9 p-0 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                          onClick={() => handleDeleteKategoriMaster(k.id)}
-                          disabled={kategoriMasterDeletingId === k.id}
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </Button>
+                        {kategoriEditId === k.id ? (
+                          <div className="flex-1 min-w-0">
+                            <Input
+                              value={kategoriEditName}
+                              onChange={(e) => setKategoriEditName(e.target.value)}
+                              className="h-9 bg-white"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleSaveEditKategoriMaster()
+                                }
+                                if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  handleCancelEditKategoriMaster()
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="text-sm font-semibold text-gray-900 break-words flex-1 min-w-0">{k.name}</div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          {kategoriEditId === k.id ? (
+                            <>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-9 w-9 p-0 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                onClick={handleSaveEditKategoriMaster}
+                                disabled={kategoriEditSaving}
+                                title="Simpan"
+                              >
+                                <CheckIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-9 w-9 p-0 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-700"
+                                onClick={handleCancelEditKategoriMaster}
+                                disabled={kategoriEditSaving}
+                                title="Batal"
+                              >
+                                <XMarkIcon className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-9 w-9 p-0 rounded-full text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                onClick={() => handleStartEditKategoriMaster(k)}
+                                title="Edit"
+                              >
+                                <PencilSquareIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-9 w-9 p-0 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => {
+                                  setKategoriDeleteTarget({ id: k.id, name: k.name })
+                                  setKategoriDeleteOpen(true)
+                                }}
+                                title="Hapus"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -2444,6 +2558,64 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             <ModalFooter className="sm:justify-end">
               <Button variant="outline" className="rounded-xl" onClick={() => setKategoriMasterOpen(false)}>
                 Tutup
+              </Button>
+            </ModalFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {mode === 'borongan' ? (
+        <Dialog
+          open={kategoriDeleteOpen}
+          onOpenChange={(open) => {
+            setKategoriDeleteOpen(open)
+            if (!open) setKategoriDeleteTarget(null)
+          }}
+        >
+          <DialogContent className="w-[92vw] sm:max-w-md max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
+            <ModalHeader
+              title="Hapus Kategori"
+              variant="emerald"
+              icon={<TrashIcon className="h-5 w-5 text-white" />}
+              onClose={() => {
+                setKategoriDeleteOpen(false)
+                setKategoriDeleteTarget(null)
+              }}
+            />
+            <ModalContentWrapper className="space-y-3 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="text-sm text-gray-700">
+                Yakin ingin menghapus kategori <span className="font-bold text-gray-900">{kategoriDeleteTarget?.name || ''}</span>?
+              </div>
+              <div className="text-xs text-gray-500">
+                Kategori tidak bisa dihapus jika sudah dipakai pada data borongan.
+              </div>
+            </ModalContentWrapper>
+            <ModalFooter className="sm:justify-end">
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => {
+                  setKategoriDeleteOpen(false)
+                  setKategoriDeleteTarget(null)
+                }}
+                disabled={!!kategoriMasterDeletingId}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                disabled={!kategoriDeleteTarget || kategoriMasterDeletingId === kategoriDeleteTarget?.id}
+                onClick={async () => {
+                  if (!kategoriDeleteTarget) return
+                  const ok = await handleDeleteKategoriMaster(kategoriDeleteTarget.id)
+                  if (ok) {
+                    setKategoriDeleteOpen(false)
+                    setKategoriDeleteTarget(null)
+                  }
+                }}
+              >
+                Hapus
               </Button>
             </ModalFooter>
           </DialogContent>

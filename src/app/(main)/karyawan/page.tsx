@@ -2670,8 +2670,10 @@ export default function KaryawanKebunPage() {
                                 Masuk Kerja
                               </div>
                               {isSelfie ? (
-                                <div className="text-[9px] sm:text-[10px] font-semibold text-blue-600">
-                                  Absensi Selfie
+                                <div>
+                                  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide">
+                                    Selfie
+                                  </span>
                                 </div>
                               ) : null}
                               {num > 0 ? (

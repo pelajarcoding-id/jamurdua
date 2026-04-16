@@ -65,9 +65,53 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json().catch(() => ({}))
+    const id = body?.id != null ? Number(body.id) : null
     const name = body?.name ? String(body.name).trim() : ''
     if (!name) return NextResponse.json({ error: 'name wajib diisi' }, { status: 400 })
     const nameLower = name.toLowerCase()
+
+    if (id && Number.isFinite(id) && id > 0) {
+      const existingRows: Array<{ id: number; name: string }> = await prisma.$queryRaw(
+        Prisma.sql`
+          SELECT "id","name"
+          FROM "KebunBoronganKategori"
+          WHERE "kebunId" = ${kebunId} AND "id" = ${id}
+          LIMIT 1
+        `,
+      )
+      if (existingRows.length === 0) return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 404 })
+
+      const conflictRows: Array<{ exists: number }> = await prisma.$queryRaw(
+        Prisma.sql`
+          SELECT 1 as "exists"
+          FROM "KebunBoronganKategori"
+          WHERE "kebunId" = ${kebunId}
+            AND "nameLower" = ${nameLower}
+            AND "id" <> ${id}
+          LIMIT 1
+        `,
+      )
+      if (conflictRows.length > 0) {
+        return NextResponse.json({ error: 'Nama kategori sudah digunakan' }, { status: 400 })
+      }
+
+      const updatedRows: any = await prisma.$queryRaw(
+        Prisma.sql`
+          UPDATE "KebunBoronganKategori"
+          SET "name" = ${name}, "nameLower" = ${nameLower}, "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "kebunId" = ${kebunId} AND "id" = ${id}
+          RETURNING "id","kebunId","name","nameLower","createdAt","updatedAt"
+        `,
+      )
+      const data = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows
+
+      await createAuditLog(guard.id, 'UPDATE', 'KebunBoronganKategori', String(data.id), {
+        kebunId,
+        name,
+      })
+
+      return NextResponse.json({ data })
+    }
 
     const rows: any = await prisma.$queryRaw(
       Prisma.sql`
@@ -146,4 +190,3 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
-

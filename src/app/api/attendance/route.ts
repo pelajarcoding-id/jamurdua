@@ -103,57 +103,33 @@ async function ensureAbsensiHarianTable() {
   }
 }
 
-async function resolveKebunIdsForCalendar(userId: number) {
-  const kebunCandidates = await prisma.$queryRaw<Array<{ kebunId: number }>>`
-    SELECT DISTINCT "kebunId"
-    FROM "AbsensiDefaultHarian"
-    WHERE "karyawanId" = ${userId}
-  `
-  if (kebunCandidates.length > 0) return kebunCandidates.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
-
-  const fallbackKebun = await prisma.$queryRaw<Array<{ kebunId: number }>>`
-    SELECT DISTINCT "kebunId"
-    FROM "AbsensiHarian"
-    WHERE "karyawanId" = ${userId}
-  `
-  const ids = fallbackKebun.map((x) => Number(x.kebunId)).filter((x) => Number.isFinite(x))
-  if (ids.length > 0) return ids
-  return []
-}
-
 async function syncSelfieToCalendarKerja(params: { userId: number; date: Date }) {
   try {
     await ensureAbsensiHarianTable()
-
-    const kebunIds = await resolveKebunIdsForCalendar(params.userId)
-    if (kebunIds.length === 0) return
-
-    for (const kebunId of kebunIds) {
-      if (!Number.isFinite(kebunId) || kebunId <= 0) continue
-      await (prisma as any).absensiHarian.upsert({
-        where: {
-          kebunId_karyawanId_date: {
-            kebunId,
-            karyawanId: params.userId,
-            date: params.date,
-          },
-        },
-        update: {
-          kerja: true,
-          libur: false,
-          source: 'SELFIE',
-          updatedAt: new Date(),
-        },
-        create: {
+    const kebunId = 0
+    await (prisma as any).absensiHarian.upsert({
+      where: {
+        kebunId_karyawanId_date: {
           kebunId,
           karyawanId: params.userId,
           date: params.date,
-          kerja: true,
-          libur: false,
-          source: 'SELFIE',
         },
-      })
-    }
+      },
+      update: {
+        kerja: true,
+        libur: false,
+        source: 'SELFIE',
+        updatedAt: new Date(),
+      },
+      create: {
+        kebunId,
+        karyawanId: params.userId,
+        date: params.date,
+        kerja: true,
+        libur: false,
+        source: 'SELFIE',
+      },
+    })
   } catch (err) {
     console.error('syncSelfieToCalendarKerja error:', err)
   }
@@ -290,6 +266,9 @@ export async function GET(req: Request) {
     })
 
     if (!history) {
+      if (attendance?.checkIn) {
+        await syncSelfieToCalendarKerja({ userId, date: today })
+      }
       return NextResponse.json({ attendance })
     }
 

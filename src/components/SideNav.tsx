@@ -20,7 +20,7 @@ interface SideNavProps {
 
 export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen }: SideNavProps) {
   const pathname = usePathname();
-  const { role } = useAuth();
+  const { role, loading } = useAuth();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>(
     links.reduce((acc, link) => {
@@ -32,7 +32,9 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
   );
 
   const visibleLinks: NavLink[] = links.filter((link) => {
+    if (loading) return false
     const userRole = role?.toUpperCase() || '';
+    if (!userRole) return false
 
     if (userRole && !['ADMIN', 'PEMILIK', 'KASIR', 'MANAGER'].includes(userRole)) {
       return link.name === 'Absensi'
