@@ -71,7 +71,7 @@ interface BiayaLain {
   isAutoKg?: boolean;
 }
 
-const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
+const formatNumber = (num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num);
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(date);
 
@@ -495,7 +495,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             jumlah: b.jumlah,
             satuan: b.satuan,
             hargaSatuan: b.hargaSatuan,
-            total: b.total || (b.jumlah * b.hargaSatuan),
+            total: Math.round(Number(b.jumlah || 0) * Number(b.hargaSatuan || 0)),
             keterangan: b.keterangan || null,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -872,7 +872,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       jumlah: db.isAutoKg ? totalBerat : 0,
       satuan: db.satuan || 'Kg',
       hargaSatuan: db.hargaSatuan || 0,
-      total: db.isAutoKg ? (totalBerat * (db.hargaSatuan || 0)) : 0,
+      total: db.isAutoKg ? Math.round(totalBerat * (db.hargaSatuan || 0)) : 0,
       isAutoKg: !!db.isAutoKg
     }))
 
@@ -1290,7 +1290,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           jumlah: b.jumlah,
           satuan: b.satuan,
           hargaSatuan: b.hargaSatuan,
-          total: b.total || (b.jumlah * b.hargaSatuan),
+          total: Math.round(Number(b.jumlah || 0) * Number(b.hargaSatuan || 0)),
           keterangan: b.keterangan
         })),
         potongan: manualPotonganRows.map(p => ({
@@ -1725,7 +1725,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   };
 
   const totalGajian = useMemo(() => {
-    const totalBiayaLain = savedBiaya.reduce((sum, item) => sum + (Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0);
+    const totalBiayaLain = savedBiaya.reduce((sum, item) => sum + Math.round(Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0);
     const potonganManual = manualPotonganRows.reduce((sum, item) => sum + Number(item.total || 0), 0)
     const potonganHutang = detailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.potongan || 0), 0)
     const totalPotongan = potonganManual + potonganHutang
@@ -1733,7 +1733,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
   }, [savedBiaya, manualPotonganRows, detailKaryawan]);
 
   const totalBiayaGaji = useMemo(() => {
-    return savedBiaya.reduce((sum, item) => sum + (Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0)
+    return savedBiaya.reduce((sum, item) => sum + Math.round(Number(item.jumlah || 0) * Number(item.hargaSatuan || 0)), 0)
   }, [savedBiaya])
 
   const totalPotonganAll = useMemo(() => {
@@ -2235,13 +2235,13 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                       />
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <Input
-                          type="text"
-                          inputMode="numeric"
+                          type="number"
+                          step="any"
                           placeholder="Jumlah"
-                          value={item.jumlah ? formatNumber(item.jumlah) : ''}
+                          value={item.jumlah || ''}
                           onChange={(e) => {
-                            const digits = e.target.value.replace(/\D/g, '')
-                            const numericValue = digits ? Number(digits) : 0
+                            const val = e.target.value
+                            const numericValue = val ? parseFloat(val) : 0
                             handleBiayaLainChange(item.id, 'jumlah', numericValue)
                           }}
                           data-biaya-id={item.id}
@@ -2277,7 +2277,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Total</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(Math.round(item.jumlah * item.hargaSatuan))}</span>
                       </div>
                       <div className="flex justify-end gap-2">
                         <Button
@@ -2328,14 +2328,14 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                         </div>
                       </div>
                       <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
-                        <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0))}</span>
+                        <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0), 2)}</span>
                         <span>{String(item.satuan || '').trim()}</span>
                         <span className="text-gray-400">x</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(Number(item.hargaSatuan || 0))}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Total</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(item.jumlah * item.hargaSatuan)}</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(Math.round(item.jumlah * item.hargaSatuan))}</span>
                       </div>
                     </>
                   )}
@@ -2345,7 +2345,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-gray-700">Jumlah Biaya</span>
-                    <span className="text-lg font-extrabold text-gray-900">{formatCurrency(savedBiaya.reduce((sum, b) => sum + (b.jumlah * b.hargaSatuan), 0))}</span>
+                    <span className="text-lg font-extrabold text-gray-900">{formatCurrency(savedBiaya.reduce((sum, b) => sum + Math.round(b.jumlah * b.hargaSatuan), 0))}</span>
                   </div>
                 </div>
               )}
