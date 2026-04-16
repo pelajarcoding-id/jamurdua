@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,6 +166,12 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [kategoriQuery, setKategoriQuery] = useState('')
   const [openEditKategoriSelect, setOpenEditKategoriSelect] = useState(false)
   const [editKategoriQuery, setEditKategoriQuery] = useState('')
+  const kategoriFieldRef = useRef<HTMLDivElement | null>(null)
+  const boronganTableRef = useRef<HTMLDivElement | null>(null)
+  const jenisFieldRef = useRef<HTMLInputElement | null>(null)
+  const editJenisFieldRef = useRef<HTMLInputElement | null>(null)
+  const [formErrors, setFormErrors] = useState<{ kategoriBorongan?: string; jenisPekerjaan?: string }>({})
+  const [editErrors, setEditErrors] = useState<{ kategoriBorongan?: string; jenisPekerjaan?: string }>({})
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailExporting, setDetailExporting] = useState(false);
   const [listExporting, setListExporting] = useState(false)
@@ -301,6 +307,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   }, [fetchKategoriMaster])
 
   useEffect(() => {
+    if (!showForm) return
+    if (mode !== 'borongan') return
+    const el = kategoriFieldRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    })
+  }, [mode, showForm])
+
+  useEffect(() => {
     const fetchKendaraan = async () => {
       try {
         const res = await fetch('/api/kendaraan/list', { cache: 'no-store' })
@@ -434,6 +452,23 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors: { kategoriBorongan?: string; jenisPekerjaan?: string } = {}
+    if (mode === 'borongan') {
+      if (!String((formData as any).kategoriBorongan || '').trim()) nextErrors.kategoriBorongan = 'Kategori borongan wajib dipilih.'
+      if (!String(formData.jenisPekerjaan || '').trim()) nextErrors.jenisPekerjaan = 'Jenis pekerjaan wajib diisi.'
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors)
+      toast.error('Harap lengkapi field wajib.')
+      if (nextErrors.kategoriBorongan) {
+        kategoriFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else if (nextErrors.jenisPekerjaan) {
+        jenisFieldRef.current?.focus()
+      }
+      return
+    }
+
+    setFormErrors({})
     setIsSubmitting(true);
     const loadingToast = toast.loading('Menyimpan pekerjaan...');
 
@@ -491,7 +526,16 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       setBuktiFile(null);
       setBuktiPreview(null);
       setShowForm(false);
+      setFormErrors({})
       fetchActivities();
+      const target = boronganTableRef.current
+      if (target) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          })
+        })
+      }
     } catch (error) {
       toast.error('Gagal menyimpan data', { id: loadingToast });
     } finally {
@@ -629,6 +673,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   const handleUpdate = async () => {
     if (!selectedActivity) return;
+    const nextErrors: { kategoriBorongan?: string; jenisPekerjaan?: string } = {}
+    if (mode === 'borongan') {
+      if (!String((editForm as any).kategoriBorongan || '').trim()) nextErrors.kategoriBorongan = 'Kategori borongan wajib dipilih.'
+      if (!String(editForm.jenisPekerjaan || '').trim()) nextErrors.jenisPekerjaan = 'Jenis pekerjaan wajib diisi.'
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setEditErrors(nextErrors)
+      toast.error('Harap lengkapi field wajib.')
+      return
+    }
+
+    setEditErrors({})
     const loadingToast = toast.loading('Menyimpan perubahan...');
     try {
       const ids = selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id];
@@ -669,6 +725,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       setSelectedActivity(null);
       setEditBuktiFile(null);
       setEditBuktiPreview(null);
+      setEditErrors({})
       fetchActivities();
     } catch (error) {
       toast.error('Gagal memperbarui data', { id: loadingToast });
@@ -1168,18 +1225,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               />
             </div>
             {mode === 'borongan' ? (
-              <div>
-                <Label>Kategori Borongan</Label>
+              <div ref={kategoriFieldRef}>
+                <Label>Kategori Borongan *</Label>
                 <Popover open={openKategoriSelect} onOpenChange={setOpenKategoriSelect}>
                   <PopoverTrigger asChild>
                     <button
                       type="button"
                       aria-expanded={openKategoriSelect}
-                      className="w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between"
+                      className={`w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between ${formErrors.kategoriBorongan ? 'border-red-500 ring-2 ring-red-500/10' : ''}`}
                     >
                       {(formData as any).kategoriBorongan
                         ? String((formData as any).kategoriBorongan)
-                        : 'Pilih kategori (opsional)'}
+                        : 'Pilih kategori'}
                       <ChevronUpDownIcon className="h-4 w-4 text-gray-400" />
                     </button>
                   </PopoverTrigger>
@@ -1192,17 +1249,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       className="mb-2 rounded-lg"
                     />
                     <div className="max-h-56 overflow-y-auto space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData((prev: any) => ({ ...prev, kategoriBorongan: '' }))
-                          setOpenKategoriSelect(false)
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${!(formData as any).kategoriBorongan ? 'bg-emerald-50 text-emerald-700' : ''}`}
-                      >
-                        <span className="truncate">Tanpa kategori</span>
-                        {!(formData as any).kategoriBorongan ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
-                      </button>
                       {kategoriBoronganOptions
                         .filter((k) => {
                           const q = kategoriQuery.trim().toLowerCase()
@@ -1216,7 +1262,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                               key={k}
                               type="button"
                               onClick={() => {
-                                setFormData((prev: any) => ({ ...prev, kategoriBorongan: checked ? '' : k }))
+                                setFormData((prev: any) => ({ ...prev, kategoriBorongan: k }))
+                                setFormErrors((prev) => ({ ...prev, kategoriBorongan: undefined }))
                                 setOpenKategoriSelect(false)
                               }}
                               className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${checked ? 'bg-emerald-50 text-emerald-700' : ''}`}
@@ -1236,17 +1283,27 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     </div>
                   </PopoverContent>
                 </Popover>
+                {formErrors.kategoriBorongan ? (
+                  <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{formErrors.kategoriBorongan}</p>
+                ) : null}
               </div>
             ) : null}
             <div>
-              <Label>{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
+              <Label>{mode === 'borongan' ? 'Jenis Pekerjaan *' : 'Deskripsi'}</Label>
               <Input 
                 placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'} 
                 value={formData.jenisPekerjaan}
-                onChange={e => setFormData({...formData, jenisPekerjaan: e.target.value})}
+                onChange={e => {
+                  setFormData({ ...formData, jenisPekerjaan: e.target.value })
+                  if (mode === 'borongan') setFormErrors((prev) => ({ ...prev, jenisPekerjaan: undefined }))
+                }}
                 required
                 className="bg-white"
+                ref={jenisFieldRef}
               />
+              {mode === 'borongan' && formErrors.jenisPekerjaan ? (
+                <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{formErrors.jenisPekerjaan}</p>
+              ) : null}
             </div>
             {mode === 'aktivitas' ? (
               <div>
@@ -1482,7 +1539,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         </form>
       )}
 
-      <div className="space-y-3">
+      <div ref={boronganTableRef} className="space-y-3">
         {isLoading ? (
           <p className="text-center text-gray-500 py-4">Memuat data...</p>
         ) : filteredActivities.length === 0 ? (
@@ -1627,7 +1684,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
             {/* Desktop Table View */}
             <div className="hidden md:block bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <table className="w-full text-left text-sm border-collapse">
+              <div className="w-full overflow-x-auto">
+              <table className="min-w-[1100px] w-full text-left text-sm border-collapse">
                 <thead className="bg-gray-50 text-gray-500 font-semibold text-xs uppercase tracking-wider">
                   <tr>
                     {mode === 'borongan' ? (
@@ -1807,6 +1865,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   </tfoot>
                 ) : null}
               </table>
+              </div>
             </div>
 
             {/* Pagination Controls */}
@@ -2019,17 +2078,17 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               </div>
               {mode === 'borongan' ? (
                 <div>
-                  <Label>Kategori Borongan</Label>
+                  <Label>Kategori Borongan *</Label>
                   <Popover open={openEditKategoriSelect} onOpenChange={setOpenEditKategoriSelect}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         aria-expanded={openEditKategoriSelect}
-                        className="w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between"
+                        className={`w-full h-10 px-3 rounded-md border border-input bg-white text-sm flex items-center justify-between ${editErrors.kategoriBorongan ? 'border-red-500 ring-2 ring-red-500/10' : ''}`}
                       >
                         {(editForm as any).kategoriBorongan
                           ? String((editForm as any).kategoriBorongan)
-                          : 'Pilih kategori (opsional)'}
+                          : 'Pilih kategori'}
                         <ChevronUpDownIcon className="h-4 w-4 text-gray-400" />
                       </button>
                     </PopoverTrigger>
@@ -2042,17 +2101,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         className="mb-2 rounded-lg"
                       />
                       <div className="max-h-56 overflow-y-auto space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditForm((prev: any) => ({ ...prev, kategoriBorongan: '' }))
-                            setOpenEditKategoriSelect(false)
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${!(editForm as any).kategoriBorongan ? 'bg-emerald-50 text-emerald-700' : ''}`}
-                        >
-                          <span className="truncate">Tanpa kategori</span>
-                          {!(editForm as any).kategoriBorongan ? <CheckIcon className="h-4 w-4" /> : <span className="h-4 w-4" />}
-                        </button>
                         {kategoriBoronganOptions
                           .filter((k) => {
                             const q = editKategoriQuery.trim().toLowerCase()
@@ -2066,7 +2114,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                                 key={k}
                                 type="button"
                                 onClick={() => {
-                                  setEditForm((prev: any) => ({ ...prev, kategoriBorongan: checked ? '' : k }))
+                                  setEditForm((prev: any) => ({ ...prev, kategoriBorongan: k }))
+                                  setEditErrors((prev) => ({ ...prev, kategoriBorongan: undefined }))
                                   setOpenEditKategoriSelect(false)
                                 }}
                                 className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center justify-between ${checked ? 'bg-emerald-50 text-emerald-700' : ''}`}
@@ -2086,16 +2135,26 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       </div>
                     </PopoverContent>
                   </Popover>
+                  {editErrors.kategoriBorongan ? (
+                    <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{editErrors.kategoriBorongan}</p>
+                  ) : null}
                 </div>
               ) : null}
               <div>
-                <Label>{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
+                <Label>{mode === 'borongan' ? 'Jenis Pekerjaan *' : 'Deskripsi'}</Label>
                 <Input
                   value={editForm.jenisPekerjaan}
-                  onChange={(e) => setEditForm({ ...editForm, jenisPekerjaan: e.target.value })}
+                  onChange={(e) => {
+                    setEditForm({ ...editForm, jenisPekerjaan: e.target.value })
+                    if (mode === 'borongan') setEditErrors((prev) => ({ ...prev, jenisPekerjaan: undefined }))
+                  }}
                   className="bg-white"
                   placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'}
+                  ref={editJenisFieldRef}
                 />
+                {mode === 'borongan' && editErrors.jenisPekerjaan ? (
+                  <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{editErrors.jenisPekerjaan}</p>
+                ) : null}
               </div>
               {mode === 'aktivitas' ? (
                 <div>
