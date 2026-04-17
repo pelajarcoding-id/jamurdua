@@ -505,6 +505,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
                     // Also update relations if changed
                     kebunId: updatedNota.timbangan?.kebunId,
                     kendaraanPlatNomor: updatedNota.kendaraanPlatNomor || null,
+                    notaSawitId: updatedNota.id,
                 }
             });
 
@@ -574,6 +575,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
                     kebunId: updatedNota.timbangan?.kebunId,
                     kendaraanPlatNomor: updatedNota.kendaraanPlatNomor || undefined,
                     userId: transactionUserId,
+                    notaSawitId: updatedNota.id,
                 }
             });
 
@@ -587,7 +589,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             await prisma.jurnal.createMany({
                 data: [
                     {
-                        date: new Date(),
+                        date: kasTrx.date,
                         akun: 'Kas',
                         deskripsi: description,
                         debit: amount,
@@ -596,7 +598,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
                         refId: kasTrx.id,
                     },
                     {
-                        date: new Date(),
+                        date: kasTrx.date,
                         akun: 'Pendapatan Sawit',
                         deskripsi: description,
                         debit: 0,

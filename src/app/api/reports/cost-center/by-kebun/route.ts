@@ -48,6 +48,7 @@ export async function GET(request: Request) {
               deletedAt: null,
               tipe: 'PENGELUARAN',
               kebunId: k.id,
+              OR: [{ kategori: { not: 'GAJI' } }, { kategori: null }],
               date: { gte: startUtc, lt: endExclusiveUtc },
             },
             _sum: { jumlah: true },
@@ -72,11 +73,10 @@ export async function GET(request: Request) {
           }),
         ])
 
-        const kasCostOnly = kasAgg._sum.jumlah || 0
+        const kasCost = kasAgg._sum.jumlah || 0
         const uangJalanCost = uangJalanAgg._sum.amount || 0
-        const kasCost = kasCostOnly + uangJalanCost
         const gajiCost = gajiAgg._sum.totalGaji || 0
-        const totalCost = kasCost + gajiCost
+        const totalCost = kasCost + uangJalanCost + gajiCost
         const grossProfit = income - totalCost
 
         return {

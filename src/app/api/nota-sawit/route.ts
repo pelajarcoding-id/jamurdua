@@ -606,6 +606,7 @@ export async function POST(request: Request) {
           kebunId: newNotaSawit.timbangan?.kebunId || newNotaSawit.kebunId!, // Gunakan timbangan.kebunId atau langsung kebunId
           kendaraanPlatNomor: newNotaSawit.kendaraanPlatNomor || undefined,
           userId: transactionUserId,
+          notaSawitId: newNotaSawit.id,
         }
       });
 
@@ -613,7 +614,7 @@ export async function POST(request: Request) {
       await prisma.jurnal.createMany({
         data: [
           {
-            date: new Date(),
+            date: kasTrx.date,
             akun: 'Kas',
             deskripsi: description,
             debit: amount,
@@ -622,7 +623,7 @@ export async function POST(request: Request) {
             refId: kasTrx.id,
           },
           {
-            date: new Date(),
+            date: kasTrx.date,
             akun: 'Pendapatan Sawit',
             deskripsi: description,
             debit: 0,

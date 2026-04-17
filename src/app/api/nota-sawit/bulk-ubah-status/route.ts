@@ -69,13 +69,14 @@ export async function POST(request: Request) {
                     kebunId: item.timbangan.kebunId,
                     kendaraanPlatNomor: item.kendaraanPlatNomor || undefined,
                     userId: transactionUserId,
+                    notaSawitId: item.id,
                 }
             });
 
             await prisma.jurnal.createMany({
                 data: [
                     {
-                        date: new Date(),
+                        date: kasTrx.date,
                         akun: 'Kas',
                         deskripsi: description,
                         debit: amount,
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
                         refId: kasTrx.id,
                     },
                     {
-                        date: new Date(),
+                        date: kasTrx.date,
                         akun: 'Pendapatan Sawit',
                         deskripsi: description,
                         debit: 0,

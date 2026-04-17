@@ -234,6 +234,28 @@ export async function POST(request: Request) {
     const ymd = tanggalRaw ? parseWibYmd(tanggalRaw) : null
     const tanggal = ymd ? wibStartUtc(ymd) : new Date()
 
+    const chunk = <T,>(arr: T[], size: number) => {
+      const out: T[][] = []
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+      return out
+    }
+
+    const findKasIdsByNota = async (tx: any, notaIds: number[]) => {
+      const idsSet = new Set<number>()
+      for (const part of chunk(notaIds, 40)) {
+        const or = [
+          { notaSawitId: { in: part } },
+          ...part.map((id) => ({ deskripsi: { contains: `Penjualan Sawit #${id}` } })),
+        ]
+        const rows = await tx.kasTransaksi.findMany({
+          where: { deletedAt: null, kategori: 'PENJUALAN_SAWIT', OR: or } as any,
+          select: { id: true },
+        })
+        for (const r of rows) idsSet.add(Number(r.id))
+      }
+      return Array.from(idsSet).filter((n) => Number.isFinite(n) && n > 0)
+    }
+
     if (uniqueIds.length === 0) {
       return NextResponse.json({ error: 'Pilih minimal 1 nota' }, { status: 400 })
     }
@@ -371,16 +393,8 @@ export async function POST(request: Request) {
       if (setLunas) {
         const notaIds = computed.map((c) => c.notaId)
 
-        const existingKasByNota = await tx.kasTransaksi.findMany({
-          where: {
-            deletedAt: null,
-            kategori: 'PENJUALAN_SAWIT',
-            notaSawitId: { in: notaIds },
-          },
-          select: { id: true },
-        })
-        if (existingKasByNota.length > 0) {
-          const kasIds = existingKasByNota.map((k) => k.id)
+        const kasIds = await findKasIdsByNota(tx, notaIds)
+        if (kasIds.length > 0) {
           await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: { in: kasIds } } })
           await tx.kasTransaksi.updateMany({
             where: { id: { in: kasIds } },

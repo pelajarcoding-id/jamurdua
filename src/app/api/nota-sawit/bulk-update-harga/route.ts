@@ -113,6 +113,7 @@ export async function POST(request: Request) {
               jumlah: amount,
               kebunId: (updatedNota as any).timbangan?.kebunId,
               kendaraanPlatNomor: updatedNota.kendaraanPlatNomor || null,
+              notaSawitId: updatedNota.id,
             },
           })
 
@@ -155,6 +156,7 @@ export async function POST(request: Request) {
                 kebunId: (updatedNota as any).timbangan?.kebunId,
                 kendaraanPlatNomor: updatedNota.kendaraanPlatNomor || undefined,
                 userId: transactionUserId,
+                notaSawitId: updatedNota.id,
               },
             })
 

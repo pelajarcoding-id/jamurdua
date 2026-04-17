@@ -36,6 +36,10 @@ export async function GET(request: Request) {
       tipe: 'PENGELUARAN',
       date: { gte: (range?.startUtc || monthRange!.startUtc), lt: (range?.endExclusiveUtc || monthRange!.endExclusiveUtc) },
     }
+    whereClause.AND = [
+      ...((whereClause.AND as any[]) || []),
+      { OR: [{ kategori: { not: 'GAJI' } }, { kategori: null }] },
+    ]
 
     const effectiveScope = untagged ? 'untagged' : tagScope
     if (effectiveScope === 'kendaraan') {

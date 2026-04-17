@@ -78,6 +78,28 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const tanggal = ymd ? wibStartUtc(ymd) : null
     const jumlahMasuk = body?.jumlahMasuk === undefined || body?.jumlahMasuk === null ? null : roundInt(body?.jumlahMasuk)
     const adminBank = body?.adminBank === undefined || body?.adminBank === null ? null : Math.max(0, roundInt(body?.adminBank))
+
+    const chunk = <T,>(arr: T[], size: number) => {
+      const out: T[][] = []
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+      return out
+    }
+
+    const findKasIdsByNota = async (tx: any, notaIds: number[]) => {
+      const idsSet = new Set<number>()
+      for (const part of chunk(notaIds, 40)) {
+        const or = [
+          { notaSawitId: { in: part } },
+          ...part.map((id) => ({ deskripsi: { contains: `Penjualan Sawit #${id}` } })),
+        ]
+        const rows = await tx.kasTransaksi.findMany({
+          where: { deletedAt: null, kategori: 'PENJUALAN_SAWIT', OR: or } as any,
+          select: { id: true },
+        })
+        for (const r of rows) idsSet.add(Number(r.id))
+      }
+      return Array.from(idsSet).filter((n) => Number.isFinite(n) && n > 0)
+    }
     const keterangan = body?.keterangan !== undefined && body?.keterangan !== null ? String(body.keterangan).trim() : null
     const gambarUrl = body?.gambarUrl !== undefined ? (body?.gambarUrl ? String(body.gambarUrl).trim() : null) : undefined
 
@@ -200,12 +222,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         }
       }
       if (shouldSetLunas === true) {
-        const existingKasByNota = await tx.kasTransaksi.findMany({
-          where: { deletedAt: null, kategori: 'PENJUALAN_SAWIT', notaSawitId: { in: newNotaIds } },
-          select: { id: true },
-        })
-        if (existingKasByNota.length > 0) {
-          const kasIds = existingKasByNota.map((k) => k.id)
+        const kasIds = await findKasIdsByNota(tx, newNotaIds)
+        if (kasIds.length > 0) {
           await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: { in: kasIds } } })
           await tx.kasTransaksi.updateMany({ where: { id: { in: kasIds } }, data: { deletedAt: new Date(), deletedById: guard.id } as any })
         }

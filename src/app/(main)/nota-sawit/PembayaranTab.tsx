@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowPathIcon, ClipboardDocumentListIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentListIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { CalendarIcon } from '@heroicons/react/24/solid'
 
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,8 @@ type ListOption = { id: number; name: string }
 export function PembayaranTab(props: {
   role: string
   fetchReconcileHistory: () => void
+  onExportPdf: () => void
+  exportPdfDisabled: boolean
   reconcileHistoryLoading: boolean
   reconcileHistorySoftLoading: boolean
   handleOpenBulkReconcileEmpty: () => void
@@ -52,6 +54,8 @@ export function PembayaranTab(props: {
   const {
     role,
     fetchReconcileHistory,
+    onExportPdf,
+    exportPdfDisabled,
     reconcileHistoryLoading,
     reconcileHistorySoftLoading,
     handleOpenBulkReconcileEmpty,
@@ -121,6 +125,16 @@ export function PembayaranTab(props: {
               )}
             />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={onExportPdf}
+            disabled={exportPdfDisabled}
+            title={exportPdfDisabled ? 'Pilih batch dulu untuk export PDF' : 'Export PDF'}
+          >
+            <ArrowDownTrayIcon className="w-5 h-5" />
           </Button>
           <Button onClick={handleOpenBulkReconcileEmpty} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
             <PlusIcon className="w-4 h-4 mr-2" />
@@ -455,4 +469,3 @@ export function PembayaranTab(props: {
     </div>
   )
 }
-

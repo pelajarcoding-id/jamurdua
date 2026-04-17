@@ -2353,6 +2353,8 @@ export default function NotaSawitPage() {
             <PembayaranTab
               role={role}
               fetchReconcileHistory={pembayaran.fetchReconcileHistory}
+              onExportPdf={handleExportPembayaranBatchPdf}
+              exportPdfDisabled={!reconcileDetail?.id}
               reconcileHistoryLoading={pembayaran.reconcileHistoryLoading}
               reconcileHistorySoftLoading={pembayaran.reconcileHistorySoftLoading}
               handleOpenBulkReconcileEmpty={handleOpenBulkReconcileEmpty}
