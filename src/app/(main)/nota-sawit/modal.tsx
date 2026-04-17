@@ -841,20 +841,26 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
                   </div>
                 ) : null}
 
-                {(formData.timbanganId || useTimbanganKebunInput) ? (
-                  <div className="mt-3 text-xs text-gray-600">
-                    {(() => {
-                      const kebunGross = nota ? (formData.timbangan?.grossKg || 0) : (formData.manualGross || 0)
-                      const selisih = (formData.bruto || 0) - kebunGross
-                      const label = selisih === 0 ? 'Sama' : selisih > 0 ? `Lebih ${formatNumber(Math.abs(selisih))} kg` : `Kurang ${formatNumber(Math.abs(selisih))} kg`
+                <div className="mt-3 text-xs text-gray-600">
+                  {(() => {
+                    const hasTimbangan = Boolean(formData.timbanganId || useTimbanganKebunInput)
+                    const kebunGross = nota ? (formData.timbangan?.grossKg || 0) : (formData.manualGross || 0)
+                    if (!hasTimbangan || !kebunGross) {
                       return (
-                        <span className={selisih === 0 ? 'text-emerald-700 font-semibold' : 'text-gray-700'}>
-                          Selisih Bruto (Pabrik - Kebun): {label}
+                        <span className="text-gray-500">
+                          Selisih Bruto (Pabrik - Kebun): - (tidak ada data timbangan)
                         </span>
                       )
-                    })()}
-                  </div>
-                ) : null}
+                    }
+                    const selisih = (formData.bruto || 0) - kebunGross
+                    const label = selisih === 0 ? 'Sama' : selisih > 0 ? `Lebih ${formatNumber(Math.abs(selisih))} kg` : `Kurang ${formatNumber(Math.abs(selisih))} kg`
+                    return (
+                      <span className={selisih === 0 ? 'text-emerald-700 font-semibold' : 'text-gray-700'}>
+                        Selisih Bruto (Pabrik - Kebun): {label}
+                      </span>
+                    )
+                  })()}
+                </div>
 
                 <div className="mt-3 text-[11px] text-gray-500">
                   Data timbangan boleh dikosongkan. Jika tidak memilih timbangan, isi data nota pabrik secara manual.

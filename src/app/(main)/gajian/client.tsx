@@ -2226,7 +2226,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           )}
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
+              <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="min-w-0">
                   <div className="flex items-start gap-2 min-w-0">
                     <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
@@ -2243,24 +2243,25 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                         <span className="font-semibold text-gray-900">
                           {endDate ? formatDate(endDate) : '-'}
                         </span>
-                        <Button
-                          variant="outline"
-                          onClick={importUpahBorongan}
-                          disabled={!kebunId || !startDate || !endDate || boronganLoading}
-                          className="h-8 px-3 rounded-full border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs whitespace-nowrap inline-flex items-center justify-center"
-                        >
-                          {boronganLoading ? 'Memuat...' : 'Tarik Biaya Kebun'}
-                        </Button>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="w-full sm:w-auto">
+                <div className="flex items-center justify-end gap-2 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <Button
-                    onClick={addBiayaLain}
-                    className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                    variant="outline"
+                    onClick={importUpahBorongan}
+                    disabled={!kebunId || !startDate || !endDate || boronganLoading}
+                    className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
                   >
-                    <span className="sm:hidden">+ Biaya</span>
+                    {boronganLoading ? 'Memuat...' : 'Tarik Biaya Kebun'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={addBiayaLain}
+                    className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
+                  >
+                    <span className="sm:hidden">Tambah Biaya</span>
                     <span className="hidden sm:inline">+ Tambah Biaya Gaji</span>
                   </Button>
                 </div>
@@ -2418,7 +2419,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             </div>
             </div>
             <div>
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
+            <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex items-start gap-2 min-w-0">
                 <AdjustmentsHorizontalIcon className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -2437,28 +2438,28 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
+              <div className="flex items-center justify-end gap-2 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <Button
                   variant="outline"
                   onClick={importPotonganPengajuan}
                   disabled={!kebunId || !startDate || !endDate || importPotonganLoading}
-                  className="border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
                 >
                   {importPotonganLoading ? (
                     'Memuat...'
                   ) : (
                     <>
-                      <span className="sm:hidden">Pengajuan</span>
-                      <span className="hidden sm:inline">Ambil dari Pengajuan</span>
+                      <span className="sm:hidden">Tarik</span>
+                      <span className="hidden sm:inline">Tarik Potongan</span>
                     </>
                   )}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={addPotongan}
-                  className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
+                  className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
                 >
-                  <span className="sm:hidden">+ Potongan</span>
+                  <span className="sm:hidden">Tambah</span>
                   <span className="hidden sm:inline">+ Tambah Potongan</span>
                 </Button>
               </div>

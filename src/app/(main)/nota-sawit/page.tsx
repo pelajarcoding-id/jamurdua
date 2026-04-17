@@ -572,6 +572,8 @@ export default function NotaSawitPage() {
           payload.grossKg = Number(formDataRaw.manualGross || 0);
           payload.tareKg = Number(formDataRaw.manualTare || 0);
           payload.kebunId = Number(formDataRaw.kebunId);
+      } else if (!formDataRaw.timbanganId) {
+          payload.kebunId = Number(formDataRaw.kebunId);
       }
 
       if (selectedNota) {

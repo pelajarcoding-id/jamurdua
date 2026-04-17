@@ -165,7 +165,7 @@ export default function NotificationDropdown() {
                             resolve();
                         }
                     }, 200);
-
+                    
                     // Timeout after 5s
                     setTimeout(() => {
                         clearInterval(interval);
