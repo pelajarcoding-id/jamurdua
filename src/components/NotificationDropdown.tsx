@@ -108,12 +108,31 @@ export default function NotificationDropdown() {
             try { await registration.update() } catch {}
 
             toast.loading('Menunggu Service Worker aktif...', { id: toastId })
-            const readyRegistration = await Promise.race([
-                navigator.serviceWorker.ready,
-                new Promise<ServiceWorkerRegistration | null>((resolve) => setTimeout(() => resolve(null), 8000)),
-            ])
+            const waitReady = () =>
+                Promise.race([
+                    navigator.serviceWorker.ready,
+                    new Promise<ServiceWorkerRegistration | null>((resolve) => setTimeout(() => resolve(null), 8000)),
+                ])
+
+            let readyRegistration = await waitReady()
             if (!readyRegistration) {
-                toast.error('Service Worker belum aktif. Pastikan /sw.js bisa diakses lalu refresh halaman.', { id: toastId })
+                const regs = await navigator.serviceWorker.getRegistrations().catch(() => [])
+                await Promise.all(
+                    regs.map((r) => {
+                        const url = String((r as any)?.active?.scriptURL || (r as any)?.installing?.scriptURL || (r as any)?.waiting?.scriptURL || '')
+                        if (url.includes('/sw.js')) return r.unregister()
+                        return Promise.resolve(false)
+                    }),
+                )
+                try {
+                    registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any })
+                    try { await registration.update() } catch {}
+                } catch {}
+                readyRegistration = await waitReady()
+            }
+
+            if (!readyRegistration) {
+                toast.error('Service Worker belum aktif. Pastikan /custom-sw.js bisa diakses. Jika pakai reverse proxy, pastikan /_next/* tidak 404.', { id: toastId })
                 return
             }
             registration = readyRegistration || registration
