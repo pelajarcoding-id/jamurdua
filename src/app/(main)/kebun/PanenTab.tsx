@@ -36,7 +36,7 @@ type Panen = {
 export default function PanenTab({ kebunId }: { kebunId: number }) {
   const [panenData, setPanenData] = useState<Panen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [perView, setPerView] = useState(10);
+  const [perView, setPerView] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterType, setFilterType] = useState<'month' | 'year' | 'range'>('month');
@@ -268,30 +268,34 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                     <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-colors shrink-0">
                       <TruckIcon className="w-6 h-6" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-bold text-gray-900">Nota ke {displayNo}</span>
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-wider">Berhasil</span>
-                        {isFinalPaid ? (
-                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                            Sudah Digaji
-                          </span>
-                        ) : null}
-                        <span className="text-sm font-black text-gray-900">Berat Akhir {item.beratAkhir.toLocaleString('id-ID')} kg</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-bold text-gray-900 whitespace-nowrap">Nota ke {displayNo}</span>
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">Berhasil</span>
+                          {isFinalPaid ? (
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
+                              Sudah Digaji
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-sm font-black text-gray-900 whitespace-nowrap shrink-0">
+                          {item.beratAkhir.toLocaleString('id-ID')} kg
+                        </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-x-4 text-xs text-gray-500 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <div className="flex items-center gap-1 whitespace-nowrap shrink-0">
+                          <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
                           {item.tanggalBongkar ? format(new Date(item.tanggalBongkar), 'dd MMMM yyyy', { locale: localeId }) : '-'}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <BuildingOfficeIcon className="w-3.5 h-3.5" />
-                          {item.pabrikSawit.name}
+                        <div className="flex items-center gap-1 whitespace-nowrap shrink-0">
+                          <BuildingOfficeIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate max-w-[160px]">{item.pabrikSawit.name}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="font-medium text-gray-700">{item.supir.name}</span>
+                        <div className="flex items-center gap-1 whitespace-nowrap shrink-0">
+                          <span className="font-medium text-gray-700 truncate max-w-[120px]">{item.supir.name}</span>
                           <span className="text-gray-300">•</span>
-                          <span>{item.kendaraan?.platNomor || '-'}</span>
+                          <span className="truncate max-w-[120px]">{item.kendaraan?.platNomor || '-'}</span>
                         </div>
                       </div>
                     </div>
@@ -311,30 +315,30 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                 </div>
                 
                 {/* Detail Bar */}
-                <div className="bg-gray-50/50 px-6 py-3 border-t border-gray-50 flex flex-wrap gap-x-6 gap-y-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                   <div className="flex gap-2 italic">
-                      <span>Bruto: {item.bruto.toLocaleString('id-ID')} kg</span>
-                      <span>•</span>
-                      <span>Tara: {item.tara.toLocaleString('id-ID')} kg</span>
-                      <span>•</span>
-                      <span>Netto: {item.netto.toLocaleString('id-ID')} kg</span>
-                      <span>•</span>
-                      <span>Potongan: {item.potongan.toLocaleString('id-ID')} kg</span>
-                   </div>
-                   {item.timbangan && (
-                     <div className="ml-auto text-blue-500">
-                        {(() => {
-                          const selisihBruto = item.bruto - (item.timbangan?.grossKg || 0)
-                          const label =
-                            selisihBruto === 0
-                              ? 'Timbangan Pabrik Sama'
-                              : selisihBruto > 0
-                                ? `Timbangan Pabrik Lebih ${Math.abs(selisihBruto).toLocaleString('id-ID')} kg`
-                                : `Timbangan Pabrik Kurang ${Math.abs(selisihBruto).toLocaleString('id-ID')} kg`
-                          return `Selisih: ${label}`
-                        })()}
-                     </div>
-                   )}
+                <div className="bg-gray-50/50 px-6 py-3 border-t border-gray-50 flex items-center gap-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest overflow-x-auto flex-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex items-center gap-2 italic whitespace-nowrap shrink-0">
+                    <span>Bruto: {item.bruto.toLocaleString('id-ID')} kg</span>
+                    <span>•</span>
+                    <span>Tara: {item.tara.toLocaleString('id-ID')} kg</span>
+                    <span>•</span>
+                    <span>Netto: {item.netto.toLocaleString('id-ID')} kg</span>
+                    <span>•</span>
+                    <span>Potongan: {item.potongan.toLocaleString('id-ID')} kg</span>
+                  </div>
+                  {item.timbangan && (
+                    <div className="text-blue-500 whitespace-nowrap shrink-0 ml-auto">
+                      {(() => {
+                        const selisihBruto = item.bruto - (item.timbangan?.grossKg || 0)
+                        const label =
+                          selisihBruto === 0
+                            ? 'Timbangan Pabrik Sama'
+                            : selisihBruto > 0
+                              ? `Timbangan Pabrik Lebih ${Math.abs(selisihBruto).toLocaleString('id-ID')} kg`
+                              : `Timbangan Pabrik Kurang ${Math.abs(selisihBruto).toLocaleString('id-ID')} kg`
+                        return `Selisih: ${label}`
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
               )
@@ -389,21 +393,12 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
                 </tbody>
                 <tfoot className="bg-gray-50 font-bold text-gray-800 border-t">
                   <tr>
-                    <td className="px-4 py-3" colSpan={5}>Jumlah (Halaman Ini)</td>
+                    <td className="px-4 py-3" colSpan={5}>Jumlah</td>
                     <td className="px-4 py-3 text-right">{pageTotalBruto.toLocaleString('id-ID')}</td>
                     <td className="px-4 py-3 text-right">{pageTotalTara.toLocaleString('id-ID')}</td>
                     <td className="px-4 py-3 text-right">{pageTotalNettoRaw.toLocaleString('id-ID')}</td>
                     <td className="px-4 py-3 text-right">{pageTotalPotongan.toLocaleString('id-ID')}</td>
                     <td className="px-4 py-3 text-right">{pageTotalBeratAkhir.toLocaleString('id-ID')}</td>
-                    <td className="px-4 py-3"></td>
-                  </tr>
-                  <tr className="text-gray-600">
-                    <td className="px-4 py-3" colSpan={5}>Jumlah (Semua Data)</td>
-                    <td className="px-4 py-3 text-right">{totalBruto.toLocaleString('id-ID')}</td>
-                    <td className="px-4 py-3 text-right">{totalTara.toLocaleString('id-ID')}</td>
-                    <td className="px-4 py-3 text-right">{totalNettoRaw.toLocaleString('id-ID')}</td>
-                    <td className="px-4 py-3 text-right">{totalPotongan.toLocaleString('id-ID')}</td>
-                    <td className="px-4 py-3 text-right">{totalNetto.toLocaleString('id-ID')}</td>
                     <td className="px-4 py-3"></td>
                   </tr>
                 </tfoot>

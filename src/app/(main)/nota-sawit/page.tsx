@@ -257,6 +257,7 @@ export default function NotaSawitPage() {
   }, [reconcileEditNotas])
 
   const refreshData = useCallback(() => setRefreshToggle(prev => !prev), []);
+  const [reconcileEditRemovedNotas, setReconcileEditRemovedNotas] = useState<any[]>([])
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     try {
@@ -594,6 +595,9 @@ export default function NotaSawitPage() {
           }
 
           refreshData();
+          if ((selectedNota as any)?.pembayaranBatchItems?.length) {
+            await pembayaran.fetchReconcileHistory({ soft: true })
+          }
           handleCloseModal();
           toast.success('Nota berhasil diperbarui', { id: toastId });
       } else {
@@ -781,7 +785,11 @@ export default function NotaSawitPage() {
   }, [bulkHargaValue, data, pabrikList, refreshData, rowSelection])
 
   const handleOpenBulkReconcileEmpty = useCallback(() => {
-    setReconcileTanggal(toWibYmd(new Date()))
+    const todayYmd = toWibYmd(new Date())
+    const startDt = new Date(`${todayYmd}T00:00:00+07:00`)
+    startDt.setDate(startDt.getDate() - 7)
+    const startYmd = toWibYmd(startDt)
+    setReconcileTanggal(todayYmd)
     setReconcileJumlahMasuk('')
     setReconcileSetLunas(true)
     setReconcileKeterangan('')
@@ -789,15 +797,19 @@ export default function NotaSawitPage() {
     setReconcileGambarFile(null)
     setReconcileGambarPreview(null)
     setReconcileNotas([])
-    setReconcileRangeStart(startDate ? toWibYmd(startDate) : '')
-    setReconcileRangeEnd(endDate ? toWibYmd(endDate) : '')
+    setReconcileRangeStart(startYmd)
+    setReconcileRangeEnd(todayYmd)
     setReconcileRangeCandidates([])
     setIsBulkReconcileOpen(true)
-  }, [endDate, selectedPabrik, startDate, toWibYmd])
+  }, [selectedPabrik, toWibYmd])
 
   const handleOpenEditReconcileBatch = useCallback((b: any) => {
     const id = Number(b?.id)
     if (!Number.isFinite(id) || id <= 0) return
+    const todayYmd = toWibYmd(new Date())
+    const startDt = new Date(`${todayYmd}T00:00:00+07:00`)
+    startDt.setDate(startDt.getDate() - 7)
+    const startYmd = toWibYmd(startDt)
     setReconcileEditingBatchId(id)
     setReconcileEditTanggal(toWibYmd(b?.tanggal ? new Date(b.tanggal) : new Date()))
     setReconcileEditJumlahMasuk(String(Math.max(0, Math.round(Number(b?.jumlahMasuk || 0)))))
@@ -816,9 +828,10 @@ export default function NotaSawitPage() {
         kebun: (i as any)?.nota?.kebun || null,
       })),
     )
-    setReconcileEditRangeStart('')
-    setReconcileEditRangeEnd('')
+    setReconcileEditRangeStart(startYmd)
+    setReconcileEditRangeEnd(todayYmd)
     setReconcileEditRangeCandidates([])
+    setReconcileEditRemovedNotas([])
     setReconcileEditGambarFile(null)
     setReconcileEditGambarExistingUrl(b?.gambarUrl ? String(b.gambarUrl) : null)
     setReconcileEditGambarPreview(b?.gambarUrl ? String(b.gambarUrl) : null)
@@ -972,14 +985,23 @@ export default function NotaSawitPage() {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Gagal memuat nota')
       const list = Array.isArray(json?.data) ? (json.data as any[]) : []
-      setReconcileEditRangeCandidates(list)
+      const merged: any[] = [...list]
+      const existing = new Set(merged.map((n) => Number((n as any)?.id)).filter((n) => Number.isFinite(n) && n > 0))
+      for (const n of reconcileEditRemovedNotas) {
+        const id = Number((n as any)?.id)
+        if (!Number.isFinite(id) || id <= 0) continue
+        if (existing.has(id)) continue
+        merged.push(n)
+        existing.add(id)
+      }
+      setReconcileEditRangeCandidates(merged)
       toast.success('Nota berhasil dimuat', { id: toastId })
     } catch (e: any) {
       toast.error(e?.message || 'Gagal memuat nota', { id: toastId })
     } finally {
       setReconcileEditRangeLoading(false)
     }
-  }, [reconcileEditPabrikId, reconcileEditRangeEnd, reconcileEditRangeStart, wibEndFromYmd, wibStartFromYmd])
+  }, [reconcileEditPabrikId, reconcileEditRangeEnd, reconcileEditRangeStart, reconcileEditRemovedNotas, wibEndFromYmd, wibStartFromYmd])
 
   const handleReconcileToggleNota = useCallback((nota: NotaSawitData, checked: boolean) => {
     const id = Number((nota as any)?.id)
@@ -998,6 +1020,15 @@ export default function NotaSawitPage() {
   const handleReconcileEditToggleNota = useCallback((nota: any, checked: boolean) => {
     const id = Number(nota?.id)
     if (!Number.isFinite(id) || id <= 0) return
+    setReconcileEditRemovedNotas((prev) => {
+      const exists = prev.some((n: any) => Number(n?.id) === id)
+      if (checked) {
+        if (!exists) return prev
+        return prev.filter((n: any) => Number(n?.id) !== id)
+      }
+      if (exists) return prev
+      return [...prev, nota]
+    })
     setReconcileEditNotas((prev) => {
       const exists = prev.some((n: any) => Number(n?.id) === id)
       if (checked) {
@@ -1722,6 +1753,12 @@ export default function NotaSawitPage() {
   const pembayaranColumns = useMemo<ColumnDef<any>[]>(() => {
     return [
       {
+        id: 'no',
+        header: 'No',
+        cell: ({ row }) => <div className="text-gray-700 tabular-nums">{row.index + 1}</div>,
+        footer: () => <div className="font-bold text-gray-700">Jumlah</div>,
+      },
+      {
         id: 'batch',
         header: 'Batch',
         cell: ({ row }) => <div className="font-extrabold text-gray-900">#{row.original?.id}</div>,
@@ -1744,16 +1781,28 @@ export default function NotaSawitPage() {
         id: 'nota',
         header: () => <div className="text-right">Nota</div>,
         cell: ({ row }) => <div className="text-right font-semibold text-gray-900 tabular-nums">{formatNumber(Number(row.original?.count || 0))}</div>,
+        footer: ({ table }) => {
+          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.count || 0), 0)
+          return <div className="text-right font-bold tabular-nums">{formatNumber(total)}</div>
+        },
       },
       {
         id: 'totalTagihan',
         header: () => <div className="text-right">Jumlah Tagihan Nota</div>,
         cell: ({ row }) => <div className="text-right font-semibold text-gray-700 tabular-nums">{formatCurrency(Number(row.original?.totalTagihan || 0))}</div>,
+        footer: ({ table }) => {
+          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.totalTagihan || 0), 0)
+          return <div className="text-right font-bold tabular-nums">{formatCurrency(total)}</div>
+        },
       },
       {
         id: 'jumlahMasuk',
         header: () => <div className="text-right">Jumlah Ditransfer</div>,
         cell: ({ row }) => <div className="text-right font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(row.original?.jumlahMasuk || 0))}</div>,
+        footer: ({ table }) => {
+          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.jumlahMasuk || 0), 0)
+          return <div className="text-right font-bold tabular-nums">{formatCurrency(total)}</div>
+        },
       },
       {
         id: 'selisih',
@@ -1763,6 +1812,14 @@ export default function NotaSawitPage() {
           return (
             <div className={cn("text-right font-extrabold tabular-nums", val === 0 ? "text-emerald-700" : val > 0 ? "text-emerald-700" : "text-rose-700")}>
               {formatCurrency(val)}
+            </div>
+          )
+        },
+        footer: ({ table }) => {
+          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.selisih || 0), 0)
+          return (
+            <div className={cn("text-right font-bold tabular-nums", total === 0 ? "text-emerald-700" : total > 0 ? "text-emerald-700" : "text-rose-700")}>
+              {formatCurrency(total)}
             </div>
           )
         },

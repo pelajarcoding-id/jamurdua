@@ -132,6 +132,10 @@ export async function GET(request: Request) {
                 tanggalBongkar: true,
                 beratAkhir: true,
                 hargaPerKg: true,
+                totalPembayaran: true,
+                pembayaranSetelahPph: true,
+                kendaraanPlatNomor: true,
+                supir: { select: { name: true } },
                 kebun: { select: { id: true, name: true } },
                 timbangan: { select: { kebun: { select: { id: true, name: true } } } },
               },
@@ -146,7 +150,11 @@ export async function GET(request: Request) {
 
     const data = (Array.isArray(batches) ? batches : []).map((b: any) => {
       const items = Array.isArray(b.items) ? b.items : []
-      const totalTagihan = items.reduce((sum: number, i: any) => sum + Math.round(Number(i?.tagihanNet || 0)), 0)
+      const totalTagihan = items.reduce((sum: number, i: any) => {
+        const nota = i?.notaSawit || null
+        const tagihanNow = Math.round(Number(nota?.pembayaranSetelahPph ?? nota?.totalPembayaran ?? i?.tagihanNet ?? 0))
+        return sum + (Number.isFinite(tagihanNow) ? tagihanNow : 0)
+      }, 0)
       const totalAllocated = items.reduce((sum: number, i: any) => sum + Math.round(Number(i?.pembayaranAktual || 0)), 0)
       const jumlahMasuk = Math.round(Number(b?.jumlahMasuk || 0))
       const adminBank = Math.round(Number(b?.adminBank || 0))
@@ -169,9 +177,10 @@ export async function GET(request: Request) {
         items: items.map((i: any) => {
           const nota = i?.notaSawit || null
           const kebun = nota?.kebun || nota?.timbangan?.kebun || null
+          const tagihanNow = Math.round(Number(nota?.pembayaranSetelahPph ?? nota?.totalPembayaran ?? i?.tagihanNet ?? 0))
           return {
             notaSawitId: i.notaSawitId,
-            tagihanNet: Math.round(Number(i?.tagihanNet || 0)),
+            tagihanNet: Number.isFinite(tagihanNow) ? tagihanNow : 0,
             adminAllocated: Math.round(Number(i?.adminAllocated || 0)),
             pembayaranAktual: Math.round(Number(i?.pembayaranAktual || 0)),
             nota: nota
@@ -180,6 +189,8 @@ export async function GET(request: Request) {
                   tanggalBongkar: nota.tanggalBongkar,
                   beratAkhir: nota.beratAkhir,
                   hargaPerKg: nota.hargaPerKg,
+                  kendaraanPlatNomor: nota.kendaraanPlatNomor || null,
+                  supir: nota.supir ? { name: nota.supir.name } : null,
                   kebun: kebun ? { id: kebun.id, name: kebun.name } : null,
                 }
               : null,

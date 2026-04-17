@@ -707,12 +707,22 @@ export default function NotaSawitPageModals(props: {
                       NOTA DIBAYAR
                     </div>
                     <div className="divide-y divide-gray-100">
-                      {(reconcileDetail.items as any[]).slice(0, 20).map((i: any) => {
+                      {(reconcileDetail.items as any[])
+                        .slice()
+                        .sort((a: any, b: any) => {
+                          const da = a?.nota?.tanggalBongkar ? new Date(a.nota.tanggalBongkar).getTime() : 0
+                          const db = b?.nota?.tanggalBongkar ? new Date(b.nota.tanggalBongkar).getTime() : 0
+                          return da - db
+                        })
+                        .slice(0, 20)
+                        .map((i: any) => {
                         const nota = i?.nota
                         const kebunName = nota?.kebun?.name || '-'
                         const dateText = nota?.tanggalBongkar
                           ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
                           : '-'
+                        const plat = nota?.kendaraanPlatNomor || '-'
+                        const supir = nota?.supir?.name || '-'
                         const beratAkhir = Math.round(Number(nota?.beratAkhir || 0) || 0)
                         const beratText = beratAkhir > 0 ? `${formatNumber(beratAkhir)} Kg` : '-'
                         const hargaPerKg = Math.round(Number(nota?.hargaPerKg || 0) || 0)
@@ -728,9 +738,20 @@ export default function NotaSawitPageModals(props: {
                                 {formatCurrency(amount)}
                               </div>
                             </div>
-                            <div className="mt-0.5 text-[11px] text-gray-500">
-                              Berat akhir: <span className="font-semibold text-gray-800">{beratText}</span> • Harga:{' '}
-                              <span className="font-semibold text-gray-800">{hargaText}</span>
+                            <div className="mt-0.5 text-[11px] text-gray-500 flex items-center gap-2 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              <span className="whitespace-nowrap shrink-0">
+                                Berat akhir: <span className="font-semibold text-gray-800">{beratText}</span>
+                              </span>
+                              <span className="text-gray-300 shrink-0">•</span>
+                              <span className="whitespace-nowrap shrink-0">
+                                Harga: <span className="font-semibold text-gray-800">{hargaText}</span>
+                              </span>
+                              <span className="text-gray-300 shrink-0">•</span>
+                              <span className="whitespace-nowrap shrink-0">Plat: <span className="font-semibold text-gray-800">{plat}</span></span>
+                              <span className="text-gray-300 shrink-0">•</span>
+                              <span className="whitespace-nowrap shrink-0">
+                                Supir: <span className="font-semibold text-gray-800">{supir}</span>
+                              </span>
                             </div>
                           </div>
                         )
