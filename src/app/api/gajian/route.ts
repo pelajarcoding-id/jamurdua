@@ -192,7 +192,10 @@ export async function POST(request: Request) {
     const totalGajiPokokKaryawan = (detailKaryawan || []).reduce((sum: number, item: { gajiPokok?: string | number }) => sum + (Number((item as any).gajiPokok) || 0), 0);
     
     // Prevent double counting if salary is already in expenses
-    const hasSalaryInBiaya = (biayaLain || []).some((b: any) => b.deskripsi === 'Total Gaji Karyawan');
+    const hasSalaryInBiaya = (biayaLain || []).some((b: any) => {
+      const d = String((b as any)?.deskripsi || '').trim()
+      return /^total\s*gaji\s*karyawan/i.test(d) || /^biaya\s*gaji\s*harian/i.test(d)
+    });
     
     const totalJumlahGaji = totalBiayaLain + (hasSalaryInBiaya ? 0 : totalGajiPokokKaryawan);
     const totalGaji = totalJumlahGaji - totalPotongan;
@@ -253,6 +256,7 @@ export async function POST(request: Request) {
         await tx.biayaLainGajian.deleteMany({ where: { gajianId: gajianId } });
         await tx.potonganGajian.deleteMany({ where: { gajianId: gajianId } });
         await tx.detailGajianKaryawan.deleteMany({ where: { gajianId: gajianId } });
+        await tx.absensiGajiHarian.deleteMany({ where: { gajianId: gajianId } as any });
         await tx.pekerjaanKebun.updateMany({ where: { gajianId: gajianId } as any, data: { gajianId: null } as any });
 
       } else {
@@ -349,6 +353,31 @@ export async function POST(request: Request) {
               keterangan: d.keterangan || null,
             }))
         });
+
+        if (gajianData.status === 'DRAFT') {
+          await tx.absensiGajiHarian.deleteMany({ where: { gajianId: upsertedGajian.id } as any })
+          const absensiRows = await tx.absensiHarian.findMany({
+            where: {
+              kebunId: parsedKebunId,
+              date: { gte: tanggalMulaiUtc, lte: tanggalSelesaiUtc },
+              jumlah: { gt: 0 },
+              karyawanId: { in: userIds },
+            },
+            select: { kebunId: true, karyawanId: true, date: true, jumlah: true },
+          })
+          if (absensiRows.length > 0) {
+            await tx.absensiGajiHarian.createMany({
+              data: absensiRows.map((a) => ({
+                kebunId: a.kebunId,
+                karyawanId: a.karyawanId,
+                date: a.date,
+                jumlah: a.jumlah as any,
+                gajianId: upsertedGajian.id,
+              })),
+              skipDuplicates: true,
+            })
+          }
+        }
       }
 
       if (notas.length > 0) {

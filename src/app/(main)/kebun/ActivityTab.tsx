@@ -380,7 +380,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             merk: String(k?.merk || ''),
             jenis: String(k?.jenis || ''),
           }))
-          .filter((k: Kendaraan) => k.platNomor && ['Mobil Truck', 'Alat Berat'].includes(k.jenis))
+          .filter((k: Kendaraan) => k.platNomor && ['Mobil Truck', 'Mobil Langsir', 'Alat Berat'].includes(k.jenis))
           .sort((a: Kendaraan, b: Kendaraan) => {
             const rank = (x: Kendaraan) => (x.jenis === 'Alat Berat' ? 0 : 1)
             const r = rank(a) - rank(b)
