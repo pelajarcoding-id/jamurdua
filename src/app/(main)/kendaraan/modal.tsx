@@ -272,6 +272,7 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                                 <SelectContent className="z-[99999]">
                                     <SelectItem value="Mobil Truck">Mobil Truck</SelectItem>
                                     <SelectItem value="Mobil Pribadi">Mobil Pribadi</SelectItem>
+                                    <SelectItem value="Mobil Langsir">Mobil Langsir</SelectItem>
                                     <SelectItem value="Alat Berat">Alat Berat</SelectItem>
                                     <SelectItem value="Sepeda Motor">Sepeda Motor</SelectItem>
                                 </SelectContent>
