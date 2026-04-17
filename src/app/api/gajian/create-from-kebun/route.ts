@@ -4,6 +4,19 @@ import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 
 export const dynamic = 'force-dynamic'
 
+const buildGajiHarianDesc = (startYmd: { y: number; m: number; d: number }, endYmd: { y: number; m: number; d: number }) => {
+  const start = new Date(Date.UTC(startYmd.y, startYmd.m - 1, startYmd.d))
+  const end = new Date(Date.UTC(endYmd.y, endYmd.m - 1, endYmd.d))
+  const monthYearStart = new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(start)
+  const monthYearEnd = new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(end)
+  if (monthYearStart === monthYearEnd) {
+    return `Biaya Gaji Harian (${startYmd.d}-${endYmd.d} ${monthYearEnd})`
+  }
+  const startLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(start)
+  const endLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(end)
+  return `Biaya Gaji Harian (${startLabel} - ${endLabel})`
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -67,7 +80,7 @@ export async function POST(request: Request) {
     const biayaLainToCreate = Array.isArray(biayaLain) ? [...biayaLain] : [];
     if (totalGajiKaryawan > 0) {
         biayaLainToCreate.push({
-            deskripsi: 'Total Gaji Karyawan',
+            deskripsi: buildGajiHarianDesc(startYmd, endYmd),
             jumlah: 1,
             satuan: 'Paket',
             hargaSatuan: totalGajiKaryawan,

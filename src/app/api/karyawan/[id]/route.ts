@@ -13,6 +13,13 @@ type UserUpdateWithMeta = Prisma.UserUncheckedUpdateInput & {
   kendaraanPlatNomor?: string | null
 }
 
+const parseYmdToDbDate = (raw: any) => {
+  const s = String(raw || '').trim()
+  if (!s) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  return new Date(`${s}T00:00:00.000Z`)
+}
+
 type KaryawanDeleteRequestModel = {
   id: number
   status: string
@@ -40,11 +47,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const id = Number(params.id)
     if (Number.isNaN(id)) return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 })
     const body = await request.json()
-    const { name, email, password, kebunId, jobType, jenisPekerjaan, status, kendaraanPlatNomor, photoUrl, role: targetRole } = body || {}
+    const { name, email, password, kebunId, jobType, jenisPekerjaan, status, kendaraanPlatNomor, photoUrl, role: targetRole, tanggalMulaiBekerja } = body || {}
 
     const before = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, role: true, kebunId: true, jobType: true, status: true, kendaraanPlatNomor: true },
+      select: (() => {
+        const sel: any = { id: true, name: true, email: true, role: true, kebunId: true, jobType: true, status: true, kendaraanPlatNomor: true }
+        sel.tanggalMulaiBekerja = true
+        return sel
+      })(),
     })
 
     const data: UserUpdateWithMeta = {}
@@ -74,6 +85,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
     if (typeof kendaraanPlatNomor !== 'undefined') {
       data.kendaraanPlatNomor = kendaraanPlatNomor ? String(kendaraanPlatNomor) : null
+    }
+    if (typeof tanggalMulaiBekerja !== 'undefined') {
+      ;(data as any).tanggalMulaiBekerja = parseYmdToDbDate(tanggalMulaiBekerja)
     }
     if (typeof photoUrl !== 'undefined') {
       ;(data as any).photoUrl = photoUrl ? String(photoUrl) : null

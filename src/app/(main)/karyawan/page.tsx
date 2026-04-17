@@ -228,6 +228,7 @@ export default function KaryawanKebunPage() {
   const [formJobType, setFormJobType] = useState<string>('KEBUN')
   const [formStatus, setFormStatus] = useState<string>('AKTIF')
   const [formRole, setFormRole] = useState<string>('KARYAWAN')
+  const [formTanggalMulaiBekerja, setFormTanggalMulaiBekerja] = useState<string>('')
   const [formKendaraanPlatNomor, setFormKendaraanPlatNomor] = useState<string>('')
   const [alatBeratList, setAlatBeratList] = useState<Array<{ platNomor: string; merk?: string | null; jenis?: string | null }>>([])
   const [openKebunCombo, setOpenKebunCombo] = useState(false)
@@ -1750,7 +1751,7 @@ export default function KaryawanKebunPage() {
           <Button
             size="sm"
             className="rounded-full w-full md:w-auto whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-            onClick={() => { setEditKaryawan(null); setFormName(''); setFormPhotoFile(null); setFormPhotoPreview(null); setFormKebunId(null); setFormJobType('KEBUN'); setFormStatus('AKTIF'); setFormRole('KARYAWAN'); setFormKendaraanPlatNomor(''); setOpenAddEditKaryawan(true) }}
+            onClick={() => { setEditKaryawan(null); setFormName(''); setFormPhotoFile(null); setFormPhotoPreview(null); setFormKebunId(null); setFormJobType('KEBUN'); setFormStatus('AKTIF'); setFormRole('KARYAWAN'); setFormTanggalMulaiBekerja(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())); setFormKendaraanPlatNomor(''); setOpenAddEditKaryawan(true) }}
           >
             Tambah Karyawan
           </Button>
@@ -2267,7 +2268,7 @@ export default function KaryawanKebunPage() {
                               variant="ghost"
                               size="sm"
                               className="h-9 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex-1"
-                              onClick={() => { setEditKaryawan(k); setFormName(k.name); setFormPhotoFile(null); setFormPhotoPreview(k.photoUrl || null); setFormKebunId(typeof k.kebunId !== 'undefined' ? (k.kebunId ?? null) : null); setFormJobType((k.jenisPekerjaan || k.jobType || 'KEBUN').toString().toUpperCase()); setFormStatus((k.status || 'AKTIF').toString().toUpperCase()); setFormRole((k.role || 'KARYAWAN').toString().toUpperCase()); setFormKendaraanPlatNomor(k.kendaraanPlatNomor || ''); setOpenAddEditKaryawan(true) }}
+                              onClick={() => { setEditKaryawan(k); setFormName(k.name); setFormPhotoFile(null); setFormPhotoPreview(k.photoUrl || null); setFormKebunId(typeof k.kebunId !== 'undefined' ? (k.kebunId ?? null) : null); setFormJobType((k.jenisPekerjaan || k.jobType || 'KEBUN').toString().toUpperCase()); setFormStatus((k.status || 'AKTIF').toString().toUpperCase()); setFormRole((k.role || 'KARYAWAN').toString().toUpperCase()); setFormTanggalMulaiBekerja((k as any).tanggalMulaiBekerja ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date((k as any).tanggalMulaiBekerja)) : ''); setFormKendaraanPlatNomor(k.kendaraanPlatNomor || ''); setOpenAddEditKaryawan(true) }}
                             >
                               <PencilSquareIcon className="w-4 h-4 mr-1.5" />
                               <span className="text-xs font-semibold">Edit</span>
@@ -2426,7 +2427,7 @@ export default function KaryawanKebunPage() {
                             variant="ghost"
                             size="icon"
                             className="rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            onClick={() => { setEditKaryawan(k); setFormName(k.name); setFormPhotoFile(null); setFormPhotoPreview(k.photoUrl || null); setFormKebunId(typeof k.kebunId !== 'undefined' ? (k.kebunId ?? null) : null); setFormJobType((k.jenisPekerjaan || k.jobType || 'KEBUN').toString().toUpperCase()); setFormStatus((k.status || 'AKTIF').toString().toUpperCase()); setFormRole((k.role || 'KARYAWAN').toString().toUpperCase()); setFormKendaraanPlatNomor(k.kendaraanPlatNomor || ''); setOpenAddEditKaryawan(true) }}
+                            onClick={() => { setEditKaryawan(k); setFormName(k.name); setFormPhotoFile(null); setFormPhotoPreview(k.photoUrl || null); setFormKebunId(typeof k.kebunId !== 'undefined' ? (k.kebunId ?? null) : null); setFormJobType((k.jenisPekerjaan || k.jobType || 'KEBUN').toString().toUpperCase()); setFormStatus((k.status || 'AKTIF').toString().toUpperCase()); setFormRole((k.role || 'KARYAWAN').toString().toUpperCase()); setFormTanggalMulaiBekerja((k as any).tanggalMulaiBekerja ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date((k as any).tanggalMulaiBekerja)) : ''); setFormKendaraanPlatNomor(k.kendaraanPlatNomor || ''); setOpenAddEditKaryawan(true) }}
                             aria-label="Edit Karyawan"
                             title="Edit"
                           >
@@ -3513,6 +3514,8 @@ export default function KaryawanKebunPage() {
           setFormStatus,
           formRole,
           setFormRole,
+          formTanggalMulaiBekerja,
+          setFormTanggalMulaiBekerja,
           formKendaraanPlatNomor,
           setFormKendaraanPlatNomor,
           alatBeratList,

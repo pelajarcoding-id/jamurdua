@@ -7,6 +7,13 @@ import { requireRole } from '@/lib/route-auth'
 
 export const dynamic = 'force-dynamic'
 
+const parseYmdToDbDate = (raw: any) => {
+  const s = String(raw || '').trim()
+  if (!s) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  return new Date(`${s}T00:00:00.000Z`)
+}
+
 type UserWhereWithJobType = Prisma.UserWhereInput & {
   jobType?: Prisma.StringNullableFilter<'User'> | string | null
 }
@@ -106,6 +113,7 @@ export async function GET(request: Request) {
       status: true,
       kendaraanPlatNomor: true,
     }
+    ;(select as any).tanggalMulaiBekerja = true
 
     const [items, total] = await Promise.all([
       prisma.user.findMany({
@@ -130,7 +138,7 @@ export async function POST(request: Request) {
     const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANAGER', 'MANDOR'])
     if (guard.response) return guard.response
     const body = await request.json()
-    const { name, email, password, kebunId, jobType, jenisPekerjaan, status, kendaraanPlatNomor, role, photoUrl } = body || {}
+    const { name, email, password, kebunId, jobType, jenisPekerjaan, status, kendaraanPlatNomor, role, photoUrl, tanggalMulaiBekerja } = body || {}
     if (!name) {
       return NextResponse.json({ error: 'name wajib diisi' }, { status: 400 })
     }
@@ -161,6 +169,7 @@ export async function POST(request: Request) {
       status: typeof status !== 'undefined' ? String(status).trim().toUpperCase() : 'AKTIF',
       kendaraanPlatNomor: typeof kendaraanPlatNomor !== 'undefined' ? (kendaraanPlatNomor ? String(kendaraanPlatNomor) : null) : null,
     }
+    ;(data as any).tanggalMulaiBekerja = parseYmdToDbDate(tanggalMulaiBekerja)
     if (typeof photoUrl !== 'undefined') {
       ;(data as any).photoUrl = photoUrl ? String(photoUrl) : null
     }

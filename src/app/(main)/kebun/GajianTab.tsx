@@ -20,14 +20,6 @@ type UnpaidKaryawan = {
   hariKerja?: number
 }
 
-const addDaysYmd = (ymd: string, days: number) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ''))) return ''
-  const d = new Date(`${ymd}T00:00:00+07:00`)
-  if (Number.isNaN(d.getTime())) return ''
-  d.setDate(d.getDate() + days)
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
-}
-
 type BiayaLainItem = {
   deskripsi: string
   total: number
@@ -90,8 +82,6 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
 
   const [startDate, setStartDate] = useState(defaultStart)
   const [endDate, setEndDate] = useState(defaultEnd)
-  const [useUpahHMinus1, setUseUpahHMinus1] = useState(true)
-  const [upahEndDate, setUpahEndDate] = useState(addDaysYmd(defaultEnd, -1) || defaultEnd)
   const [historyStartDate, setHistoryStartDate] = useState(defaultHistoryStart)
   const [historyEndDate, setHistoryEndDate] = useState(defaultHistoryEnd)
 
@@ -172,16 +162,6 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
   }, [historyStartDate, historyEndDate, historyPerView])
 
   useEffect(() => {
-    if (!endDate) return
-    if (useUpahHMinus1) {
-      const suggested = addDaysYmd(endDate, -1)
-      setUpahEndDate(suggested || endDate)
-      return
-    }
-    setUpahEndDate((prev) => prev || endDate)
-  }, [endDate, useUpahHMinus1])
-
-  useEffect(() => {
     if (historyPage > historyTotalPages) {
       setHistoryPage(historyTotalPages)
     }
@@ -190,10 +170,9 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
   const fetchPreview = useCallback(async () => {
     setPreviewLoading(true)
     try {
-      const upahEnd = upahEndDate && /^\d{4}-\d{2}-\d{2}$/.test(upahEndDate) ? upahEndDate : endDate
       const [unpaidRes, actRes, notaRes, potonganRes, defaultBiayaRes] = await Promise.all([
-        fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(upahEnd)}&unpaid=1`, { cache: 'no-store' }),
-        fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(upahEnd)}&unpaid=1&upahBorongan=1`),
+        fetch(`/api/karyawan-kebun/absensi?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1`, { cache: 'no-store' }),
+        fetch(`/api/kebun/${kebunId}/pekerjaan?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&unpaid=1&upahBorongan=1`),
         fetch(`/api/nota-sawit/summary?kebunId=${kebunId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&statusGajian=BELUM_DIPROSES`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/gajian-potongan-draft?startDate=${startDate}&endDate=${endDate}`, { cache: 'no-store' }),
         fetch(`/api/kebun/${kebunId}/default-biaya`),
@@ -401,27 +380,6 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
               <Label>Selesai</Label>
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
             </div>
-            <div className="space-y-1 w-full sm:w-auto">
-              <Label>Selesai Upah/Gaji</Label>
-              <Input
-                type="date"
-                value={upahEndDate}
-                onChange={(e) => {
-                  setUseUpahHMinus1(false)
-                  setUpahEndDate(e.target.value)
-                }}
-                className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10"
-                disabled={useUpahHMinus1}
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className={`rounded-full h-10 w-full sm:w-auto ${useUpahHMinus1 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : ''}`}
-              onClick={() => setUseUpahHMinus1((v) => !v)}
-            >
-              Upah/Gaji H-1
-            </Button>
             <Button onClick={fetchPreview} variant="outline" className="rounded-full h-10 w-full sm:w-auto">
               Refresh
             </Button>

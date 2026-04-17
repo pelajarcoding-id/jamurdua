@@ -211,6 +211,7 @@ model User {
   kebunId               Int?
   jobType               String?
   status                String?                @default("AKTIF")
+  tanggalMulaiBekerja   DateTime?              @db.Date
   kendaraanPlatNomor    String?
   auditLogs             AuditLog[]
   inventoryTransactions InventoryTransaction[]

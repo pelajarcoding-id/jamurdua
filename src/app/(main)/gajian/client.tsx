@@ -77,6 +77,23 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', { dateStyle:
 
 const toYmdLocal = (d: Date) => formatWIBDateForInput(d)
 
+const isAutoGajiHarianDesc = (value: any) => {
+  const s = String(value || '').trim().toLowerCase()
+  return s.startsWith('biaya gaji harian') || s.startsWith('total gaji karyawan')
+}
+
+const buildGajiHarianDesc = (start?: Date, end?: Date) => {
+  if (!start || !end) return 'Biaya Gaji Harian'
+  const startDay = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' }).format(start)
+  const endDay = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' }).format(end)
+  const startMonthYear = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric' }).format(start)
+  const endMonthYear = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric' }).format(end)
+  if (startMonthYear === endMonthYear) {
+    return `Biaya Gaji Harian (${startDay}-${endDay} ${endMonthYear})`
+  }
+  return `Biaya Gaji Harian (${formatDate(start)} - ${formatDate(end)})`
+}
+
 const createHistoryColumns = (
   onDelete: (id: number) => void,
   onDetail: (id: number) => void,
@@ -672,12 +689,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       const totalGajiPokokKaryawan = activeDetailKaryawan.reduce((sum: number, d: any) => sum + Number(d?.gajiPokok || 0), 0)
       if (totalGajiPokokKaryawan > 0) {
         setSavedBiaya(prev => {
-          const others = prev.filter(b => b.deskripsi !== 'Total Gaji Karyawan')
+          const others = prev.filter(b => !isAutoGajiHarianDesc(b.deskripsi))
           return [
             ...others,
             {
               id: `auto-gaji-karyawan-${Date.now()}`,
-              deskripsi: 'Total Gaji Karyawan',
+              deskripsi: buildGajiHarianDesc(parseWIBDateFromInput(startYmd), parseWIBDateFromInput(endYmd, true)),
               jumlah: 1,
               satuan: 'Paket',
               hargaSatuan: Math.round(totalGajiPokokKaryawan),
@@ -943,12 +960,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         const totalGajiPokokKaryawan = mapped.reduce((sum: number, d: any) => sum + Number(d?.gajiPokok || 0), 0)
         if (totalGajiPokokKaryawan > 0) {
           setSavedBiaya(prev => {
-            const others = prev.filter(b => b.deskripsi !== 'Total Gaji Karyawan')
+            const others = prev.filter(b => !isAutoGajiHarianDesc(b.deskripsi))
             return [
               ...others,
               {
                 id: `auto-gaji-karyawan-${Date.now()}`,
-                deskripsi: 'Total Gaji Karyawan',
+                deskripsi: buildGajiHarianDesc(startDate, endDate),
                 jumlah: 1,
                 satuan: 'Paket',
                 hargaSatuan: Math.round(totalGajiPokokKaryawan),
@@ -1048,13 +1065,13 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     setDetailKaryawan(mapped as any)
     const totalGajiPokokKaryawan = mapped.reduce((sum: number, d: any) => sum + Number(d?.gajiPokok || 0), 0)
     setSavedBiaya((prev) => {
-      const others = prev.filter((b) => b.deskripsi !== 'Total Gaji Karyawan')
+      const others = prev.filter((b) => !isAutoGajiHarianDesc(b.deskripsi))
       if (totalGajiPokokKaryawan <= 0) return others
       return [
         ...others,
         {
           id: `auto-gaji-karyawan-${Date.now()}`,
-          deskripsi: 'Total Gaji Karyawan',
+          deskripsi: buildGajiHarianDesc(startDate, endDate),
           jumlah: 1,
           satuan: 'Paket',
           hargaSatuan: Math.round(totalGajiPokokKaryawan),
@@ -2210,34 +2227,41 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
-                <div className="flex items-start gap-2 min-w-0">
-                  <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
-                  <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
-                    Biaya Gaji
-                  </h3>
+                <div className="min-w-0">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
+                        Biaya Gaji
+                      </h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                        <span>Periode:</span>
+                        <span className="font-semibold text-gray-900">
+                          {startDate ? formatDate(startDate) : '-'}
+                        </span>
+                        <span>-</span>
+                        <span className="font-semibold text-gray-900">
+                          {endDate ? formatDate(endDate) : '-'}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={importUpahBorongan}
+                          disabled={!kebunId || !startDate || !endDate || boronganLoading}
+                          className="h-8 px-3 rounded-full border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs whitespace-nowrap inline-flex items-center justify-center"
+                        >
+                          {boronganLoading ? 'Memuat...' : 'Tarik Biaya Kebun'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
+                <div className="w-full sm:w-auto">
                   <Button
                     onClick={addBiayaLain}
                     className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
                   >
                     <span className="sm:hidden">+ Biaya</span>
                     <span className="hidden sm:inline">+ Tambah Biaya Gaji</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={importUpahBorongan}
-                    disabled={!kebunId || !startDate || !endDate || boronganLoading}
-                    className="border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
-                  >
-                    {boronganLoading ? (
-                      'Memuat...'
-                    ) : (
-                      <>
-                        <span className="sm:hidden">Upah Borongan</span>
-                        <span className="hidden sm:inline">Ambil Upah Borongan</span>
-                      </>
-                    )}
                   </Button>
                 </div>
               </div>
@@ -2397,9 +2421,21 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
               <div className="flex items-start gap-2 min-w-0">
                 <AdjustmentsHorizontalIcon className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
-                <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
-                  Potongan
-                </h3>
+                <div className="min-w-0">
+                  <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
+                    Potongan
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                    <span>Periode:</span>
+                    <span className="font-semibold text-gray-900">
+                      {startDate ? formatDate(startDate) : '-'}
+                    </span>
+                    <span>-</span>
+                    <span className="font-semibold text-gray-900">
+                      {endDate ? formatDate(endDate) : '-'}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
                 <Button

@@ -216,6 +216,8 @@ export default function KaryawanPageModals(props: any) {
     setFormStatus,
     formRole,
     setFormRole,
+    formTanggalMulaiBekerja,
+    setFormTanggalMulaiBekerja,
     formKendaraanPlatNomor,
     setFormKendaraanPlatNomor,
     alatBeratList,
@@ -1464,6 +1466,15 @@ export default function KaryawanPageModals(props: any) {
               </select>
             </div>
             <div className="space-y-2">
+              <Label>Tanggal Mulai Bekerja</Label>
+              <Input
+                type="date"
+                className="rounded-full"
+                value={formTanggalMulaiBekerja}
+                onChange={(e) => setFormTanggalMulaiBekerja(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Peran (Role)</Label>
               <select
                 className="input-style w-full rounded-full"
@@ -1580,6 +1591,7 @@ export default function KaryawanPageModals(props: any) {
                 status: formStatus,
                 role: formRole,
               }
+              payload.tanggalMulaiBekerja = formTanggalMulaiBekerja || null
               if (typeof photoUrl !== 'undefined') payload.photoUrl = photoUrl
               payload.kendaraanPlatNomor = formJobType === 'OPERATOR' ? (formKendaraanPlatNomor || null) : null
               if (formJobType === 'KEBUN') {
@@ -1595,7 +1607,7 @@ export default function KaryawanPageModals(props: any) {
               if (res.ok) {
                 setOpenAddEditKaryawan(false)
                 setEditKaryawan(null)
-                setFormName(''); setFormPhotoFile(null); setFormPhotoPreview(null); setFormKebunId(null); setFormJobType('KEBUN'); setFormStatus('AKTIF'); setFormRole('KARYAWAN'); setFormKendaraanPlatNomor('')
+                setFormName(''); setFormPhotoFile(null); setFormPhotoPreview(null); setFormKebunId(null); setFormJobType('KEBUN'); setFormStatus('AKTIF'); setFormRole('KARYAWAN'); setFormTanggalMulaiBekerja(''); setFormKendaraanPlatNomor('')
                 toast.success(editKaryawan ? 'Karyawan diperbarui' : 'Karyawan ditambahkan')
                 await mutateKaryawan()
               } else {
