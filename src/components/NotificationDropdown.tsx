@@ -87,15 +87,15 @@ export default function NotificationDropdown() {
 
             // 1. Get or Register SW
             toast.loading('Mendaftarkan Service Worker...', { id: toastId });
-            let registration = await navigator.serviceWorker.getRegistration();
+            let registration = await navigator.serviceWorker.getRegistration('/');
             if (!registration) {
                  try {
-                     registration = await navigator.serviceWorker.register('/sw.js');
+                     registration = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' as any });
                  } catch (err) {
                      console.error('Failed to register sw.js:', err);
                      // Fallback to custom-sw.js if sw.js fails (maybe not built yet)
                      try {
-                         registration = await navigator.serviceWorker.register('/custom-sw.js');
+                         registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any });
                      } catch (err2) {
                          throw new Error(`Gagal register SW: ${err instanceof Error ? err.message : String(err)}`);
                      }
@@ -105,8 +105,17 @@ export default function NotificationDropdown() {
             if (!registration) {
                 throw new Error('Gagal mendapatkan objek registrasi Service Worker.');
             }
+            try { await registration.update() } catch {}
 
-            const readyRegistration = await navigator.serviceWorker.ready
+            toast.loading('Menunggu Service Worker aktif...', { id: toastId })
+            const readyRegistration = await Promise.race([
+                navigator.serviceWorker.ready,
+                new Promise<ServiceWorkerRegistration | null>((resolve) => setTimeout(() => resolve(null), 8000)),
+            ])
+            if (!readyRegistration) {
+                toast.error('Service Worker belum aktif. Pastikan /sw.js bisa diakses lalu refresh halaman.', { id: toastId })
+                return
+            }
             registration = readyRegistration || registration
 
             if (!navigator.serviceWorker.controller) {
