@@ -58,17 +58,18 @@ export default function NotificationDropdown() {
             toast.error('Browser tidak mendukung Push Notifikasi');
             return;
         }
-
-        const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!publicKey) {
-            toast.error('Konfigurasi VAPID Key tidak ditemukan. Silakan refresh halaman.');
-            console.error('NEXT_PUBLIC_VAPID_PUBLIC_KEY is missing from env');
-            return;
-        }
         
         const toastId = toast.loading('Memulai proses aktivasi...');
         
         try {
+            const keyRes = await fetch('/api/notifications/vapid-public', { cache: 'no-store' })
+            const keyJson = await keyRes.json().catch(() => ({} as any))
+            const publicKey = String(keyJson?.publicKey || '').trim()
+            if (!publicKey) {
+                toast.error('Konfigurasi VAPID Key tidak ditemukan.', { id: toastId })
+                return
+            }
+
             // 0. Explicit Permission Request
             toast.loading('Meminta izin notifikasi...', { id: toastId });
             const permission = await Notification.requestPermission();

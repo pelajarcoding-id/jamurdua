@@ -4,15 +4,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - ./.env.prod
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - AUTH_URL=${AUTH_URL}
-      - AUTH_TRUST_HOST=${AUTH_TRUST_HOST}
-      - AUTH_SECRET=${AUTH_SECRET}
     ports:
       - "3000:3000"
     volumes:
@@ -23,10 +19,8 @@ services:
     command: sh -c "npm run prisma:deploy && npm run start"
   db:
     image: postgres:16-alpine
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    env_file:
+      - ./.env.prod
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
