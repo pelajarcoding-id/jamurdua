@@ -106,6 +106,25 @@ export default function NotificationDropdown() {
                 throw new Error('Gagal mendapatkan objek registrasi Service Worker.');
             }
 
+            const readyRegistration = await navigator.serviceWorker.ready
+            registration = readyRegistration || registration
+
+            if (!navigator.serviceWorker.controller) {
+                toast.loading('Mengaktifkan Service Worker…', { id: toastId })
+                await new Promise<void>((resolve) => {
+                    const timeout = setTimeout(() => resolve(), 3000)
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        clearTimeout(timeout)
+                        resolve()
+                    }, { once: true })
+                })
+            }
+
+            if (!navigator.serviceWorker.controller) {
+                toast.error('Service Worker belum aktif. Silakan refresh halaman lalu coba lagi.', { id: toastId })
+                return
+            }
+
             // 2. Wait for Active State
             // PushManager requires an ACTIVE service worker controller
             if (!registration.active) {
