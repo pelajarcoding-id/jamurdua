@@ -2226,44 +2226,38 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
           )}
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="min-w-0">
-                  <div className="flex items-start gap-2 min-w-0">
+              <div className="mb-2">
+                <div className="flex items-start justify-between gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex items-start gap-2 shrink-0">
                     <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
-                        Biaya Gaji
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                        <span>Periode:</span>
-                        <span className="font-semibold text-gray-900">
-                          {startDate ? formatDate(startDate) : '-'}
-                        </span>
-                        <span>-</span>
-                        <span className="font-semibold text-gray-900">
-                          {endDate ? formatDate(endDate) : '-'}
-                        </span>
-                      </div>
-                    </div>
+                    <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
+                      Biaya Gaji
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 flex-nowrap shrink-0">
+                    <Button
+                      variant="outline"
+                      onClick={importUpahBorongan}
+                      disabled={!kebunId || !startDate || !endDate || boronganLoading}
+                      className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
+                    >
+                      {boronganLoading ? 'Memuat...' : 'Tarik Biaya Kebun'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={addBiayaLain}
+                      className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
+                    >
+                      <span className="sm:hidden">Tambah Biaya</span>
+                      <span className="hidden sm:inline">+ Tambah Biaya Gaji</span>
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-2 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <Button
-                    variant="outline"
-                    onClick={importUpahBorongan}
-                    disabled={!kebunId || !startDate || !endDate || boronganLoading}
-                    className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                  >
-                    {boronganLoading ? 'Memuat...' : 'Tarik Biaya Kebun'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={addBiayaLain}
-                    className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                  >
-                    <span className="sm:hidden">Tambah Biaya</span>
-                    <span className="hidden sm:inline">+ Tambah Biaya Gaji</span>
-                  </Button>
+                <div className="mt-1 pl-7 text-xs text-gray-500">
+                  <span>Periode:</span>{' '}
+                  <span className="font-semibold text-gray-900">{startDate ? formatDate(startDate) : '-'}</span>{' '}
+                  <span className="text-gray-400">-</span>{' '}
+                  <span className="font-semibold text-gray-900">{endDate ? formatDate(endDate) : '-'}</span>
                 </div>
               </div>
             <div className="space-y-4">
@@ -2419,49 +2413,45 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             </div>
             </div>
             <div>
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="flex items-start gap-2 min-w-0">
-                <AdjustmentsHorizontalIcon className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
-                <div className="min-w-0">
+            <div className="mb-2">
+              <div className="flex items-start justify-between gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex items-start gap-2 shrink-0">
+                  <AdjustmentsHorizontalIcon className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
                   <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
                     Potongan
                   </h3>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                    <span>Periode:</span>
-                    <span className="font-semibold text-gray-900">
-                      {startDate ? formatDate(startDate) : '-'}
-                    </span>
-                    <span>-</span>
-                    <span className="font-semibold text-gray-900">
-                      {endDate ? formatDate(endDate) : '-'}
-                    </span>
-                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-nowrap shrink-0">
+                  <Button
+                    variant="outline"
+                    onClick={importPotonganPengajuan}
+                    disabled={!kebunId || !startDate || !endDate || importPotonganLoading}
+                    className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
+                  >
+                    {importPotonganLoading ? (
+                      'Memuat...'
+                    ) : (
+                      <>
+                        <span className="sm:hidden">Tarik</span>
+                        <span className="hidden sm:inline">Tarik Potongan</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={addPotongan}
+                    className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
+                  >
+                    <span className="sm:hidden">Tambah</span>
+                    <span className="hidden sm:inline">+ Tambah Potongan</span>
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-2 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <Button
-                  variant="outline"
-                  onClick={importPotonganPengajuan}
-                  disabled={!kebunId || !startDate || !endDate || importPotonganLoading}
-                  className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                >
-                  {importPotonganLoading ? (
-                    'Memuat...'
-                  ) : (
-                    <>
-                      <span className="sm:hidden">Tarik</span>
-                      <span className="hidden sm:inline">Tarik Potongan</span>
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={addPotongan}
-                  className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                >
-                  <span className="sm:hidden">Tambah</span>
-                  <span className="hidden sm:inline">+ Tambah Potongan</span>
-                </Button>
+              <div className="mt-1 pl-7 text-xs text-gray-500">
+                <span>Periode:</span>{' '}
+                <span className="font-semibold text-gray-900">{startDate ? formatDate(startDate) : '-'}</span>{' '}
+                <span className="text-gray-400">-</span>{' '}
+                <span className="font-semibold text-gray-900">{endDate ? formatDate(endDate) : '-'}</span>
               </div>
             </div>
             <div className="space-y-4">
