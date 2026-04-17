@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib';
 import { getNotaSawitPphRate } from '@/lib/nota-sawit-pph';
+import { sendPushNotification } from '@/lib/web-push';
 
 export const dynamic = 'force-dynamic'
 
@@ -553,6 +554,24 @@ export async function POST(request: Request) {
         await prisma.notification.createMany({
           data: notifications
         });
+
+        const subscriptions = await (prisma as any).pushSubscription.findMany({
+          where: {
+            userId: { in: recipients.map(r => r.id) }
+          }
+        });
+
+        const message = `Nota Sawit ${kebunName} - ${supirName} - ${platNomor}`
+        const url = `/nota-sawit?search=${newNotaSawit.kendaraanPlatNomor || ''}`
+
+        await Promise.all(
+          (subscriptions || []).map((sub: any) =>
+            sendPushNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              { title: 'Nota Sawit Baru', body: message, url },
+            ),
+          ),
+        )
       }
     } catch (notifError) {
       console.error('Failed to create notification:', notifError);

@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
+import { auth } from '@/auth';
+import { sendPushNotification } from '@/lib/web-push';
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +21,8 @@ const buildGajiHarianDesc = (startYmd: { y: number; m: number; d: number }, endY
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const creatorName = session?.user?.name || 'Manager Kebun'
     const body = await request.json();
     const { 
       kebunId, 
@@ -209,6 +213,48 @@ export async function POST(request: Request) {
 
       return created
     })
+
+    try {
+      const kebun = await prisma.kebun.findUnique({
+        where: { id: Number(kebunId) },
+        select: { name: true },
+      })
+      const recipients = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'PEMILIK'] } },
+        select: { id: true },
+      })
+      const kebunName = kebun?.name || `Kebun #${kebunId}`
+      const period = `${String(startYmd.d).padStart(2, '0')}-${String(startYmd.m).padStart(2, '0')}-${startYmd.y} s.d. ${String(endYmd.d).padStart(2, '0')}-${String(endYmd.m).padStart(2, '0')}-${endYmd.y}`
+      const message = `${creatorName} mengajukan draft gajian ${kebunName} periode ${period}`
+      const link = `/gajian/edit/${gajian.id}`
+
+      if (recipients.length > 0) {
+        await prisma.notification.createMany({
+          data: recipients.map((r) => ({
+            userId: r.id,
+            type: 'GAJIAN_KEBUN',
+            title: 'Pengajuan Gajian Kebun',
+            message,
+            link,
+            isRead: false,
+          })),
+        })
+
+        const subscriptions = await (prisma as any).pushSubscription.findMany({
+          where: { userId: { in: recipients.map((r) => r.id) } },
+        })
+        await Promise.all(
+          (subscriptions || []).map((sub: any) =>
+            sendPushNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              { title: 'Pengajuan Gajian Kebun', body: message, url: link },
+            ),
+          ),
+        )
+      }
+    } catch (notifError) {
+      console.error('Failed to send gajian notifications:', notifError)
+    }
 
     return NextResponse.json({ success: true, data: gajian });
   } catch (error) {
