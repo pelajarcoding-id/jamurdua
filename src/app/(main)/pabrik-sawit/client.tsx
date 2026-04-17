@@ -6,7 +6,7 @@ import { DataTable } from '@/components/data-table';
 import { createPabrikSawitColumns } from './columns';
 import { Button } from '@/components/ui/button';
 import { PabrikSawit } from '@/lib/definitions';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -266,7 +266,7 @@ export default function PabrikSawitClient() {
     } catch (error) {
       setData(previousData);
       setTotalItems(previousTotal);
-      if (toastId) toast.dismiss(toastId)
+      if (typeof toastId !== 'undefined') toast.dismiss(toastId as any)
       toast.error('Gagal menyimpan pabrik sawit, mengembalikan perubahan.');
     }
   }, [data, totalItems, handleCloseModal, refreshData]);
@@ -297,7 +297,7 @@ export default function PabrikSawitClient() {
     } catch (error) {
       setData(previousData);
       setTotalItems(previousTotal);
-      if (toastId) toast.dismiss(toastId)
+      if (typeof toastId !== 'undefined') toast.dismiss(toastId as any)
       toast.error('Gagal menghapus pabrik sawit, mengembalikan perubahan.');
     }
   }, [selectedPabrik, data, totalItems, handleCloseDeleteConfirm, refreshData]);

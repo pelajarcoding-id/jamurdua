@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { ArrowDownTrayIcon, ClipboardDocumentListIcon, UserIcon, BanknotesIcon, CalendarIcon, PlusIcon, CheckIcon, ChevronUpDownIcon, XMarkIcon, PencilSquareIcon, EyeIcon, TrashIcon, TruckIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import ImageUpload from '@/components/ui/ImageUpload';

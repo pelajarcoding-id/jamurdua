@@ -200,9 +200,17 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           if (!Number.isFinite(total) || total <= 0) return
           const jenis = String(curr?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
           const deskripsi = jenis
+          const jumlah = Number(curr?.jumlah || 0)
+          const hargaSatuan = Number(curr?.hargaSatuan || 0)
+          const normalizedJumlah = Number.isFinite(jumlah) && jumlah > 0 ? jumlah : 1
+          const normalizedHarga = Number.isFinite(hargaSatuan) && hargaSatuan > 0 ? hargaSatuan : Math.round(total / normalizedJumlah)
+          const satuan = String(curr?.satuan || '').trim() || 'Paket'
           mappedBiaya.push({
             deskripsi,
             total,
+            jumlah: normalizedJumlah,
+            satuan,
+            hargaSatuan: normalizedHarga,
           })
         })
       }

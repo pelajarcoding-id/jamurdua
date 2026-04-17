@@ -82,6 +82,13 @@ const isAutoGajiHarianDesc = (value: any) => {
   return s.startsWith('biaya gaji harian') || s.startsWith('total gaji karyawan')
 }
 
+const cleanBiayaKeterangan = (value: any) => {
+  const s = String(value || '').trim()
+  if (!s) return ''
+  if (/^tanggal\s*:/i.test(s)) return ''
+  return s
+}
+
 const buildGajiHarianDesc = (start?: Date, end?: Date) => {
   if (!start || !end) return 'Biaya Gaji Harian'
   const startDay = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' }).format(start)
@@ -1111,19 +1118,21 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
           allIds.push(id)
           const jenis = String(p?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
-          const tanggal = p?.date ? new Date(p.date).toLocaleDateString('id-ID') : ''
-
           const deskripsi = jenis
-          const keterangan = tanggal ? `Tanggal: ${tanggal}` : ''
+          const jumlah = Number(p?.jumlah || 0)
+          const hargaSatuan = Number(p?.hargaSatuan || 0)
+          const normalizedJumlah = Number.isFinite(jumlah) && jumlah > 0 ? jumlah : 1
+          const normalizedHarga = Number.isFinite(hargaSatuan) && hargaSatuan > 0 ? hargaSatuan : Math.round(biaya / normalizedJumlah)
+          const satuan = String(p?.satuan || '').trim() || 'Paket'
 
           return {
             id: `auto-borongan-${id}`,
             deskripsi,
-            jumlah: 1,
-            satuan: 'Paket',
-            hargaSatuan: Math.round(biaya),
+            jumlah: normalizedJumlah,
+            satuan,
+            hargaSatuan: Math.round(normalizedHarga),
             total: Math.round(biaya),
-            keterangan,
+            keterangan: '',
           } as any
         })
         .filter(Boolean) as any[]
@@ -2367,7 +2376,9 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-gray-900 break-words">{item.deskripsi || '-'}</div>
-                          {item.keterangan ? <div className="text-xs text-gray-500 break-words mt-1">{item.keterangan}</div> : null}
+                          {cleanBiayaKeterangan(item.keterangan) ? (
+                            <div className="text-xs text-gray-500 break-words mt-1">{cleanBiayaKeterangan(item.keterangan)}</div>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-1">
                           <Button

@@ -146,10 +146,10 @@ export async function POST(request: Request) {
       createData.biayaLain = {
         create: biayaLainToCreate.map((b: any) => ({
           deskripsi: b.deskripsi,
-          jumlah: 1,
-          satuan: 'Paket',
-          hargaSatuan: b.hargaSatuan || b.total,
-          total: b.total,
+          jumlah: Number(b?.jumlah || 0) > 0 ? Number(b.jumlah) : 1,
+          satuan: String(b?.satuan || '').trim() || 'Paket',
+          hargaSatuan: Math.round(Number(b?.hargaSatuan || 0) > 0 ? Number(b.hargaSatuan) : Math.round(Number(b?.total || 0) / (Number(b?.jumlah || 0) > 0 ? Number(b.jumlah) : 1))),
+          total: Math.round(Number(b?.total || 0)),
           keterangan: b.keterangan || null,
         })),
       };

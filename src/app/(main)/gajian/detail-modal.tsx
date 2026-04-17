@@ -71,6 +71,13 @@ const formatTanggalNota = (nota?: NotaSawitWithRelations | null) => {
   return formatDate(d)
 }
 
+const cleanBiayaKeterangan = (value: any) => {
+  const s = String(value || '').trim()
+  if (!s) return ''
+  if (/^tanggal\s*:/i.test(s)) return ''
+  return s
+}
+
 interface DetailGajianModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -248,7 +255,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah, 2)} ${item.biaya.satuan || ''}` : '',
         item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : '',
         item.biaya ? formatNumber(item.biaya.total) : '',
-        item.biaya?.keterangan || '',
+        cleanBiayaKeterangan(item.biaya?.keterangan || ''),
       ])
 
       // Potongan Rows
@@ -334,11 +341,11 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
           3: { cellWidth: 70 }, // Supir
           4: { cellWidth: 50 }, // Kg
           5: { cellWidth: 80 }, // Keterangan Nota
-          6: { cellWidth: 110 }, // Jenis Pekerjaan
+          6: { cellWidth: 110, halign: 'left' }, // Jenis Pekerjaan
           7: { cellWidth: 70 }, // Jumlah
           8: { cellWidth: 70 }, // Harga
           9: { cellWidth: 70 }, // Total
-          10: { cellWidth: 110 } // Keterangan Biaya
+          10: { cellWidth: 110, halign: 'left' } // Keterangan Biaya
         },
         margin: { top: topContentY, left: 20, right: 20, bottom: footerHeight + 14 },
       })
@@ -778,7 +785,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                   <th className="border border-black p-2 align-middle whitespace-nowrap">SUPIR</th>
                   <th className="border border-black p-2 align-middle whitespace-nowrap">KG</th>
                   <th className="border border-black p-2 align-middle whitespace-nowrap">KETERANGAN</th>
-                  <th className="border border-black p-2 align-middle whitespace-nowrap">JENIS PEKERJAAN</th>
+                  <th className="border border-black p-2 align-middle whitespace-nowrap text-left">JENIS PEKERJAAN</th>
                   <th className="border border-black p-2 align-middle whitespace-nowrap">JUMLAH TBS/HK</th>
                   <th className="border border-black p-2 align-middle whitespace-nowrap">GAJI / HK (RP)</th>
                   <th className="border border-black p-2 align-middle whitespace-nowrap">JUMLAH GAJI (RP)</th>
@@ -794,11 +801,11 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail?.notaSawit?.supir?.name || ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail ? formatKgNota(item.detail.notaSawit) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.detail?.keterangan || ''}</td>
-                    <td className="border border-black p-2 align-middle whitespace-nowrap">{normalizeBoronganJenis(item.biaya?.deskripsi || '')}</td>
+                    <td className="border border-black p-2 align-middle whitespace-nowrap text-left">{normalizeBoronganJenis(item.biaya?.deskripsi || '')}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.jumlah ? `${formatNumber(item.biaya.jumlah, 2)} ${item.biaya.satuan || ''}` : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.hargaSatuan ? formatNumber(item.biaya.hargaSatuan) : ''}</td>
                     <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya ? formatNumber(item.biaya.total) : ''}</td>
-                    <td className="border border-black p-2 align-middle whitespace-nowrap">{item.biaya?.keterangan || ''}</td>
+                    <td className="border border-black p-2 align-middle whitespace-nowrap">{cleanBiayaKeterangan(item.biaya?.keterangan || '')}</td>
                   </tr>
                 ))}
                 {(gajian.potongan || []).map((item, index) => (

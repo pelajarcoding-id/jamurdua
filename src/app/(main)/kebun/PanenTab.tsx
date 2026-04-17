@@ -104,6 +104,16 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
   const totalPages = Math.max(1, Math.ceil(panenData.length / perView));
   const startIndex = (currentPage - 1) * perView;
   const pagedPanenData = panenData.slice(startIndex, startIndex + perView);
+  const totalBruto = panenData.reduce((acc, curr) => acc + curr.bruto, 0)
+  const totalTara = panenData.reduce((acc, curr) => acc + curr.tara, 0)
+  const totalNettoRaw = panenData.reduce((acc, curr) => acc + curr.netto, 0)
+  const totalPotongan = panenData.reduce((acc, curr) => acc + curr.potongan, 0)
+
+  const pageTotalBruto = pagedPanenData.reduce((acc, curr) => acc + curr.bruto, 0)
+  const pageTotalTara = pagedPanenData.reduce((acc, curr) => acc + curr.tara, 0)
+  const pageTotalNettoRaw = pagedPanenData.reduce((acc, curr) => acc + curr.netto, 0)
+  const pageTotalPotongan = pagedPanenData.reduce((acc, curr) => acc + curr.potongan, 0)
+  const pageTotalBeratAkhir = pagedPanenData.reduce((acc, curr) => acc + curr.beratAkhir, 0)
 
   useEffect(() => {
     setCurrentPage(1);
@@ -244,7 +254,7 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
               </div>
             </div>
 
-            <div className="grid gap-4">
+            <div className="md:hidden grid gap-4">
             {pagedPanenData.map((item, idx) => {
               const isFinalPaid = String(item?.gajian?.status || '').toUpperCase() === 'FINALIZED'
               const displayNo = panenData.length - (startIndex + idx)
@@ -329,6 +339,75 @@ export default function PanenTab({ kebunId }: { kebunId: number }) {
               </div>
               )
             })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto rounded-3xl border border-gray-100 bg-white shadow-sm">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-700 font-semibold">
+                  <tr>
+                    <th className="px-4 py-3 text-left">No</th>
+                    <th className="px-4 py-3 text-left">Tanggal</th>
+                    <th className="px-4 py-3 text-left">Kendaraan</th>
+                    <th className="px-4 py-3 text-left">Supir</th>
+                    <th className="px-4 py-3 text-left">Pabrik</th>
+                    <th className="px-4 py-3 text-right">Bruto</th>
+                    <th className="px-4 py-3 text-right">Tara</th>
+                    <th className="px-4 py-3 text-right">Netto</th>
+                    <th className="px-4 py-3 text-right">Potongan</th>
+                    <th className="px-4 py-3 text-right">Berat Akhir</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pagedPanenData.map((item, idx) => {
+                    const isFinalPaid = String(item?.gajian?.status || '').toUpperCase() === 'FINALIZED'
+                    const displayNo = panenData.length - (startIndex + idx)
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold text-gray-700">{displayNo}</td>
+                        <td className="px-4 py-3">
+                          {item.tanggalBongkar ? format(new Date(item.tanggalBongkar), 'dd MMM yyyy', { locale: localeId }) : '-'}
+                        </td>
+                        <td className="px-4 py-3 font-medium">{item.kendaraan?.platNomor || '-'}</td>
+                        <td className="px-4 py-3">{item.supir?.name || '-'}</td>
+                        <td className="px-4 py-3">{item.pabrikSawit?.name || '-'}</td>
+                        <td className="px-4 py-3 text-right">{item.bruto.toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-right">{item.tara.toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-right">{item.netto.toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-right">{item.potongan.toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-right font-bold text-gray-900">{item.beratAkhir.toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                            isFinalPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                          }`}>
+                            {isFinalPaid ? 'Sudah Digaji' : 'Belum Digaji'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot className="bg-gray-50 font-bold text-gray-800 border-t">
+                  <tr>
+                    <td className="px-4 py-3" colSpan={5}>Jumlah (Halaman Ini)</td>
+                    <td className="px-4 py-3 text-right">{pageTotalBruto.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{pageTotalTara.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{pageTotalNettoRaw.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{pageTotalPotongan.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{pageTotalBeratAkhir.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3"></td>
+                  </tr>
+                  <tr className="text-gray-600">
+                    <td className="px-4 py-3" colSpan={5}>Jumlah (Semua Data)</td>
+                    <td className="px-4 py-3 text-right">{totalBruto.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{totalTara.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{totalNettoRaw.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{totalPotongan.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-right">{totalNetto.toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3"></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
 
             <div className="flex items-center justify-end gap-2">

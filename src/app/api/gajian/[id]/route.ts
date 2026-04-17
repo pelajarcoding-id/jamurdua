@@ -32,6 +32,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       include: {
         kebun: true,
         detailGajian: {
+          orderBy: { id: 'asc' },
           include: {
             notaSawit: {
               include: {
@@ -46,9 +47,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
             },
           },
         },
-        biayaLain: true,
-        potongan: true,
+        biayaLain: { orderBy: { id: 'asc' } },
+        potongan: { orderBy: { id: 'asc' } },
         detailKaryawan: {
+            orderBy: { id: 'asc' },
             include: {
                 user: true
             }
