@@ -313,11 +313,8 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
 
   const handleFileChange = (file: File | null) => {
       if (file) {
-          const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-          const ext = String(file.name || '').toLowerCase().split('.').pop()
-          const looksHeic = file.type === 'image/heic' || file.type === 'image/heif' || ext === 'heic' || ext === 'heif'
-          if (looksHeic || (file.type && !allowedTypes.includes(file.type))) {
-              toast.error('Format gambar harus JPG/PNG/WEBP')
+          if (file.type && !file.type.startsWith('image/')) {
+              toast.error('File bukti harus berupa gambar.')
               return
           }
           setSelectedFile(file);

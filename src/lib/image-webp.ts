@@ -50,15 +50,24 @@ export async function convertImageFileToWebp(
     ctx.imageSmoothingQuality = 'medium' // 'medium' often uses less memory than 'high'
     ctx.drawImage(imgSource as any, 0, 0, dstW, dstH)
 
-    const blob: Blob | null = await new Promise((resolve) => {
+    const blobWebp: Blob | null = await new Promise((resolve) => {
       canvas.toBlob((b) => resolve(b), 'image/webp', quality)
     })
 
-    if (!blob) return file
+    if (blobWebp) {
+      const base = file.name.replace(/\.[^/.]+$/, '')
+      const outName = `${base || 'image'}.webp`
+      return new File([blobWebp], outName, { type: 'image/webp' })
+    }
+
+    const blobJpeg: Blob | null = await new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality)
+    })
+    if (!blobJpeg) return file
 
     const base = file.name.replace(/\.[^/.]+$/, '')
-    const outName = `${base || 'image'}.webp`
-    return new File([blob], outName, { type: 'image/webp' })
+    const outName = `${base || 'image'}.jpg`
+    return new File([blobJpeg], outName, { type: 'image/jpeg' })
   } catch (err) {
     console.error('WebP conversion error:', err)
     return file
@@ -68,4 +77,3 @@ export async function convertImageFileToWebp(
     } catch {}
   }
 }
-

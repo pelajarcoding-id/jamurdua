@@ -11,14 +11,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(res => res.json());
 
 export default function CostCenterPage() {
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+    const pad2 = (n: number) => String(n).padStart(2, '0')
+    const toUtcYmd = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`
+    const getWibDayUtc = (base: Date = new Date()) => {
+        const wib = new Date(base.getTime() + WIB_OFFSET_MS)
+        return new Date(Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()))
+    }
     const [startDate, setStartDate] = useState(() => {
-        const now = new Date()
-        const start = new Date(now.getFullYear(), 0, 1)
-        return start.toISOString().slice(0, 10)
+        const todayWibUtc = getWibDayUtc()
+        const start = new Date(Date.UTC(todayWibUtc.getUTCFullYear(), 0, 1))
+        return toUtcYmd(start)
     })
     const [endDate, setEndDate] = useState(() => {
-        const now = new Date()
-        return now.toISOString().slice(0, 10)
+        return toUtcYmd(getWibDayUtc())
     })
     const [quickRange, setQuickRange] = useState<'today' | 'yesterday' | 'last_week' | 'last_30_days' | 'this_month' | 'this_year' | 'custom'>('this_year')
     const [kebunList, setKebunList] = useState<Array<{ id: number; name: string }>>([]);
@@ -41,37 +47,36 @@ export default function CostCenterPage() {
     const periodKey = `${startDate}${endDate ? `-${endDate}` : ''}`
 
     const applyQuickRange = (val: typeof quickRange) => {
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        const today = getWibDayUtc()
         setQuickRange(val)
         if (val === 'today') {
-            const d = today.toISOString().slice(0, 10)
+            const d = toUtcYmd(today)
             setStartDate(d)
             setEndDate(d)
         } else if (val === 'yesterday') {
             const y = new Date(today)
-            y.setDate(today.getDate() - 1)
-            const d = y.toISOString().slice(0, 10)
+            y.setUTCDate(today.getUTCDate() - 1)
+            const d = toUtcYmd(y)
             setStartDate(d)
             setEndDate(d)
         } else if (val === 'last_week') {
             const s = new Date(today)
-            s.setDate(today.getDate() - 6)
-            setStartDate(s.toISOString().slice(0, 10))
-            setEndDate(today.toISOString().slice(0, 10))
+            s.setUTCDate(today.getUTCDate() - 6)
+            setStartDate(toUtcYmd(s))
+            setEndDate(toUtcYmd(today))
         } else if (val === 'last_30_days') {
             const s = new Date(today)
-            s.setDate(today.getDate() - 29)
-            setStartDate(s.toISOString().slice(0, 10))
-            setEndDate(today.toISOString().slice(0, 10))
+            s.setUTCDate(today.getUTCDate() - 29)
+            setStartDate(toUtcYmd(s))
+            setEndDate(toUtcYmd(today))
         } else if (val === 'this_month') {
-            const s = new Date(today.getFullYear(), today.getMonth(), 1)
-            setStartDate(s.toISOString().slice(0, 10))
-            setEndDate(today.toISOString().slice(0, 10))
+            const s = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+            setStartDate(toUtcYmd(s))
+            setEndDate(toUtcYmd(today))
         } else if (val === 'this_year') {
-            const s = new Date(today.getFullYear(), 0, 1)
-            setStartDate(s.toISOString().slice(0, 10))
-            setEndDate(today.toISOString().slice(0, 10))
+            const s = new Date(Date.UTC(today.getUTCFullYear(), 0, 1))
+            setStartDate(toUtcYmd(s))
+            setEndDate(toUtcYmd(today))
         }
     }
 

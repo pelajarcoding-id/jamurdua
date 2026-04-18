@@ -158,10 +158,20 @@ export async function GET(request: Request) {
           { kendaraan: { platNomor: { contains: s, mode: 'insensitive' } } },
           { kendaraanPlatNomor: { contains: s, mode: 'insensitive' } },
           { pabrikSawit: { name: { contains: s, mode: 'insensitive' } } },
+          { perusahaan: { name: { contains: s, mode: 'insensitive' } } },
           { kebun: { name: { contains: s, mode: 'insensitive' } } },
           { timbangan: { kebun: { name: { contains: s, mode: 'insensitive' } } } },
           { timbangan: { notes: { contains: s, mode: 'insensitive' } } },
         )
+
+        const onlyDigits = /^\d+$/.test(s)
+        if (onlyDigits) {
+          const n = Number(s)
+          if (Number.isFinite(n) && n > 0) {
+            orConditions.push({ id: n })
+            orConditions.push({ pembayaranBatchItems: { some: { batchId: n } } } as any)
+          }
+        }
 
         baseAnd.push({ OR: orConditions })
       }

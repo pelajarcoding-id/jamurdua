@@ -189,6 +189,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
 
   const dibuatOlehDisplay = (isPreview ? dibuatOlehName : (gajian as any)?.dibuatOlehName) || pemilikName || 'Nama Terang'
   const disetujuiOlehDisplay = (isPreview ? disetujuiOlehName : (gajian as any)?.disetujuiOlehName) || pemilikName || 'Nama Terang'
+  const totalNota = Array.isArray(gajian?.detailGajian) ? gajian.detailGajian.length : 0
 
   const handleExportPdf = async () => {
     if (!gajian || isExporting) return
@@ -275,7 +276,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         [
           { content: 'JUMLAH', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold' } },
           { content: formatNumber(gajian.totalBerat), styles: { fontStyle: 'bold' } },
-          { content: '', colSpan: 1 },
+          { content: `Nota: ${formatNumber(totalNota)}`, colSpan: 1, styles: { halign: 'center', fontStyle: 'bold' } },
           { content: 'TOTAL', colSpan: 3, styles: { halign: 'center', fontStyle: 'bold' } },
           { content: formatNumber(totalJumlahGaji), styles: { fontStyle: 'bold' } },
           { content: '', colSpan: 1 }
@@ -828,7 +829,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
                 <tr className="border border-black font-bold">
                   <td colSpan={4} className="border border-black p-2 text-center align-middle">JUMLAH</td>
                   <td className="border border-black p-2 align-middle">{formatNumber(gajian.totalBerat)}</td>
-                  <td className="border border-black p-2 align-middle"></td>
+                  <td className="border border-black p-2 align-middle text-center whitespace-nowrap">Nota: {formatNumber(totalNota)}</td>
                   <td colSpan={3} className="border border-black p-2 text-center align-middle">TOTAL</td>
                   <td className="border border-black p-2 align-middle">{formatNumber(totalJumlahGaji)}</td>
                   <td className="border border-black p-2 align-middle"></td>

@@ -20,9 +20,7 @@ export default function ImageUpload({ onFileChange, previewUrl }: ImageUploadPro
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/jpeg': [],
-      'image/png': [],
-      'image/webp': [],
+      'image/*': [],
     },
     multiple: false,
   });

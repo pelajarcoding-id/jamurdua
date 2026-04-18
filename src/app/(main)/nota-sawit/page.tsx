@@ -247,7 +247,7 @@ export default function NotaSawitPage() {
 
   const applySearch = useCallback(() => {
     const trimmed = String(searchDraft || '').trim()
-    if (trimmed && trimmed.length < 2) return
+    if (trimmed && trimmed.length < 2 && !/^\d+$/.test(trimmed)) return
     setSearchQuery(trimmed)
     setPage(1)
     setCursorId(null)
@@ -2027,8 +2027,11 @@ export default function NotaSawitPage() {
         header: () => <div className="text-right whitespace-nowrap">Nota</div>,
         cell: ({ row }) => <div className="text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatNumber(Number(row.original?.count || 0))}</div>,
         footer: ({ table }) => {
-          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.count || 0), 0)
-          return <div className="text-right font-bold tabular-nums whitespace-nowrap">{formatNumber(total)}</div>
+          const total = table.getRowModel().rows.reduce((sum, r) => {
+            const n = Number((r.original as any)?.count)
+            return sum + (Number.isFinite(n) ? n : 0)
+          }, 0)
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap text-gray-900">{formatNumber(total)}</div>
         },
       },
       {
@@ -2036,8 +2039,11 @@ export default function NotaSawitPage() {
         header: () => <div className="text-right whitespace-nowrap">Jumlah Tagihan Nota</div>,
         cell: ({ row }) => <div className="text-right font-semibold text-gray-700 tabular-nums whitespace-nowrap">{formatCurrency(Number(row.original?.totalTagihan || 0))}</div>,
         footer: ({ table }) => {
-          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.totalTagihan || 0), 0)
-          return <div className="text-right font-bold tabular-nums whitespace-nowrap">{formatCurrency(total)}</div>
+          const total = table.getRowModel().rows.reduce((sum, r) => {
+            const n = Number((r.original as any)?.totalTagihan)
+            return sum + (Number.isFinite(n) ? n : 0)
+          }, 0)
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap text-gray-900">{formatCurrency(total)}</div>
         },
       },
       {
@@ -2045,8 +2051,11 @@ export default function NotaSawitPage() {
         header: () => <div className="text-right whitespace-nowrap">Jumlah Ditransfer</div>,
         cell: ({ row }) => <div className="text-right font-extrabold text-gray-900 tabular-nums whitespace-nowrap">{formatCurrency(Number(row.original?.jumlahMasuk || 0))}</div>,
         footer: ({ table }) => {
-          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.jumlahMasuk || 0), 0)
-          return <div className="text-right font-bold tabular-nums whitespace-nowrap">{formatCurrency(total)}</div>
+          const total = table.getRowModel().rows.reduce((sum, r) => {
+            const n = Number((r.original as any)?.jumlahMasuk)
+            return sum + (Number.isFinite(n) ? n : 0)
+          }, 0)
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap text-gray-900">{formatCurrency(total)}</div>
         },
       },
       {
@@ -2061,12 +2070,11 @@ export default function NotaSawitPage() {
           )
         },
         footer: ({ table }) => {
-          const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.selisih || 0), 0)
-          return (
-            <div className={cn("text-right font-bold tabular-nums whitespace-nowrap", total === 0 ? "text-emerald-700" : total > 0 ? "text-emerald-700" : "text-rose-700")}>
-              {formatCurrency(total)}
-            </div>
-          )
+          const total = table.getRowModel().rows.reduce((sum, r) => {
+            const n = Number((r.original as any)?.selisih)
+            return sum + (Number.isFinite(n) ? n : 0)
+          }, 0)
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap text-gray-900">{formatCurrency(total)}</div>
         },
       },
       {
@@ -2229,7 +2237,7 @@ export default function NotaSawitPage() {
                 <div className="relative">
                   <Input
                       type="text"
-                      placeholder="Cari supir atau plat nomor..."
+                      placeholder="Cari semua kolom (supir, plat, pabrik, perusahaan, kebun, angka, dll)..."
                       value={searchDraft}
                       onChange={(e) => {
                         const next = e.target.value
