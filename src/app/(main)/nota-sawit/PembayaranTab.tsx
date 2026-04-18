@@ -19,6 +19,7 @@ export function PembayaranTab(props: {
   exportPdfDisabled: boolean
   reconcileHistoryLoading: boolean
   reconcileHistorySoftLoading: boolean
+  reconcileHistorySummary: any | null
   handleOpenBulkReconcileEmpty: () => void
   pembayaranSearch: string
   setPembayaranSearch: (v: string) => void
@@ -58,6 +59,7 @@ export function PembayaranTab(props: {
     exportPdfDisabled,
     reconcileHistoryLoading,
     reconcileHistorySoftLoading,
+    reconcileHistorySummary,
     handleOpenBulkReconcileEmpty,
     pembayaranSearch,
     setPembayaranSearch,
@@ -129,9 +131,11 @@ export function PembayaranTab(props: {
           <Button
             variant="outline"
             size="icon"
-            className="rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            className={cn(
+              'rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700',
+              exportPdfDisabled ? 'opacity-50' : '',
+            )}
             onClick={onExportPdf}
-            disabled={exportPdfDisabled}
             title={exportPdfDisabled ? 'Pilih batch dulu untuk export PDF' : 'Export PDF'}
           >
             <ArrowDownTrayIcon className="w-5 h-5" />
@@ -140,6 +144,64 @@ export function PembayaranTab(props: {
             <PlusIcon className="w-4 h-4 mr-2" />
             Pembayaran
           </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="rounded-2xl border border-gray-100 bg-white p-3">
+          <div className="text-xs font-semibold text-gray-500">Total Batch</div>
+          {reconcileHistoryLoading ? (
+            <Skeleton className="h-7 w-20 mt-2" />
+          ) : (
+            <div className="mt-1 text-xl font-extrabold text-gray-900 tabular-nums whitespace-nowrap">
+              {formatNumber(Number(reconcileHistorySummary?.totalBatches || 0))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3">
+          <div className="text-xs font-semibold text-gray-500">Total Nota</div>
+          {reconcileHistoryLoading ? (
+            <Skeleton className="h-7 w-20 mt-2" />
+          ) : (
+            <div className="mt-1 text-xl font-extrabold text-gray-900 tabular-nums whitespace-nowrap">
+              {formatNumber(Number(reconcileHistorySummary?.totalNota || 0))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3">
+          <div className="text-xs font-semibold text-gray-500">Total Tagihan</div>
+          {reconcileHistoryLoading ? (
+            <Skeleton className="h-7 w-32 mt-2" />
+          ) : (
+            <div className="mt-1 text-lg font-extrabold text-gray-900 tabular-nums whitespace-nowrap">
+              {formatCurrency(Number(reconcileHistorySummary?.totalTagihan || 0))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3">
+          <div className="text-xs font-semibold text-gray-500">Total Ditransfer</div>
+          {reconcileHistoryLoading ? (
+            <Skeleton className="h-7 w-32 mt-2" />
+          ) : (
+            <div className="mt-1 text-lg font-extrabold text-gray-900 tabular-nums whitespace-nowrap">
+              {formatCurrency(Number(reconcileHistorySummary?.totalKasMasuk || 0))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3">
+          <div className="text-xs font-semibold text-gray-500">Total Selisih</div>
+          {reconcileHistoryLoading ? (
+            <Skeleton className="h-7 w-32 mt-2" />
+          ) : (
+            <div
+              className={cn(
+                'mt-1 text-lg font-extrabold tabular-nums whitespace-nowrap',
+                Number(reconcileHistorySummary?.totalSelisih || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700',
+              )}
+            >
+              {formatCurrency(Number(reconcileHistorySummary?.totalSelisih || 0))}
+            </div>
+          )}
         </div>
       </div>
 

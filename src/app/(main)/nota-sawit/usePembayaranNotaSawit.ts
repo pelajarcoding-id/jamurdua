@@ -21,6 +21,7 @@ export function usePembayaranNotaSawit(args: {
   const [reconcileHistoryLoading, setReconcileHistoryLoading] = useState(false)
   const [reconcileHistorySoftLoading, setReconcileHistorySoftLoading] = useState(false)
   const [reconcileHistory, setReconcileHistory] = useState<any[]>([])
+  const [reconcileHistorySummary, setReconcileHistorySummary] = useState<any | null>(null)
   const [reconcileHistoryPage, setReconcileHistoryPage] = useState(1)
   const [reconcileHistoryLimit, setReconcileHistoryLimit] = useState(20)
   const [reconcileHistoryTotal, setReconcileHistoryTotal] = useState(0)
@@ -156,11 +157,13 @@ export function usePembayaranNotaSawit(args: {
         if (!res.ok) throw new Error((json as any)?.error || 'Gagal memuat riwayat rekonsiliasi')
         setReconcileHistory(Array.isArray((json as any)?.data) ? (json as any).data : [])
         setReconcileHistoryTotal(Math.max(0, Number((json as any)?.total || 0)))
+        setReconcileHistorySummary((json as any)?.summary || null)
       } catch (e: any) {
         if (String(e?.name) === 'AbortError') return
         toast.error(e?.message || 'Gagal memuat riwayat rekonsiliasi')
         setReconcileHistory([])
         setReconcileHistoryTotal(0)
+        setReconcileHistorySummary(null)
       } finally {
         reconcileHistoryHasLoadedRef.current = true
         if (shouldSoft) {
@@ -207,6 +210,7 @@ export function usePembayaranNotaSawit(args: {
     reconcileHistoryLoading,
     reconcileHistorySoftLoading,
     reconcileHistory,
+    reconcileHistorySummary,
     reconcileHistoryPage,
     setReconcileHistoryPage,
     reconcileHistoryLimit,
@@ -215,4 +219,3 @@ export function usePembayaranNotaSawit(args: {
     fetchReconcileHistory,
   }
 }
-

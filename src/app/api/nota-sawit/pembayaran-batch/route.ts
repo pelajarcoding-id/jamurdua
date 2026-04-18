@@ -111,7 +111,20 @@ export async function GET(request: Request) {
         )
         const ids = idsRows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n) && n > 0)
         if (ids.length === 0) {
-          return NextResponse.json({ data: [], page, limit, total: 0 })
+          return NextResponse.json({
+            data: [],
+            page,
+            limit,
+            total: 0,
+            summary: {
+              totalBatches: 0,
+              totalNota: 0,
+              totalTagihan: 0,
+              totalKasMasuk: 0,
+              totalAllocated: 0,
+              totalSelisih: 0,
+            },
+          })
         }
         where.id = { in: ids }
       }
@@ -119,6 +132,65 @@ export async function GET(request: Request) {
 
     const total = await (prisma as any).notaSawitPembayaranBatch.count({ where })
     const skip = (page - 1) * limit
+
+    const batchIdIn: number[] = Array.isArray((where as any)?.id?.in) ? ((where as any).id.in as any[]) : []
+    const baseWhereSqlParts: Prisma.Sql[] = [Prisma.sql`TRUE`]
+    if (pabrikSawitId && Number.isFinite(pabrikSawitId)) baseWhereSqlParts.push(Prisma.sql`b."pabrikSawitId" = ${pabrikSawitId}`)
+    if (startDate && Number.isFinite(startDate.getTime())) baseWhereSqlParts.push(Prisma.sql`b.tanggal >= ${startDate}`)
+    if (endDate && Number.isFinite(endDate.getTime())) baseWhereSqlParts.push(Prisma.sql`b.tanggal <= ${endDate}`)
+    if (batchIdIn.length > 0) baseWhereSqlParts.push(Prisma.sql`b.id IN (${Prisma.join(batchIdIn)})`)
+    if (kebunId && Number.isFinite(kebunId)) {
+      baseWhereSqlParts.push(Prisma.sql`
+        EXISTS (
+          SELECT 1
+          FROM "NotaSawitPembayaranBatchItem" i2
+          JOIN "NotaSawit" n2 ON n2.id = i2."notaSawitId"
+          LEFT JOIN "Timbangan" t2 ON t2.id = n2."timbanganId"
+          WHERE i2."batchId" = b.id
+            AND (n2."kebunId" = ${kebunId} OR t2."kebunId" = ${kebunId})
+        )
+      `)
+    }
+    const baseWhereSql = baseWhereSqlParts.slice(1).reduce((acc, curr) => Prisma.sql`${acc} AND ${curr}`, baseWhereSqlParts[0])
+
+    const summaryRows: Array<{
+      totalBatches: any
+      totalNota: any
+      totalTagihan: any
+      totalKasMasuk: any
+      totalAllocated: any
+    }> = await prisma.$queryRaw(
+      Prisma.sql`
+        WITH filtered_batches AS (
+          SELECT b.id, COALESCE(b."jumlahMasuk", 0) AS "jumlahMasuk", COALESCE(b."adminBank", 0) AS "adminBank"
+          FROM "NotaSawitPembayaranBatch" b
+          WHERE ${baseWhereSql}
+        ),
+        items_join AS (
+          SELECT
+            fb.id AS "batchId",
+            i."notaSawitId" AS "notaSawitId",
+            COALESCE(i."pembayaranAktual", 0) AS "pembayaranAktual",
+            COALESCE(n."pembayaranSetelahPph", n."totalPembayaran", i."tagihanNet", 0) AS "tagihanNow"
+          FROM filtered_batches fb
+          LEFT JOIN "NotaSawitPembayaranBatchItem" i ON i."batchId" = fb.id
+          LEFT JOIN "NotaSawit" n ON n.id = i."notaSawitId"
+        )
+        SELECT
+          (SELECT COUNT(*) FROM filtered_batches) AS "totalBatches",
+          (SELECT COUNT(DISTINCT "notaSawitId") FROM items_join WHERE "notaSawitId" IS NOT NULL) AS "totalNota",
+          COALESCE((SELECT SUM("tagihanNow") FROM items_join), 0) AS "totalTagihan",
+          COALESCE((SELECT SUM("jumlahMasuk" - "adminBank") FROM filtered_batches), 0) AS "totalKasMasuk",
+          COALESCE((SELECT SUM("pembayaranAktual") FROM items_join), 0) AS "totalAllocated"
+      `,
+    )
+    const s0 = summaryRows?.[0] || ({} as any)
+    const totalBatches = Number(s0.totalBatches || 0)
+    const totalNota = Number(s0.totalNota || 0)
+    const totalTagihanSummary = Math.round(Number(s0.totalTagihan || 0))
+    const totalKasMasukSummary = Math.round(Number(s0.totalKasMasuk || 0))
+    const totalAllocatedSummary = Math.round(Number(s0.totalAllocated || 0))
+    const totalSelisihSummary = Math.round(totalKasMasukSummary - totalAllocatedSummary)
 
     const batches = await (prisma as any).notaSawitPembayaranBatch.findMany({
       where,
@@ -199,7 +271,20 @@ export async function GET(request: Request) {
       }
     })
 
-    return NextResponse.json({ data, page, limit, total })
+    return NextResponse.json({
+      data,
+      page,
+      limit,
+      total,
+      summary: {
+        totalBatches,
+        totalNota,
+        totalTagihan: totalTagihanSummary,
+        totalKasMasuk: totalKasMasukSummary,
+        totalAllocated: totalAllocatedSummary,
+        totalSelisih: totalSelisihSummary,
+      },
+    })
   } catch (error) {
     console.error('GET /api/nota-sawit/pembayaran-batch error:', error)
     return NextResponse.json({ error: 'Gagal memuat riwayat rekonsiliasi' }, { status: 500 })

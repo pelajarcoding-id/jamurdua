@@ -156,6 +156,20 @@ export default function NotaSawitPage() {
   } = useNotaSawitModalsState()
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [rowSelection, setRowSelection] = useState({});
+  const bulkSelectedBeratAkhir = useMemo(() => {
+    const keys = Object.keys(rowSelection as any)
+    if (keys.length === 0) return 0
+    return keys.reduce((sum, key) => {
+      const idx = Number(key)
+      if (!Number.isFinite(idx)) return sum
+      const nota: any = (data as any[])[idx]
+      if (!nota) return sum
+      const netto = Number(nota?.netto ?? nota?.timbangan?.netKg ?? 0)
+      const potongan = Number(nota?.potongan ?? 0)
+      const beratAkhir = Math.max(0, Math.round(Number(nota?.beratAkhir ?? (netto - potongan))))
+      return sum + (Number.isFinite(beratAkhir) ? beratAkhir : 0)
+    }, 0)
+  }, [data, rowSelection])
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [searchDraft, setSearchDraft] = useState(searchParams.get('search') || '');
   const [notaSoftLoading, setNotaSoftLoading] = useState(false)
@@ -1137,13 +1151,16 @@ export default function NotaSawitPage() {
   }, [pembayaran.fetchReconcileHistory, reconcileGambarFile, reconcileJumlahMasuk, reconcileKeterangan, reconcileNotaIds, reconcileSetLunas, reconcileTanggal, refreshData, selectedStatus])
 
   const handleExportPembayaranBatchPdf = useCallback(async () => {
-    if (!reconcileDetail?.id) return
+    if (!reconcileDetail?.id) {
+      toast.error('Pilih batch pembayaran dulu untuk export PDF.')
+      return
+    }
     const batchId = Number(reconcileDetail.id)
     const formatNumberLocal = (num: number) => new Intl.NumberFormat('id-ID').format(num)
     const formatCurrencyLocal = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
     const jsPDF = (await import('jspdf')).default
     const autoTable = (await import('jspdf-autotable')).default
-    const doc = new jsPDF()
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
     const pageW = doc.internal.pageSize.getWidth()
     const pageH = doc.internal.pageSize.getHeight()
@@ -2174,6 +2191,9 @@ export default function NotaSawitPage() {
           {Object.keys(rowSelection).length > 0 && (
           <div className="mb-6 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
               <span className="text-sm font-semibold text-blue-700 sm:mr-2">{Object.keys(rowSelection).length} terpilih:</span>
+              <span className="text-sm font-semibold text-blue-700 sm:mr-2 whitespace-nowrap">
+                Berat Akhir: {new Intl.NumberFormat('id-ID').format(Math.round(Number(bulkSelectedBeratAkhir || 0)))} kg
+              </span>
               {role !== 'SUPIR' ? (
                 <>
                   <Button variant="destructive" onClick={() => setIsBulkDeleteConfirmOpen(true)} className="rounded-full w-full sm:w-auto">
@@ -2394,6 +2414,7 @@ export default function NotaSawitPage() {
               exportPdfDisabled={!reconcileDetail?.id}
               reconcileHistoryLoading={pembayaran.reconcileHistoryLoading}
               reconcileHistorySoftLoading={pembayaran.reconcileHistorySoftLoading}
+              reconcileHistorySummary={pembayaran.reconcileHistorySummary}
               handleOpenBulkReconcileEmpty={handleOpenBulkReconcileEmpty}
               pembayaranSearch={pembayaran.pembayaranSearch}
               setPembayaranSearch={pembayaran.setPembayaranSearch}
