@@ -1167,15 +1167,15 @@ export default function NotaSawitPage() {
     doc.text('Detail Pembayaran Nota Sawit', marginX, 14)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'normal')
-    doc.text(`Batch #${batchId}`, marginX, 22)
+    doc.text(`Batch #${batchId} • ${pabrikName}`, marginX, 22)
 
     doc.setTextColor(17, 24, 39)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(13)
-    doc.text(`Batch #${batchId}`, marginX, 38)
+    doc.text(`Batch #${batchId} • ${pabrikName}`, marginX, 38)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
-    doc.text(`${tanggalText} • ${pabrikName} • ${jumlahNota} nota`, marginX, 45)
+    doc.text(`Ditransfer: ${tanggalText} • ${jumlahNota} nota`, marginX, 45)
 
     const cardY = 52
     const cardGap = 4
@@ -1204,22 +1204,59 @@ export default function NotaSawitPage() {
     const rows = (Array.isArray(reconcileDetail?.items) ? reconcileDetail.items : []).map((i: any) => {
       const nota = i?.nota
       const kebunName = nota?.kebun?.name || '-'
-      const tgl = nota?.tanggalBongkar ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'
+      const tglNota = nota?.tanggalBongkar
+        ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+        : '-'
+      const beratAkhir = Math.round(Number(nota?.beratAkhir || 0))
+      const hargaPerKg = Math.round(Number(nota?.hargaPerKg || 0))
+      const plat = String(nota?.kendaraanPlatNomor || '-')
       const nominal = Math.round(Number(i?.tagihanNet || 0))
-      return [`Nota ${kebunName}`, tgl, nominal]
+      return [tanggalText, kebunName, tglNota, beratAkhir, hargaPerKg, plat, nominal]
     })
 
     autoTable(doc, {
       startY: cardY + cardH + 10,
-      head: [['Nota', 'Tanggal Nota', 'Nominal']],
+      head: [['Tanggal Transfer', 'Kebun', 'Tanggal Nota', 'Berat Akhir', 'Harga', 'Plat', 'Nominal']],
       body: rows,
       styles: { font: 'helvetica', fontSize: 10, cellPadding: 2 },
       headStyles: { fillColor: [16, 185, 129] },
       columnStyles: {
-        2: { halign: 'right', cellWidth: 64, font: 'courier' },
+        0: { cellWidth: 32 },
+        1: { cellWidth: 36 },
+        2: { cellWidth: 32 },
+        3: { halign: 'right', cellWidth: 24, font: 'courier' },
+        4: { halign: 'right', cellWidth: 26, font: 'courier' },
+        5: { cellWidth: 26 },
+        6: { halign: 'right', cellWidth: 30, font: 'courier' },
       },
       didParseCell: (data: any) => {
-        if (data?.column?.index === 2) {
+        if (data?.column?.index === 3) {
+          data.cell.styles.halign = 'right'
+          if (data.section === 'head') data.cell.styles.font = 'helvetica'
+          if (data.section === 'body') {
+            const n = Math.round(Number(data.cell.raw || 0))
+            data.cell.text = [formatNumberLocal(Number.isFinite(n) ? n : 0)]
+            data.cell.styles.font = 'courier'
+          }
+          if (data.section === 'foot') {
+            data.cell.styles.font = 'courier'
+            data.cell.styles.fontStyle = 'bold'
+          }
+        }
+        if (data?.column?.index === 4) {
+          data.cell.styles.halign = 'right'
+          if (data.section === 'head') data.cell.styles.font = 'helvetica'
+          if (data.section === 'body') {
+            const n = Math.round(Number(data.cell.raw || 0))
+            data.cell.text = [formatCurrencyLocal(Number.isFinite(n) ? n : 0)]
+            data.cell.styles.font = 'courier'
+          }
+          if (data.section === 'foot') {
+            data.cell.styles.font = 'courier'
+            data.cell.styles.fontStyle = 'bold'
+          }
+        }
+        if (data?.column?.index === 6) {
           data.cell.styles.halign = 'right'
           if (data.section === 'head') data.cell.styles.font = 'helvetica'
           if (data.section === 'body') {
@@ -1235,7 +1272,7 @@ export default function NotaSawitPage() {
       },
       foot: [
         [
-          { content: 'Total Jumlah', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: 'Total Jumlah', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
         ],
       ],
@@ -1278,7 +1315,7 @@ export default function NotaSawitPage() {
         doc.text('Bukti Transfer', marginX, 14)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(11)
-        doc.text(`Batch #${batchId}`, marginX, 22)
+        doc.text(`Batch #${batchId} • ${pabrikName}`, marginX, 22)
         doc.setTextColor(17, 24, 39)
         doc.addImage(imgData, 'JPEG', marginX, 36, imgW, imgH)
       } catch {
@@ -1755,17 +1792,17 @@ export default function NotaSawitPage() {
       {
         id: 'no',
         header: 'No',
-        cell: ({ row }) => <div className="text-gray-700 tabular-nums">{row.index + 1}</div>,
+        cell: ({ row }) => <div className="text-gray-700 tabular-nums whitespace-nowrap">{row.index + 1}</div>,
         footer: () => <div className="font-bold text-gray-700">Jumlah</div>,
       },
       {
         id: 'batch',
         header: 'Batch',
-        cell: ({ row }) => <div className="font-extrabold text-gray-900">#{row.original?.id}</div>,
+        cell: ({ row }) => <div className="font-extrabold text-gray-900 whitespace-nowrap">#{row.original?.id}</div>,
       },
       {
         id: 'tanggal',
-        header: 'Tanggal',
+        header: 'Tanggal Dibayar',
         cell: ({ row }) => (
           <div className="text-gray-700 whitespace-nowrap">
             {row.original?.tanggal ? new Date(row.original.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'}
@@ -1779,38 +1816,38 @@ export default function NotaSawitPage() {
       },
       {
         id: 'nota',
-        header: () => <div className="text-right">Nota</div>,
-        cell: ({ row }) => <div className="text-right font-semibold text-gray-900 tabular-nums">{formatNumber(Number(row.original?.count || 0))}</div>,
+        header: () => <div className="text-right whitespace-nowrap">Nota</div>,
+        cell: ({ row }) => <div className="text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatNumber(Number(row.original?.count || 0))}</div>,
         footer: ({ table }) => {
           const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.count || 0), 0)
-          return <div className="text-right font-bold tabular-nums">{formatNumber(total)}</div>
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap">{formatNumber(total)}</div>
         },
       },
       {
         id: 'totalTagihan',
-        header: () => <div className="text-right">Jumlah Tagihan Nota</div>,
-        cell: ({ row }) => <div className="text-right font-semibold text-gray-700 tabular-nums">{formatCurrency(Number(row.original?.totalTagihan || 0))}</div>,
+        header: () => <div className="text-right whitespace-nowrap">Jumlah Tagihan Nota</div>,
+        cell: ({ row }) => <div className="text-right font-semibold text-gray-700 tabular-nums whitespace-nowrap">{formatCurrency(Number(row.original?.totalTagihan || 0))}</div>,
         footer: ({ table }) => {
           const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.totalTagihan || 0), 0)
-          return <div className="text-right font-bold tabular-nums">{formatCurrency(total)}</div>
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap">{formatCurrency(total)}</div>
         },
       },
       {
         id: 'jumlahMasuk',
-        header: () => <div className="text-right">Jumlah Ditransfer</div>,
-        cell: ({ row }) => <div className="text-right font-extrabold text-gray-900 tabular-nums">{formatCurrency(Number(row.original?.jumlahMasuk || 0))}</div>,
+        header: () => <div className="text-right whitespace-nowrap">Jumlah Ditransfer</div>,
+        cell: ({ row }) => <div className="text-right font-extrabold text-gray-900 tabular-nums whitespace-nowrap">{formatCurrency(Number(row.original?.jumlahMasuk || 0))}</div>,
         footer: ({ table }) => {
           const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.jumlahMasuk || 0), 0)
-          return <div className="text-right font-bold tabular-nums">{formatCurrency(total)}</div>
+          return <div className="text-right font-bold tabular-nums whitespace-nowrap">{formatCurrency(total)}</div>
         },
       },
       {
         id: 'selisih',
-        header: () => <div className="text-right">Selisih</div>,
+        header: () => <div className="text-right whitespace-nowrap">Selisih</div>,
         cell: ({ row }) => {
           const val = Number(row.original?.selisih || 0)
           return (
-            <div className={cn("text-right font-extrabold tabular-nums", val === 0 ? "text-emerald-700" : val > 0 ? "text-emerald-700" : "text-rose-700")}>
+            <div className={cn("text-right font-extrabold tabular-nums whitespace-nowrap", val === 0 ? "text-emerald-700" : val > 0 ? "text-emerald-700" : "text-rose-700")}>
               {formatCurrency(val)}
             </div>
           )
@@ -1818,7 +1855,7 @@ export default function NotaSawitPage() {
         footer: ({ table }) => {
           const total = table.getRowModel().rows.reduce((sum, r) => sum + Number((r.original as any)?.selisih || 0), 0)
           return (
-            <div className={cn("text-right font-bold tabular-nums", total === 0 ? "text-emerald-700" : total > 0 ? "text-emerald-700" : "text-rose-700")}>
+            <div className={cn("text-right font-bold tabular-nums whitespace-nowrap", total === 0 ? "text-emerald-700" : total > 0 ? "text-emerald-700" : "text-rose-700")}>
               {formatCurrency(total)}
             </div>
           )

@@ -665,6 +665,14 @@ export default function NotaSawitPageModals(props: {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-extrabold text-gray-900">Batch #{reconcileDetail.id}</div>
+                    <div className="text-xs text-gray-500">
+                      Ditransfer tanggal:{' '}
+                      <span className="font-semibold text-gray-900">
+                        {reconcileDetail?.tanggal
+                          ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+                          : '-'}
+                      </span>
+                    </div>
                     <div className="text-sm font-semibold text-gray-700">
                       {reconcileDetail?.tanggal
                         ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })

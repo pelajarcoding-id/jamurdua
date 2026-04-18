@@ -631,9 +631,6 @@ export default function LaporanNotaSawitPage() {
         throw new Error('Format data ekspor tidak valid');
       }
 
-      const jsPDF = (await import('jspdf')).default;
-      const autoTable = (await import('jspdf-autotable')).default;
-
       const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -741,7 +738,16 @@ export default function LaporanNotaSawitPage() {
 
       const startKey = format(startDate, 'yyyy-MM-dd')
       const endKey = format(endDate, 'yyyy-MM-dd')
-      doc.save(`laporan-nota-sawit-${startKey}-sampai-${endKey}.pdf`);
+      const fileName = `laporan-nota-sawit-${startKey}-sampai-${endKey}.pdf`
+      const pdfBlob = doc.output('blob')
+      const url = URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', fileName)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
       toast.success('PDF berhasil diunduh', { id: 'export-nota-sawit' })
 
     } catch (e: any) {
@@ -1016,23 +1022,48 @@ export default function LaporanNotaSawitPage() {
                     <p className="text-lg font-semibold text-gray-900">{kpi?.totalPph ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPph)) : 'Rp 0'}</p>
                   )}
                 </div>
-                <div className="rounded-xl bg-sky-50/70 px-3 py-2">
-                  <p className="text-xs text-sky-700">Total Bayar Net</p>
-                  {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
-                    <p className="text-lg font-semibold text-gray-900">{kpi?.totalNet ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalNet)) : 'Rp 0'}</p>
-                  )}
-                </div>
-                <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                  <p className="text-xs text-emerald-700">Total Pembayaran Nota Sawit</p>
-                  {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
-                    <p className="text-lg font-semibold text-gray-900">{kpi?.totalPembayaranNotaSawit ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPembayaranNotaSawit)) : 'Rp 0'}</p>
-                  )}
-                </div>
-                <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                  <p className="text-xs text-emerald-700">Selisih</p>
-                  {isStatsLoading ? <Skeleton className="h-6 w-28 mt-1" /> : (
-                    <p className="text-lg font-semibold text-gray-900">{kpi?.selisih ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.selisih)) : 'Rp 0'}</p>
-                  )}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-gray-100 bg-white p-4">
+                <div className="text-sm font-semibold text-gray-900">Statistik Pembayaran</div>
+                <div className="text-xs text-gray-500">Total tagihan nota sawit, jumlah ditransfer, dan selisih pembayaran.</div>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl bg-sky-50/70 px-3 py-2">
+                    <p className="text-xs text-sky-700">Total Tagihan Nota Sawit</p>
+                    {isStatsLoading ? (
+                      <Skeleton className="h-6 w-28 mt-1" />
+                    ) : (
+                      <p className="text-lg font-semibold text-gray-900">
+                        {kpi?.totalNet
+                          ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalNet))
+                          : 'Rp 0'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
+                    <p className="text-xs text-emerald-700">Jumlah Ditransfer</p>
+                    {isStatsLoading ? (
+                      <Skeleton className="h-6 w-28 mt-1" />
+                    ) : (
+                      <p className="text-lg font-semibold text-gray-900">
+                        {kpi?.totalPembayaranNotaSawit
+                          ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalPembayaranNotaSawit))
+                          : 'Rp 0'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
+                    <p className="text-xs text-gray-600">Selisih Pembayaran</p>
+                    {isStatsLoading ? (
+                      <Skeleton className="h-6 w-28 mt-1" />
+                    ) : (
+                      <p className={cn('text-lg font-semibold', Number(kpi?.selisih || 0) >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+                        {kpi?.selisih
+                          ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.selisih))
+                          : 'Rp 0'}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
