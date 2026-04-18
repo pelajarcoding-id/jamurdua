@@ -1289,6 +1289,12 @@ export default function NotaSawitPage() {
             data.cell.styles.font = 'courier'
           }
           if (data.section === 'foot') {
+            const n = Math.round(Number(data.cell.raw || 0))
+            data.cell.text = [formatNumberLocal(Number.isFinite(n) ? n : 0)]
+            data.cell.styles.font = 'courier'
+            data.cell.styles.fontStyle = 'bold'
+          }
+          if (data.section === 'foot') {
             data.cell.styles.font = 'courier'
             data.cell.styles.fontStyle = 'bold'
           }
@@ -1323,7 +1329,7 @@ export default function NotaSawitPage() {
       foot: [
         [
           { content: 'Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: `${formatNumberLocal(Math.round(totalBeratAkhir))} Kg`, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+          Math.round(Number(totalBeratAkhir || 0)),
           { content: '' },
           { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
           { content: '' },
@@ -1524,11 +1530,11 @@ export default function NotaSawitPage() {
         foot: [
           [
             { content: 'Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
-            { content: totalNota, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: totalTagihan, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: totalKasMasuk, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: totalSelisih, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: '' },
+            totalNota,
+            totalTagihan,
+            totalKasMasuk,
+            totalSelisih,
+            '',
           ],
         ],
         footStyles: { fillColor: [249, 250, 251], textColor: [17, 24, 39], fontStyle: 'bold' },
