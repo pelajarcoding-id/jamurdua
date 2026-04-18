@@ -8,6 +8,9 @@ export async function convertImageFileToWebp(
 
   if (!file) return file
   if (typeof window === 'undefined') return file
+  if (targetMaxBytes > 0 && Number(file.size || 0) > 0 && Number(file.size || 0) <= targetMaxBytes) {
+    if (file.type === 'image/webp' || file.type === 'image/jpeg') return file
+  }
 
   const objectUrl = URL.createObjectURL(file)
   try {

@@ -562,6 +562,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
   // --- Image Handling ---
   const handleFileChangeForCrop = (file: File | null) => {
     if (file) {
+      setFormData((prev: any) => ({ ...prev, hapusGambar: false }))
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreview(reader.result as string);
@@ -571,6 +572,9 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     } else {
       setPreview(null);
       setGambarNota(null);
+      if (nota?.gambarNotaUrl) {
+        setFormData((prev: any) => ({ ...prev, hapusGambar: true }))
+      }
     }
   };
 
@@ -634,6 +638,7 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     if (completedCrop?.width && completedCrop?.height && imgRef.current) {
       const croppedImageFile = await getCroppedImg(imgRef.current, completedCrop, 'cropped-nota.webp');
       setGambarNota(croppedImageFile);
+      setFormData((prev: any) => ({ ...prev, hapusGambar: false }))
       const reader = new FileReader();
       reader.onloadend = () => setPreview(reader.result as string);
       reader.readAsDataURL(croppedImageFile);
@@ -718,6 +723,11 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
       finalData.tareKg = tare
     }
     
+    if (preview && String(preview).startsWith('data:') && !gambarNota) {
+      toast.error('Konfirmasi crop gambar dulu sebelum menyimpan.')
+      return
+    }
+
     onSave(finalData, gambarNota || undefined);
   };
 

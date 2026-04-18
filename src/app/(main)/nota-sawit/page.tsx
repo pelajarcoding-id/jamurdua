@@ -525,15 +525,20 @@ export default function NotaSawitPage() {
 
   const handleSave = useCallback(async (formDataRaw: any, file?: File) => {
     
-    let finalGambarUrl = selectedNota?.gambarNotaUrl || '';
+    const hapusGambar = formDataRaw?.hapusGambar === true || formDataRaw?.hapusGambar === 'true'
+    let finalGambarUrl = hapusGambar ? '' : (selectedNota?.gambarNotaUrl || '');
 
     const toastId = toast.loading(selectedNota ? 'Menyimpan nota...' : 'Menambahkan nota...');
 
     try {
       if (file) {
           const uploadFormData = new FormData();
-          const converted = await convertImageFileToWebp(file, { quality: 0.82, maxDimension: 1280 })
-          uploadFormData.append('file', converted);
+          const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''
+          const isAppleMobile = /iPhone|iPad|iPod/i.test(ua)
+          const targetMaxBytes = isAppleMobile ? 850 * 1024 : 1200 * 1024
+          const shouldConvert = !(file.type === 'image/webp' && Number(file.size || 0) > 0 && Number(file.size || 0) <= targetMaxBytes)
+          const uploadFile = shouldConvert ? await convertImageFileToWebp(file, { quality: 0.82, maxDimension: 1280, targetMaxBytes }) : file
+          uploadFormData.append('file', uploadFile);
           
           const uploadRes = await fetch('/api/upload', {
               method: 'POST',
@@ -550,8 +555,9 @@ export default function NotaSawitPage() {
                   return;
               }
           } else {
-             console.error('Upload request failed:', uploadRes.statusText);
-             toast.error('Gagal upload gambar: Server Error', { id: toastId });
+             const errText = await uploadRes.text().catch(() => '')
+             console.error('Upload request failed:', uploadRes.status, errText || uploadRes.statusText);
+             toast.error(`Gagal upload gambar (${uploadRes.status}): ${errText || uploadRes.statusText || 'Server Error'}`, { id: toastId });
              return;
           }
       }
@@ -571,6 +577,7 @@ export default function NotaSawitPage() {
         netto: formDataRaw.netto !== undefined ? Number(formDataRaw.netto) : undefined,
         pph25: formDataRaw.pph25 !== undefined ? Number(formDataRaw.pph25) : undefined,
         gambarNotaUrl: finalGambarUrl,
+        hapusGambar,
         isManual: !!formDataRaw.isManual,
         useTimbanganKebun: !!formDataRaw.useTimbanganKebun,
       };
