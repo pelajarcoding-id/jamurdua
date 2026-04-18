@@ -448,7 +448,12 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
       if (selectedFile) {
           // Use FormData for file upload instead of separate API call
           const formData = new FormData();
-          const converted = await convertImageFileToWebp(selectedFile, { quality: 0.82, maxDimension: 1280 })
+          const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''
+          const isAppleMobile = /iPhone|iPad|iPod/i.test(ua)
+          const isLarge = Number(selectedFile.size || 0) >= 4 * 1024 * 1024
+          const quality = isAppleMobile || isLarge ? 0.74 : 0.82
+          const maxDimension = isAppleMobile || isLarge ? 1024 : 1280
+          const converted = await convertImageFileToWebp(selectedFile, { quality, maxDimension })
           formData.append('file', converted);
           
           const uploadRes = await fetch('/api/upload', {
@@ -467,8 +472,9 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
                   toast.error(`Gagal upload gambar: ${uploadData.error}`);
               }
           } else {
-             console.error('Upload request failed:', uploadRes.statusText);
-             toast.error('Gagal upload gambar: Server Error');
+             const errText = await uploadRes.text().catch(() => '')
+             console.error('Upload request failed:', uploadRes.status, errText || uploadRes.statusText);
+             toast.error(`Gagal upload gambar (${uploadRes.status}): ${errText || uploadRes.statusText || 'Server Error'}`);
           }
       }
 

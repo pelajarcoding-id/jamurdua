@@ -34,7 +34,14 @@ export async function GET(request: Request) {
           where: {
             deletedAt: null,
             tanggalBongkar: { gte: startUtc, lt: endExclusiveUtc },
-            AND: [{ OR: [{ kebunId: k.id }, { timbangan: { kebunId: k.id } }] }],
+            AND: [
+              {
+                OR: [
+                  { timbangan: { kebunId: k.id } },
+                  { timbanganId: null, kebunId: k.id },
+                ],
+              },
+            ],
           },
           select: { kendaraanPlatNomor: true, totalPembayaran: true },
         })

@@ -1,5 +1,6 @@
 
 import webpush from 'web-push';
+import { prisma } from '@/lib/prisma'
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY
 const privateKey = process.env.VAPID_PRIVATE_KEY
@@ -23,7 +24,23 @@ export const sendPushNotification = async (
     );
     return true;
   } catch (error) {
-    console.error('Error sending push notification:', error);
+    const anyErr = error as any
+    const statusCode = Number(anyErr?.statusCode)
+    const endpoint = String(anyErr?.endpoint || subscription?.endpoint || '')
+
+    if (statusCode === 404 || statusCode === 410) {
+      try {
+        if (endpoint) {
+          await (prisma as any).pushSubscription.deleteMany({ where: { endpoint } })
+        }
+      } catch {}
+    }
+
+    console.error('Error sending push notification:', {
+      statusCode: Number.isFinite(statusCode) ? statusCode : undefined,
+      endpoint: endpoint || undefined,
+      body: anyErr?.body,
+    });
     return false;
   }
 };

@@ -65,6 +65,18 @@ interface PabrikSawitSummary {
 }
 
 export default function PabrikSawitClient() {
+  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const toWibYmd = useCallback((dt?: Date) => {
+    if (!dt) return ''
+    const wib = new Date(dt.getTime() + WIB_OFFSET_MS)
+    return `${wib.getUTCFullYear()}-${pad2(wib.getUTCMonth() + 1)}-${pad2(wib.getUTCDate())}`
+  }, [WIB_OFFSET_MS])
+  const getWibToday = useCallback(() => {
+    const now = new Date()
+    const wib = new Date(now.getTime() + WIB_OFFSET_MS)
+    return new Date(Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()))
+  }, [WIB_OFFSET_MS])
   const [data, setData] = useState<PabrikSawit[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -87,47 +99,46 @@ export default function PabrikSawitClient() {
 
   useEffect(() => {
     // Initialize dates on client side to avoid hydration mismatch
-    const today = new Date();
+    const today = getWibToday();
     const end = new Date(today);
-    const start = new Date(today.getFullYear(), 0, 1);
+    const start = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
     setQuickRange('this_year')
     setStartDate(start);
     setEndDate(end);
-  }, []);
+  }, [getWibToday]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const applyQuickRange = (val: string) => {
     setQuickRange(val);
-    const today = new Date();
-    const toDate = (d: Date) => d;
+    const today = getWibToday();
     
     if (val === 'today') {
       setStartDate(today);
       setEndDate(today);
     } else if (val === 'yesterday') {
       const y = new Date(today);
-      y.setDate(today.getDate() - 1);
+      y.setUTCDate(today.getUTCDate() - 1);
       setStartDate(y);
       setEndDate(y);
     } else if (val === 'last_week') {
       const end = new Date(today);
       const start = new Date(today);
-      start.setDate(today.getDate() - 7);
+      start.setUTCDate(today.getUTCDate() - 6);
       setStartDate(start);
       setEndDate(end);
     } else if (val === 'last_30_days') {
       const end = new Date(today);
       const start = new Date(today);
-      start.setDate(today.getDate() - 30);
+      start.setUTCDate(today.getUTCDate() - 29);
       setStartDate(start);
       setEndDate(end);
     } else if (val === 'this_month') {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
       setStartDate(start);
       setEndDate(today);
     } else if (val === 'this_year') {
-      const start = new Date(today.getFullYear(), 0, 1);
+      const start = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
       setStartDate(start);
       setEndDate(today);
     }
@@ -162,14 +173,14 @@ export default function PabrikSawitClient() {
         page: String(page),
         limit: String(limit),
         search: searchQuery,
-        ...(startDate && { startDate: startDate.toISOString() }),
-        ...(endDate && { endDate: endDate.toISOString() }),
+        ...(startDate && { startDate: toWibYmd(startDate) }),
+        ...(endDate && { endDate: toWibYmd(endDate) }),
       });
 
       const summaryParams = new URLSearchParams({
         search: searchQuery,
-        ...(startDate && { startDate: startDate.toISOString() }),
-        ...(endDate && { endDate: endDate.toISOString() }),
+        ...(startDate && { startDate: toWibYmd(startDate) }),
+        ...(endDate && { endDate: toWibYmd(endDate) }),
       });
 
       const [dataRes, summaryRes] = await Promise.all([
@@ -199,7 +210,7 @@ export default function PabrikSawitClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, searchQuery, startDate, endDate]);
+  }, [page, limit, searchQuery, startDate, endDate, toWibYmd]);
 
   useEffect(() => {
     fetchData();
