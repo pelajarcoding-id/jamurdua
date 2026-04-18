@@ -1343,6 +1343,165 @@ export default function NotaSawitPage() {
     doc.save(`pembayaran-nota-sawit-batch-${batchId}.pdf`)
   }, [reconcileDetail])
 
+  const handleExportPembayaranHistoryPdf = useCallback(async () => {
+    const toastId = toast.loading('Mempersiapkan PDF pembayaran...')
+    try {
+      const formatNumberLocal = (num: number) => new Intl.NumberFormat('id-ID').format(num)
+      const formatCurrencyLocal = (num: number) =>
+        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
+
+      const fetchAll = async () => {
+        const pageSize = 200
+        let page = 1
+        let total = 0
+        const all: any[] = []
+
+        while (true) {
+          const params = new URLSearchParams({ page: String(page), limit: String(pageSize) })
+          if (pembayaran.pembayaranPabrikId) params.append('pabrikId', String(pembayaran.pembayaranPabrikId))
+          if (String(pembayaran.pembayaranSearch || '').trim()) params.append('search', String(pembayaran.pembayaranSearch || '').trim())
+          if (pembayaran.pembayaranSort) params.append('sort', pembayaran.pembayaranSort)
+          if (pembayaran.pembayaranStartDate) params.append('startDate', pembayaran.pembayaranStartDate.toISOString())
+          if (pembayaran.pembayaranEndDate) params.append('endDate', pembayaran.pembayaranEndDate.toISOString())
+
+          const res = await fetch(`/api/nota-sawit/pembayaran-batch?${params.toString()}`, { cache: 'no-store' })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error((json as any)?.error || 'Gagal mengambil data pembayaran')
+          const rows = Array.isArray((json as any)?.data) ? (json as any).data : []
+          total = Math.max(total, Number((json as any)?.total || 0))
+          all.push(...rows)
+          if (rows.length < pageSize) break
+          if (total > 0 && all.length >= total) break
+          page += 1
+          if (page > 200) break
+        }
+
+        return { all, total }
+      }
+
+      const { all } = await fetchAll()
+      if (all.length === 0) {
+        toast.error('Tidak ada data pembayaran untuk diekspor.', { id: toastId })
+        return
+      }
+
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+      const pageW = doc.internal.pageSize.getWidth()
+      const marginX = 14
+      const headerH = 22
+
+      const pabrikName =
+        pembayaran.pembayaranPabrikId && Number(pembayaran.pembayaranPabrikId)
+          ? pabrikList.find((p) => Number(p.id) === Number(pembayaran.pembayaranPabrikId))?.name || 'Pabrik'
+          : 'Semua Pabrik'
+      const periodeText = pembayaran.pembayaranDateDisplay || 'Semua Periode'
+      const searchText = String(pembayaran.pembayaranSearch || '').trim()
+
+      doc.setFillColor(16, 185, 129)
+      doc.rect(0, 0, pageW, headerH, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text('Pembayaran Nota Sawit', marginX, 14)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text(`${pabrikName} • ${periodeText}`, marginX, 20)
+
+      doc.setTextColor(17, 24, 39)
+
+      const rows = all.map((b: any, idx: number) => {
+        const tanggal = b?.tanggal
+          ? new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+          : '-'
+        return [
+          idx + 1,
+          `#${b?.id ?? ''}`,
+          tanggal,
+          b?.pabrikSawit?.name || '-',
+          Math.round(Number(b?.count || 0)),
+          Math.round(Number(b?.totalTagihan || 0)),
+          Math.round(Number(b?.totalKasMasuk ?? (Number(b?.jumlahMasuk || 0) - Number(b?.adminBank || 0)))),
+          Math.round(Number(b?.selisih || 0)),
+        ]
+      })
+
+      const totalNota = all.reduce((sum: number, b: any) => sum + Math.round(Number(b?.count || 0)), 0)
+      const totalTagihan = all.reduce((sum: number, b: any) => sum + Math.round(Number(b?.totalTagihan || 0)), 0)
+      const totalKasMasuk = all.reduce(
+        (sum: number, b: any) =>
+          sum + Math.round(Number(b?.totalKasMasuk ?? (Number(b?.jumlahMasuk || 0) - Number(b?.adminBank || 0)))),
+        0,
+      )
+      const totalSelisih = all.reduce((sum: number, b: any) => sum + Math.round(Number(b?.selisih || 0)), 0)
+
+      autoTable(doc, {
+        startY: headerH + 8,
+        head: [['No', 'Batch', 'Tanggal Dibayar', 'Pabrik', 'Nota', 'Total Tagihan', 'Jumlah Ditransfer', 'Selisih']],
+        body: rows,
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: [16, 185, 129] },
+        columnStyles: {
+          0: { halign: 'right', cellWidth: 10, font: 'courier' },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 34 },
+          3: { cellWidth: 52 },
+          4: { halign: 'right', cellWidth: 16, font: 'courier' },
+          5: { halign: 'right', cellWidth: 32, font: 'courier' },
+          6: { halign: 'right', cellWidth: 32, font: 'courier' },
+          7: { halign: 'right', cellWidth: 28, font: 'courier' },
+        },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 0) {
+            data.cell.text = [formatNumberLocal(Number(data.cell.raw || 0))]
+          }
+          if (data.section === 'body' && data.column.index === 4) {
+            data.cell.text = [formatNumberLocal(Number(data.cell.raw || 0))]
+          }
+          if (data.section === 'body' && [5, 6, 7].includes(data.column.index)) {
+            data.cell.text = [formatCurrencyLocal(Number(data.cell.raw || 0))]
+          }
+          if (data.section === 'foot' && [5, 6, 7].includes(data.column.index)) {
+            data.cell.text = [formatCurrencyLocal(Number(data.cell.raw || 0))]
+          }
+          if (data.section === 'foot' && data.column.index === 4) {
+            data.cell.text = [formatNumberLocal(Number(data.cell.raw || 0))]
+          }
+        },
+        foot: [
+          [
+            { content: 'Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
+            totalNota,
+            totalTagihan,
+            totalKasMasuk,
+            totalSelisih,
+          ],
+        ],
+        footStyles: { fillColor: [249, 250, 251], textColor: [17, 24, 39], fontStyle: 'bold' },
+      })
+
+      if (searchText) {
+        const finalY = (doc as any).lastAutoTable?.finalY || headerH + 16
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(107, 114, 128)
+        doc.text(`Filter pencarian: ${searchText}`, marginX, Math.min(finalY + 8, doc.internal.pageSize.getHeight() - 10))
+      }
+
+      const startKey = pembayaran.toWibYmd(pembayaran.pembayaranStartDate) || 'all'
+      const endKey = pembayaran.toWibYmd(pembayaran.pembayaranEndDate) || 'all'
+      doc.save(`pembayaran-nota-sawit-${startKey}-sampai-${endKey}.pdf`)
+      toast.success('PDF pembayaran berhasil diunduh', { id: toastId })
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal export PDF pembayaran', { id: toastId })
+    }
+  }, [
+    pembayaran,
+    pabrikList,
+  ])
+
   const handleBulkPrint = async () => {
     const selectedIds = Object.keys(rowSelection);
     if (selectedIds.length === 0) {
@@ -2410,8 +2569,7 @@ export default function NotaSawitPage() {
             <PembayaranTab
               role={role}
               fetchReconcileHistory={pembayaran.fetchReconcileHistory}
-              onExportPdf={handleExportPembayaranBatchPdf}
-              exportPdfDisabled={!reconcileDetail?.id}
+              onExportPdf={handleExportPembayaranHistoryPdf}
               reconcileHistoryLoading={pembayaran.reconcileHistoryLoading}
               reconcileHistorySoftLoading={pembayaran.reconcileHistorySoftLoading}
               reconcileHistorySummary={pembayaran.reconcileHistorySummary}
@@ -2422,9 +2580,8 @@ export default function NotaSawitPage() {
               pembayaranPabrikId={pembayaran.pembayaranPabrikId}
               setPembayaranPabrikId={pembayaran.setPembayaranPabrikId}
               pabrikList={pabrikList}
-              pembayaranKebunId={pembayaran.pembayaranKebunId}
-              setPembayaranKebunId={pembayaran.setPembayaranKebunId}
-              kebunList={kebunList}
+              pembayaranSort={pembayaran.pembayaranSort}
+              setPembayaranSort={pembayaran.setPembayaranSort}
               pembayaranDateDisplay={pembayaran.pembayaranDateDisplay}
               pembayaranStartDate={pembayaran.pembayaranStartDate}
               pembayaranEndDate={pembayaran.pembayaranEndDate}

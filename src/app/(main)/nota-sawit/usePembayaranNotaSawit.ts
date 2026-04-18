@@ -13,10 +13,10 @@ export function usePembayaranNotaSawit(args: {
   const [pembayaranSearch, setPembayaranSearch] = useState('')
   const debouncedPembayaranSearch = useDebounce(pembayaranSearch, 250)
   const [pembayaranPabrikId, setPembayaranPabrikId] = useState<string>('')
-  const [pembayaranKebunId, setPembayaranKebunId] = useState<string>('')
   const [pembayaranStartDate, setPembayaranStartDate] = useState<Date | undefined>(undefined)
   const [pembayaranEndDate, setPembayaranEndDate] = useState<Date | undefined>(undefined)
   const [pembayaranQuickRange, setPembayaranQuickRange] = useState(defaultQuickRange)
+  const [pembayaranSort, setPembayaranSort] = useState<'tanggal' | 'batch'>('tanggal')
 
   const [reconcileHistoryLoading, setReconcileHistoryLoading] = useState(false)
   const [reconcileHistorySoftLoading, setReconcileHistorySoftLoading] = useState(false)
@@ -142,10 +142,9 @@ export function usePembayaranNotaSawit(args: {
         const controller = new AbortController()
         reconcileHistoryAbortRef.current = controller
         const pabrikId = pembayaranPabrikId ? String(pembayaranPabrikId) : ''
-        const kebunId = pembayaranKebunId ? String(pembayaranKebunId) : ''
         const params = new URLSearchParams({ page: String(reconcileHistoryPage), limit: String(reconcileHistoryLimit) })
         if (pabrikId) params.append('pabrikId', pabrikId)
-        if (kebunId) params.append('kebunId', kebunId)
+        if (pembayaranSort) params.append('sort', pembayaranSort)
         if (debouncedPembayaranSearch.trim()) params.append('search', debouncedPembayaranSearch.trim())
         if (pembayaranStartDate) params.append('startDate', pembayaranStartDate.toISOString())
         if (pembayaranEndDate) params.append('endDate', pembayaranEndDate.toISOString())
@@ -176,9 +175,9 @@ export function usePembayaranNotaSawit(args: {
     [
       debouncedPembayaranSearch,
       pembayaranEndDate,
-      pembayaranKebunId,
       pembayaranPabrikId,
       pembayaranStartDate,
+      pembayaranSort,
       reconcileHistoryLimit,
       reconcileHistoryPage,
     ],
@@ -194,8 +193,8 @@ export function usePembayaranNotaSawit(args: {
     setPembayaranSearch,
     pembayaranPabrikId,
     setPembayaranPabrikId,
-    pembayaranKebunId,
-    setPembayaranKebunId,
+    pembayaranSort,
+    setPembayaranSort,
     pembayaranStartDate,
     setPembayaranStartDate,
     pembayaranEndDate,

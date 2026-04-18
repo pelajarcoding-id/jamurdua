@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     const searchParam = url.searchParams.get('search')
     const startDateParam = url.searchParams.get('startDate')
     const endDateParam = url.searchParams.get('endDate')
+    const sortParam = String(url.searchParams.get('sort') || 'tanggal').trim().toLowerCase()
     const page = Math.max(1, Number(pageParam || 1))
     const limit = Math.min(200, Math.max(1, Number(limitParam || 20)))
     const pabrikSawitId = pabrikIdParam ? Number(pabrikIdParam) : null
@@ -192,6 +193,11 @@ export async function GET(request: Request) {
     const totalAllocatedSummary = Math.round(Number(s0.totalAllocated || 0))
     const totalSelisihSummary = Math.round(totalKasMasukSummary - totalAllocatedSummary)
 
+    const orderBy =
+      sortParam === 'batch'
+        ? [{ id: 'desc' }]
+        : [{ tanggal: 'desc' }, { id: 'desc' }]
+
     const batches = await (prisma as any).notaSawitPembayaranBatch.findMany({
       where,
       include: {
@@ -215,7 +221,7 @@ export async function GET(request: Request) {
           },
         },
       },
-      orderBy: { id: 'desc' },
+      orderBy,
       skip,
       take: limit,
     })

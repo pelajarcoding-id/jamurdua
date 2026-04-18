@@ -16,7 +16,6 @@ export function PembayaranTab(props: {
   role: string
   fetchReconcileHistory: () => void
   onExportPdf: () => void
-  exportPdfDisabled: boolean
   reconcileHistoryLoading: boolean
   reconcileHistorySoftLoading: boolean
   reconcileHistorySummary: any | null
@@ -27,9 +26,8 @@ export function PembayaranTab(props: {
   pembayaranPabrikId: string
   setPembayaranPabrikId: (v: string) => void
   pabrikList: ListOption[]
-  pembayaranKebunId: string
-  setPembayaranKebunId: (v: string) => void
-  kebunList: ListOption[]
+  pembayaranSort: 'tanggal' | 'batch'
+  setPembayaranSort: (v: 'tanggal' | 'batch') => void
   pembayaranDateDisplay: string
   pembayaranStartDate?: Date
   pembayaranEndDate?: Date
@@ -56,7 +54,6 @@ export function PembayaranTab(props: {
     role,
     fetchReconcileHistory,
     onExportPdf,
-    exportPdfDisabled,
     reconcileHistoryLoading,
     reconcileHistorySoftLoading,
     reconcileHistorySummary,
@@ -67,9 +64,8 @@ export function PembayaranTab(props: {
     pembayaranPabrikId,
     setPembayaranPabrikId,
     pabrikList,
-    pembayaranKebunId,
-    setPembayaranKebunId,
-    kebunList,
+    pembayaranSort,
+    setPembayaranSort,
     pembayaranDateDisplay,
     pembayaranStartDate,
     pembayaranEndDate,
@@ -130,15 +126,14 @@ export function PembayaranTab(props: {
           </Button>
           <Button
             variant="outline"
-            size="icon"
             className={cn(
-              'rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700',
-              exportPdfDisabled ? 'opacity-50' : '',
+              'rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-4 w-auto',
             )}
             onClick={onExportPdf}
-            title={exportPdfDisabled ? 'Pilih batch dulu untuk export PDF' : 'Export PDF'}
+            title="Export PDF"
           >
-            <ArrowDownTrayIcon className="w-5 h-5" />
+            <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
+            Export PDF
           </Button>
           <Button onClick={handleOpenBulkReconcileEmpty} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
             <PlusIcon className="w-4 h-4 mr-2" />
@@ -249,22 +244,19 @@ export function PembayaranTab(props: {
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold uppercase text-gray-500">Kebun</Label>
+          <Label className="text-xs font-semibold uppercase text-gray-500">Urutkan</Label>
           <select
-            value={pembayaranKebunId}
+            value={pembayaranSort}
             onChange={(e) => {
-              setPembayaranKebunId(e.target.value)
+              const v = (e.target.value || 'tanggal') as any
+              setPembayaranSort(v === 'batch' ? 'batch' : 'tanggal')
               setReconcileHistoryPage(1)
             }}
             className="w-full input-style rounded-xl border-gray-200 h-10"
             disabled={reconcileHistoryLoading}
           >
-            <option value="">Semua Kebun</option>
-            {kebunList.map((kebun: any) => (
-              <option key={kebun.id} value={kebun.id}>
-                {kebun.name}
-              </option>
-            ))}
+            <option value="tanggal">Tanggal Transfer</option>
+            <option value="batch">Batch</option>
           </select>
         </div>
         <div className="space-y-1.5">
