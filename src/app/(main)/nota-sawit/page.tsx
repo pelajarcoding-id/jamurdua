@@ -1258,8 +1258,8 @@ export default function NotaSawitPage() {
         4: { cellWidth: 30 },
         5: { halign: 'right', cellWidth: 20, font: 'courier' },
         6: { halign: 'right', cellWidth: 22, font: 'courier' },
-        7: { halign: 'right', cellWidth: 28, font: 'courier' },
-        8: { cellWidth: 53, overflow: 'linebreak' },
+        7: { halign: 'right', cellWidth: 34, font: 'courier' },
+        8: { cellWidth: 47, overflow: 'linebreak' },
       },
       didParseCell: (data: any) => {
         if (data?.column?.index === 5) {
