@@ -1522,9 +1522,15 @@ export default function NotaSawitPage() {
           }
           if (data.section === 'foot' && [5, 6, 7].includes(data.column.index)) {
             data.cell.text = [formatCurrencyLocal(Number(data.cell.raw || 0))]
+            data.cell.styles.halign = 'right'
+            data.cell.styles.font = 'courier'
+            data.cell.styles.fontStyle = 'bold'
           }
           if (data.section === 'foot' && data.column.index === 4) {
             data.cell.text = [formatNumberLocal(Number(data.cell.raw || 0))]
+            data.cell.styles.halign = 'right'
+            data.cell.styles.font = 'courier'
+            data.cell.styles.fontStyle = 'bold'
           }
         },
         foot: [
