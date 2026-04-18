@@ -1172,10 +1172,17 @@ export default function NotaSawitPage() {
       ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
       : '-'
     const pabrikName = String(reconcileDetail?.pabrikSawit?.name || '-')
-    const jumlahNota = formatNumberLocal(Number(reconcileDetail?.count || 0))
-    const totalTagihan = Number(reconcileDetail?.totalTagihan || 0)
-    const jumlahDitransfer = Number(reconcileDetail?.jumlahMasuk || 0)
-    const selisih = Number(reconcileDetail?.selisih || 0)
+    const toNum = (v: any) => {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : 0
+    }
+    const countNum = Math.round(toNum(reconcileDetail?.count))
+    const totalTagihanFromItems = (Array.isArray(reconcileDetail?.items) ? reconcileDetail.items : []).reduce((sum: number, it: any) => sum + Math.round(toNum(it?.tagihanNet)), 0)
+    const totalTagihan = Math.round(toNum(reconcileDetail?.totalTagihan || totalTagihanFromItems))
+    const jumlahDitransfer = Math.round(toNum(reconcileDetail?.jumlahMasuk))
+    const selisihComputed = Math.round(jumlahDitransfer - totalTagihan)
+    const selisih = Math.round(toNum(reconcileDetail?.selisih ?? selisihComputed))
+    const jumlahNota = formatNumberLocal(countNum)
     const keteranganText = reconcileDetail?.keterangan ? String(reconcileDetail.keterangan) : ''
 
     doc.setFillColor(16, 185, 129)
@@ -1365,6 +1372,10 @@ export default function NotaSawitPage() {
       const formatNumberLocal = (num: number) => new Intl.NumberFormat('id-ID').format(num)
       const formatCurrencyLocal = (num: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
+      const toNum = (v: any) => {
+        const n = Number(v)
+        return Number.isFinite(n) ? n : 0
+      }
 
       const fetchAll = async () => {
         const pageSize = 200
@@ -1432,27 +1443,27 @@ export default function NotaSawitPage() {
         const tanggal = b?.tanggal
           ? new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
           : '-'
+        const count = Math.round(toNum(b?.count))
+        const totalTagihan = Math.round(toNum(b?.totalTagihan))
+        const kasMasuk = Math.round(toNum(b?.totalKasMasuk ?? (toNum(b?.jumlahMasuk) - toNum(b?.adminBank))))
+        const selisih = Math.round(toNum(b?.selisih ?? (kasMasuk - totalTagihan)))
         return [
           idx + 1,
           `#${b?.id ?? ''}`,
           tanggal,
           b?.pabrikSawit?.name || '-',
-          Math.round(Number(b?.count || 0)),
-          Math.round(Number(b?.totalTagihan || 0)),
-          Math.round(Number(b?.totalKasMasuk ?? (Number(b?.jumlahMasuk || 0) - Number(b?.adminBank || 0)))),
-          Math.round(Number(b?.selisih || 0)),
+          count,
+          totalTagihan,
+          kasMasuk,
+          selisih,
           b?.keterangan ? String(b.keterangan) : '-',
         ]
       })
 
-      const totalNota = all.reduce((sum: number, b: any) => sum + Math.round(Number(b?.count || 0)), 0)
-      const totalTagihan = all.reduce((sum: number, b: any) => sum + Math.round(Number(b?.totalTagihan || 0)), 0)
-      const totalKasMasuk = all.reduce(
-        (sum: number, b: any) =>
-          sum + Math.round(Number(b?.totalKasMasuk ?? (Number(b?.jumlahMasuk || 0) - Number(b?.adminBank || 0)))),
-        0,
-      )
-      const totalSelisih = all.reduce((sum: number, b: any) => sum + Math.round(Number(b?.selisih || 0)), 0)
+      const totalNota = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.count)), 0)
+      const totalTagihan = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.totalTagihan)), 0)
+      const totalKasMasuk = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.totalKasMasuk ?? (toNum(b?.jumlahMasuk) - toNum(b?.adminBank)))), 0)
+      const totalSelisih = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.selisih)), 0)
 
       autoTable(doc, {
         startY: headerH + 8,
