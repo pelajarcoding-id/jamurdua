@@ -1248,6 +1248,10 @@ export default function NotaSawitPage() {
       const ket = keteranganText ? keteranganText : '-'
       return [tanggalText, kebunName, tglNota, plat, supirName, beratAkhir, hargaPerKg, nominal, ket]
     })
+    const totalBeratAkhir = (Array.isArray(reconcileDetail?.items) ? reconcileDetail.items : []).reduce(
+      (sum: number, i: any) => sum + Math.round(Number(i?.nota?.beratAkhir || 0)),
+      0,
+    )
 
     autoTable(doc, {
       startY: cardY + cardH + 10,
@@ -1311,7 +1315,9 @@ export default function NotaSawitPage() {
       },
       foot: [
         [
-          { content: 'Total Jumlah', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: 'Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: `${formatNumberLocal(Math.round(totalBeratAkhir))} Kg`, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+          { content: '' },
           { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
           { content: '' },
         ],
@@ -1462,11 +1468,20 @@ export default function NotaSawitPage() {
 
       const totalNota = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.count)), 0)
       const totalTagihan = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.totalTagihan)), 0)
-      const totalKasMasuk = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.totalKasMasuk ?? (toNum(b?.jumlahMasuk) - toNum(b?.adminBank)))), 0)
-      const totalSelisih = all.reduce((sum: number, b: any) => sum + Math.round(toNum(b?.selisih)), 0)
+      const totalKasMasuk = all.reduce(
+        (sum: number, b: any) => sum + Math.round(toNum(b?.totalKasMasuk ?? (toNum(b?.jumlahMasuk) - toNum(b?.adminBank)))),
+        0,
+      )
+      const totalSelisih = all.reduce((sum: number, b: any) => {
+        const tagihan = Math.round(toNum(b?.totalTagihan))
+        const kasMasuk = Math.round(toNum(b?.totalKasMasuk ?? (toNum(b?.jumlahMasuk) - toNum(b?.adminBank))))
+        const selisih = Math.round(toNum(b?.selisih ?? (kasMasuk - tagihan)))
+        return sum + selisih
+      }, 0)
 
       autoTable(doc, {
         startY: headerH + 8,
+        showFoot: 'lastPage',
         head: [['No', 'Batch', 'Tanggal Dibayar', 'Pabrik', 'Nota', 'Total Tagihan', 'Jumlah Ditransfer', 'Selisih', 'Keterangan']],
         body: rows,
         styles: { font: 'helvetica', fontSize: 9, cellPadding: 2 },
@@ -1502,10 +1517,10 @@ export default function NotaSawitPage() {
         foot: [
           [
             { content: 'Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
-            { content: formatNumberLocal(totalNota), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: formatCurrencyLocal(totalKasMasuk), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
-            { content: formatCurrencyLocal(totalSelisih), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: totalNota, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: totalTagihan, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: totalKasMasuk, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: totalSelisih, styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
             { content: '' },
           ],
         ],

@@ -767,7 +767,15 @@ export default function NotaSawitPageModals(props: {
                       })}
                     </div>
                     <div className="px-3 py-2 text-xs bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                      <div className="text-gray-500">Total Jumlah</div>
+                      <div className="text-gray-500">
+                        Total Berat Akhir:{' '}
+                        <span className="font-semibold text-gray-800">
+                          {formatNumber(
+                            (reconcileDetail.items as any[]).reduce((sum: number, i: any) => sum + Math.round(Number(i?.nota?.beratAkhir || 0)), 0),
+                          )}{' '}
+                          Kg
+                        </span>
+                      </div>
                       <div className="font-extrabold text-gray-900 tabular-nums">
                         {formatCurrency(
                           (reconcileDetail.items as any[]).reduce((sum: number, i: any) => sum + Math.round(Number(i?.tagihanNet || 0)), 0),
