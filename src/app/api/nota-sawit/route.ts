@@ -372,13 +372,10 @@ export async function POST(request: Request) {
     const pph25 = roundInt(body.pph25 || 0);
     const pembayaranSetelahPph = totalPembayaran - pph - pph25;
 
-    if (!forceDuplicate && tanggalBongkarYmd) {
-      const start = wibStartUtc(tanggalBongkarYmd)
-      const end = wibEndExclusiveUtc(tanggalBongkarYmd)
+    if (!forceDuplicate) {
       const duplicates = await prisma.notaSawit.findMany({
         where: {
           deletedAt: null,
-          tanggalBongkar: { gte: start, lt: end },
           pabrikSawitId,
           supirId,
           kendaraanPlatNomor,
@@ -401,7 +398,7 @@ export async function POST(request: Request) {
       if (duplicates.length > 0) {
         return NextResponse.json(
           {
-            error: 'Kemungkinan duplikat nota ditemukan',
+            error: 'Kemungkinan duplikat nota ditemukan (tanggal bongkar bisa berbeda)',
             code: 'DUPLICATE_NOTA',
             duplicates: duplicates.map((d) => ({
               id: d.id,

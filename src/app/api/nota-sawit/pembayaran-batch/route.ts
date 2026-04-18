@@ -347,48 +347,65 @@ export async function POST(request: Request) {
       return Array.from(idsSet).filter((n) => Number.isFinite(n) && n > 0)
     }
 
-    if (uniqueIds.length === 0) {
-      return NextResponse.json({ error: 'Pilih minimal 1 nota' }, { status: 400 })
-    }
     if (!['PROPORSIONAL', 'RATA', 'SATU_NOTA'].includes(metodeAlokasi)) {
       return NextResponse.json({ error: 'Metode alokasi tidak valid' }, { status: 400 })
     }
 
-    const notas = await prisma.notaSawit.findMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
-      include: {
-        timbangan: { select: { kebunId: true } },
-        pabrikSawit: true,
-        supir: true,
-      },
-    })
+    let pabrikSawitId = 0
+    let pabrikNameForDesc = 'Pabrik'
+    let notas: any[] = []
+    let entries: any[] = []
 
-    if (notas.length === 0) {
-      return NextResponse.json({ error: 'Nota tidak ditemukan' }, { status: 404 })
-    }
-
-    const pabrikSawitId = Number((notas[0] as any).pabrikSawitId)
-    if (!Number.isFinite(pabrikSawitId) || pabrikSawitId <= 0) {
-      return NextResponse.json({ error: 'Pabrik nota tidak valid' }, { status: 400 })
-    }
-
-    const mismatch = notas.some((n: any) => Number(n.pabrikSawitId) !== pabrikSawitId)
-    if (mismatch) {
-      return NextResponse.json({ error: 'Nota terpilih harus dari pabrik yang sama' }, { status: 400 })
-    }
-
-    const entries = notas.map((n: any) => {
-      const tagihanNet = roundInt(n.pembayaranSetelahPph ?? n.totalPembayaran ?? 0)
-      return {
-        notaId: Number(n.id),
-        tagihanNet,
-        kendaraanPlatNomor: String(n.kendaraanPlatNomor || ''),
-        tanggalBongkar: n.tanggalBongkar ? new Date(n.tanggalBongkar) : null,
-        supirName: String(n.supir?.name || ''),
-        pabrikName: String(n.pabrikSawit?.name || ''),
-        kebunId: Number((n as any).timbangan?.kebunId || (n as any).kebunId || 0),
+    if (uniqueIds.length === 0) {
+      const pabrikIdBody = Number(body?.pabrikSawitId || body?.pabrikId || 0)
+      if (!Number.isFinite(pabrikIdBody) || pabrikIdBody <= 0) {
+        return NextResponse.json({ error: 'Pabrik batch tidak valid' }, { status: 400 })
       }
-    })
+      const pabrik = await prisma.pabrikSawit.findFirst({ where: { id: pabrikIdBody }, select: { id: true, name: true } })
+      if (!pabrik) {
+        return NextResponse.json({ error: 'Pabrik tidak ditemukan' }, { status: 404 })
+      }
+      pabrikSawitId = pabrik.id
+      pabrikNameForDesc = pabrik.name
+    } else {
+      notas = await prisma.notaSawit.findMany({
+        where: { id: { in: uniqueIds }, deletedAt: null },
+        include: {
+          timbangan: { select: { kebunId: true } },
+          pabrikSawit: true,
+          supir: true,
+        },
+      })
+
+      if (notas.length === 0) {
+        return NextResponse.json({ error: 'Nota tidak ditemukan' }, { status: 404 })
+      }
+
+      pabrikSawitId = Number((notas[0] as any).pabrikSawitId)
+      if (!Number.isFinite(pabrikSawitId) || pabrikSawitId <= 0) {
+        return NextResponse.json({ error: 'Pabrik nota tidak valid' }, { status: 400 })
+      }
+
+      const mismatch = notas.some((n: any) => Number(n.pabrikSawitId) !== pabrikSawitId)
+      if (mismatch) {
+        return NextResponse.json({ error: 'Nota terpilih harus dari pabrik yang sama' }, { status: 400 })
+      }
+
+      pabrikNameForDesc = String((notas[0] as any)?.pabrikSawit?.name || pabrikNameForDesc)
+
+      entries = notas.map((n: any) => {
+        const tagihanNet = roundInt(n.pembayaranSetelahPph ?? n.totalPembayaran ?? 0)
+        return {
+          notaId: Number(n.id),
+          tagihanNet,
+          kendaraanPlatNomor: String(n.kendaraanPlatNomor || ''),
+          tanggalBongkar: n.tanggalBongkar ? new Date(n.tanggalBongkar) : null,
+          supirName: String(n.supir?.name || ''),
+          pabrikName: String(n.pabrikSawit?.name || ''),
+          kebunId: Number((n as any).timbangan?.kebunId || (n as any).kebunId || 0),
+        }
+      })
+    }
 
     const totalTagihan = entries.reduce((sum, e) => sum + (e.tagihanNet || 0), 0)
     const nCount = entries.length
@@ -442,6 +459,7 @@ export async function POST(request: Request) {
     })
     const totalAllocated = computed.reduce((sum, e) => sum + e.pembayaranAktual, 0)
     const totalKasMasuk = Math.max(0, roundInt(jumlahMasuk - adminBank))
+    const setLunasEffective = uniqueIds.length > 0 && setLunas
 
     const result = await prisma.$transaction(async (tx) => {
       const pemilik = await tx.user.findFirst({ where: { role: 'PEMILIK' }, select: { id: true } })
@@ -463,25 +481,29 @@ export async function POST(request: Request) {
         select: { id: true },
       })
 
-      await (tx as any).notaSawitPembayaranBatchItem.createMany({
-        data: computed.map((c) => ({
-          batchId: batch.id,
-          notaSawitId: c.notaId,
-          tagihanNet: c.tagihanNet,
-          adminAllocated: c.adminAllocated,
-          pembayaranAktual: c.pembayaranAktual,
-        })),
-      })
+      if (computed.length > 0) {
+        await (tx as any).notaSawitPembayaranBatchItem.createMany({
+          data: computed.map((c) => ({
+            batchId: batch.id,
+            notaSawitId: c.notaId,
+            tagihanNet: c.tagihanNet,
+            adminAllocated: c.adminAllocated,
+            pembayaranAktual: c.pembayaranAktual,
+          })),
+        })
+      }
 
-      await tx.notaSawit.updateMany({
-        where: { id: { in: computed.map((c) => c.notaId) } },
-        data: {
-          pembayaranAktual: null,
-          ...(setLunas ? { statusPembayaran: 'LUNAS' } : {}),
-        } as any,
-      })
+      if (computed.length > 0) {
+        await tx.notaSawit.updateMany({
+          where: { id: { in: computed.map((c) => c.notaId) } },
+          data: {
+            pembayaranAktual: null,
+            ...(setLunasEffective ? { statusPembayaran: 'LUNAS' } : {}),
+          } as any,
+        })
+      }
 
-      if (setLunas) {
+      if (setLunasEffective) {
         const notaIds = computed.map((c) => c.notaId)
 
         const kasIds = await findKasIdsByNota(tx, notaIds)
@@ -495,8 +517,7 @@ export async function POST(request: Request) {
 
         const kebunIds = Array.from(new Set(computed.map((c) => Number(c.kebunId)).filter((n) => Number.isFinite(n) && n > 0)))
         const kebunId = kebunIds.length === 1 ? kebunIds[0] : null
-        const pabrikName = String((notas[0] as any)?.pabrikSawit?.name || 'Pabrik')
-        const description = `Uang Nota Sawit - ${pabrikName}`
+        const description = `Uang Nota Sawit - ${pabrikNameForDesc}`
         const transferDateText = new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(tanggal)
         const periodeNotaText = (() => {
           const dates = computed
@@ -578,6 +599,45 @@ export async function POST(request: Request) {
         })
       }
 
+      if (!setLunasEffective && uniqueIds.length === 0 && totalKasMasuk > 0) {
+        const description = `Uang Nota Sawit - ${pabrikNameForDesc}`
+        const kasTrx = await tx.kasTransaksi.create({
+          data: {
+            date: tanggal,
+            tipe: 'PEMASUKAN',
+            deskripsi: description,
+            jumlah: totalKasMasuk,
+            kategori: 'PENJUALAN_SAWIT',
+            keterangan: keterangan || null,
+            userId: transactionUserId,
+            notaSawitPembayaranBatchId: batch.id,
+          } as any,
+        })
+
+        await tx.jurnal.createMany({
+          data: [
+            {
+              date: kasTrx.date,
+              akun: 'Kas',
+              deskripsi: description,
+              debit: totalKasMasuk,
+              kredit: 0,
+              refType: 'KasTransaksi',
+              refId: kasTrx.id,
+            },
+            {
+              date: kasTrx.date,
+              akun: 'Pendapatan Sawit',
+              deskripsi: description,
+              debit: 0,
+              kredit: totalKasMasuk,
+              refType: 'KasTransaksi',
+              refId: kasTrx.id,
+            },
+          ],
+        })
+      }
+
       await createAuditLog(guard.id, 'CREATE', 'NotaSawitPembayaranBatch', String(batch.id), {
         pabrikSawitId,
         tanggal: tanggal.toISOString(),
@@ -585,7 +645,7 @@ export async function POST(request: Request) {
         adminBank,
         metodeAlokasi,
         bebankanNotaId: bebankanNotaId || null,
-        setLunas,
+        setLunas: setLunasEffective,
         count: computed.length,
         totalTagihan,
         totalKasMasuk,

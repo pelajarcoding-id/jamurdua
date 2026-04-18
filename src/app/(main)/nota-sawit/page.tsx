@@ -1092,8 +1092,8 @@ export default function NotaSawitPage() {
 
   const handleBulkReconcileSubmit = useCallback(async () => {
     const selectedIds = reconcileNotaIds
-    if (selectedIds.length === 0) {
-      toast.error('Pilih minimal 1 nota untuk direkonsiliasi.')
+    if (!reconcilePabrikId) {
+      toast.error('Pilih pabrik terlebih dahulu.')
       return
     }
 
@@ -1125,9 +1125,10 @@ export default function NotaSawitPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ids: selectedIds,
+          pabrikSawitId: reconcilePabrikId,
           tanggal: reconcileTanggal,
           jumlahMasuk,
-          setLunas: reconcileSetLunas,
+          setLunas: selectedIds.length > 0 ? reconcileSetLunas : false,
           keterangan: reconcileKeterangan,
           gambarUrl: finalGambarUrl,
         }),
@@ -1148,7 +1149,7 @@ export default function NotaSawitPage() {
     } finally {
       setReconcileSubmitting(false)
     }
-  }, [pembayaran.fetchReconcileHistory, reconcileGambarFile, reconcileJumlahMasuk, reconcileKeterangan, reconcileNotaIds, reconcileSetLunas, reconcileTanggal, refreshData, selectedStatus])
+  }, [pembayaran.fetchReconcileHistory, reconcileGambarFile, reconcileJumlahMasuk, reconcileKeterangan, reconcileNotaIds, reconcilePabrikId, reconcileSetLunas, reconcileTanggal, refreshData, selectedStatus])
 
   const handleExportPembayaranBatchPdf = useCallback(async () => {
     if (!reconcileDetail?.id) {
@@ -1175,6 +1176,7 @@ export default function NotaSawitPage() {
     const totalTagihan = Number(reconcileDetail?.totalTagihan || 0)
     const jumlahDitransfer = Number(reconcileDetail?.jumlahMasuk || 0)
     const selisih = Number(reconcileDetail?.selisih || 0)
+    const keteranganText = reconcileDetail?.keterangan ? String(reconcileDetail.keterangan) : ''
 
     doc.setFillColor(16, 185, 129)
     doc.rect(0, 0, pageW, 28, 'F')
@@ -1194,7 +1196,14 @@ export default function NotaSawitPage() {
     doc.setFontSize(11)
     doc.text(`Ditransfer: ${tanggalText} • ${jumlahNota} nota`, marginX, 45)
 
-    const cardY = 52
+    doc.setFontSize(10)
+    doc.setTextColor(107, 114, 128)
+    const ketLineHeight = 5
+    const ketRaw = `Keterangan: ${keteranganText ? keteranganText : '-'}`
+    const ketLines = (doc as any).splitTextToSize ? (doc as any).splitTextToSize(ketRaw, contentW) : [ketRaw]
+    doc.text(ketLines, marginX, 51)
+
+    const cardY = 51 + ketLines.length * ketLineHeight + 2
     const cardGap = 4
     const cardW = (contentW - cardGap * 2) / 3
     const cardH = 22
@@ -1425,6 +1434,7 @@ export default function NotaSawitPage() {
           Math.round(Number(b?.totalTagihan || 0)),
           Math.round(Number(b?.totalKasMasuk ?? (Number(b?.jumlahMasuk || 0) - Number(b?.adminBank || 0)))),
           Math.round(Number(b?.selisih || 0)),
+          b?.keterangan ? String(b.keterangan) : '-',
         ]
       })
 
@@ -1439,7 +1449,7 @@ export default function NotaSawitPage() {
 
       autoTable(doc, {
         startY: headerH + 8,
-        head: [['No', 'Batch', 'Tanggal Dibayar', 'Pabrik', 'Nota', 'Total Tagihan', 'Jumlah Ditransfer', 'Selisih']],
+        head: [['No', 'Batch', 'Tanggal Dibayar', 'Pabrik', 'Nota', 'Total Tagihan', 'Jumlah Ditransfer', 'Selisih', 'Keterangan']],
         body: rows,
         styles: { font: 'helvetica', fontSize: 9, cellPadding: 2 },
         headStyles: { fillColor: [16, 185, 129] },
@@ -1447,11 +1457,12 @@ export default function NotaSawitPage() {
           0: { halign: 'right', cellWidth: 10, font: 'courier' },
           1: { cellWidth: 16 },
           2: { cellWidth: 34 },
-          3: { cellWidth: 52 },
+          3: { cellWidth: 46 },
           4: { halign: 'right', cellWidth: 16, font: 'courier' },
           5: { halign: 'right', cellWidth: 32, font: 'courier' },
           6: { halign: 'right', cellWidth: 32, font: 'courier' },
           7: { halign: 'right', cellWidth: 28, font: 'courier' },
+          8: { cellWidth: 68 },
         },
         didParseCell: (data: any) => {
           if (data.section === 'body' && data.column.index === 0) {
@@ -1477,6 +1488,7 @@ export default function NotaSawitPage() {
             totalTagihan,
             totalKasMasuk,
             totalSelisih,
+            '',
           ],
         ],
         footStyles: { fillColor: [249, 250, 251], textColor: [17, 24, 39], fontStyle: 'bold' },
@@ -2036,6 +2048,18 @@ export default function NotaSawitPage() {
             </div>
           )
         },
+      },
+      {
+        id: 'keterangan',
+        header: 'Keterangan',
+        cell: ({ row }) => (
+          <div
+            className="text-gray-700 truncate max-w-[280px] whitespace-nowrap"
+            title={row.original?.keterangan || ''}
+          >
+            {row.original?.keterangan || '-'}
+          </div>
+        ),
       },
     ]
   }, [cn, formatCurrency, formatNumber])
