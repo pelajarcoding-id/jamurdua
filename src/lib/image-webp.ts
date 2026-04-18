@@ -1,9 +1,10 @@
 export async function convertImageFileToWebp(
   file: File,
-  options?: { quality?: number; maxDimension?: number }
+  options?: { quality?: number; maxDimension?: number; targetMaxBytes?: number }
 ): Promise<File> {
   const quality = typeof options?.quality === 'number' ? options!.quality : 0.82
   const maxDimension = typeof options?.maxDimension === 'number' ? options!.maxDimension : 1280
+  const targetMaxBytes = typeof options?.targetMaxBytes === 'number' ? options!.targetMaxBytes : 0
 
   if (!file) return file
   if (typeof window === 'undefined') return file
@@ -41,33 +42,61 @@ export async function convertImageFileToWebp(
     const dstH = Math.max(1, Math.round(srcH * scale))
 
     const canvas = document.createElement('canvas')
-    canvas.width = dstW
-    canvas.height = dstH
     const ctx = canvas.getContext('2d')
     if (!ctx) return file
-    
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'medium' // 'medium' often uses less memory than 'high'
-    ctx.drawImage(imgSource as any, 0, 0, dstW, dstH)
 
-    const blobWebp: Blob | null = await new Promise((resolve) => {
-      canvas.toBlob((b) => resolve(b), 'image/webp', quality)
-    })
+    const drawAndEncode = async (mimeType: 'image/webp' | 'image/jpeg') => {
+      let currentW = dstW
+      let currentH = dstH
+      let currentQ = quality
+      let lastBlob: Blob | null = null
 
+      for (let i = 0; i < 8; i++) {
+        canvas.width = currentW
+        canvas.height = currentH
+        ctx.clearRect(0, 0, currentW, currentH)
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'medium'
+        ctx.drawImage(imgSource as any, 0, 0, currentW, currentH)
+
+        const blob: Blob | null = await new Promise((resolve) => {
+          canvas.toBlob((b) => resolve(b), mimeType, currentQ)
+        })
+        if (!blob) continue
+        lastBlob = blob
+
+        if (!targetMaxBytes || blob.size <= targetMaxBytes) {
+          return blob
+        }
+
+        if (currentQ > 0.56) {
+          currentQ = Math.max(0.56, currentQ - 0.08)
+        } else {
+          const nextW = Math.max(640, Math.round(currentW * 0.85))
+          const nextH = Math.max(640, Math.round(currentH * 0.85))
+          if (nextW === currentW || nextH === currentH) break
+          currentW = nextW
+          currentH = nextH
+        }
+      }
+
+      return lastBlob
+    }
+
+    const blobWebp = await drawAndEncode('image/webp')
     if (blobWebp) {
       const base = file.name.replace(/\.[^/.]+$/, '')
       const outName = `${base || 'image'}.webp`
       return new File([blobWebp], outName, { type: 'image/webp' })
     }
 
-    const blobJpeg: Blob | null = await new Promise((resolve) => {
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality)
-    })
-    if (!blobJpeg) return file
-
-    const base = file.name.replace(/\.[^/.]+$/, '')
-    const outName = `${base || 'image'}.jpg`
-    return new File([blobJpeg], outName, { type: 'image/jpeg' })
+    const blobJpeg = await drawAndEncode('image/jpeg')
+    if (blobJpeg) {
+      const base = file.name.replace(/\.[^/.]+$/, '')
+      const outName = `${base || 'image'}.jpg`
+      return new File([blobJpeg], outName, { type: 'image/jpeg' })
+    }
+    return file
   } catch (err) {
     console.error('WebP conversion error:', err)
     return file

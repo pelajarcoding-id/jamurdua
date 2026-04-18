@@ -453,7 +453,8 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
           const isLarge = Number(selectedFile.size || 0) >= 4 * 1024 * 1024
           const quality = isAppleMobile || isLarge ? 0.74 : 0.82
           const maxDimension = isAppleMobile || isLarge ? 1024 : 1280
-          const converted = await convertImageFileToWebp(selectedFile, { quality, maxDimension })
+          const targetMaxBytes = isAppleMobile ? 850 * 1024 : 1200 * 1024
+          const converted = await convertImageFileToWebp(selectedFile, { quality, maxDimension, targetMaxBytes })
           formData.append('file', converted);
           
           const uploadRes = await fetch('/api/upload', {
