@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table'
 
-import type { NotaSawit, Timbangan, Kebun, User, Kendaraan, PabrikSawit } from '@prisma/client'
+import type { NotaSawit, Timbangan, Kebun, User, Kendaraan, PabrikSawit, Perusahaan } from '@prisma/client'
 import ModalUbah from './modal';
 import { EllipsisHorizontalIcon, EyeIcon } from "@heroicons/react/24/outline"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ export type NotaSawitData = NotaSawit & {
   kendaraan: Kendaraan | null;
   kendaraanPlatNomor: string | null;
   pabrikSawit: PabrikSawit;
+  perusahaan?: Perusahaan | null;
   tanggalBongkar?: Date | null;
   pembayaranAktual?: number | null;
   pph25?: number | null;
@@ -230,6 +231,18 @@ export const columns: ColumnDef<NotaSawitData>[] = [
           <EyeIcon className="h-4 w-4" />
         </Button>
       ) : '-';
+    },
+  },
+  {
+    id: 'perusahaan',
+    header: 'Perusahaan',
+    cell: ({ row }) => {
+      const name = (row.original as any)?.perusahaan?.name
+      return (
+        <div className="max-w-[220px] truncate" title={String(name || '')}>
+          {name ? String(name) : '-'}
+        </div>
+      )
     },
   },
   {

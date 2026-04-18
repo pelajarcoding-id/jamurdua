@@ -32,6 +32,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         supir: true,
         kendaraan: true,
         pabrikSawit: true,
+        perusahaan: true,
         pembayaranBatchItems: {
           include: { batch: { select: { id: true, tanggal: true, jumlahMasuk: true, adminBank: true, metodeAlokasi: true } } },
           orderBy: { id: 'desc' },

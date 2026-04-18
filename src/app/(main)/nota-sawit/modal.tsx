@@ -265,14 +265,19 @@ export default function ModalNota({ nota, isOpen, onClose, onSave }: ModalNotaPr
     }
 
     const selectedPabrik = (pabrikSawitList as any[]).find((p: any) => Number(p?.id) === pabrikId) as any
+    if (!selectedPabrik) return
     const options = Array.isArray(selectedPabrik?.perusahaanOptions) ? selectedPabrik.perusahaanOptions : []
     if (options.length === 1) {
       const onlyId = Number(options[0]?.id || 0)
       if (onlyId > 0 && Number((formData as any).perusahaanId || 0) !== onlyId) {
         setFormData((prev: any) => ({ ...prev, perusahaanId: onlyId }))
       }
-    } else if (options.length === 0) {
-      if ((formData as any).perusahaanId) setFormData((prev: any) => ({ ...prev, perusahaanId: undefined }))
+    } else if (options.length > 0) {
+      const allowedIds = new Set<number>(options.map((o: any) => Number(o?.id)).filter((n: number) => Number.isFinite(n) && n > 0))
+      const currentId = Number((formData as any).perusahaanId || 0)
+      if (currentId > 0 && allowedIds.size > 0 && !allowedIds.has(currentId)) {
+        setFormData((prev: any) => ({ ...prev, perusahaanId: undefined }))
+      }
     }
 
     const ac = new AbortController()

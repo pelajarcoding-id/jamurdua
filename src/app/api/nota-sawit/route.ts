@@ -186,6 +186,7 @@ export async function GET(request: Request) {
           supir: { select: { id: true, name: true } },
           kendaraan: true,
           pabrikSawit: true,
+          perusahaan: true,
           pembayaranBatchItems: {
             include: { batch: { select: { id: true, tanggal: true } } },
             orderBy: { id: 'desc' },
@@ -220,6 +221,7 @@ export async function GET(request: Request) {
           supir: { select: { id: true, name: true } },
           kendaraan: true,
           pabrikSawit: true,
+          perusahaan: true,
           pembayaranBatchItems: {
             include: { batch: { select: { id: true, tanggal: true } } },
             orderBy: { id: 'desc' },
@@ -252,6 +254,7 @@ export async function GET(request: Request) {
           supir: { select: { id: true, name: true } },
           kendaraan: true,
           pabrikSawit: true,
+          perusahaan: true,
           pembayaranBatchItems: {
             include: { batch: { select: { id: true, tanggal: true } } },
             orderBy: { id: 'desc' },

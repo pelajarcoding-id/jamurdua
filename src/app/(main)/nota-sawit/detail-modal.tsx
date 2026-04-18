@@ -69,6 +69,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       `Supir: ${n.supir.name}`,
       `Kendaraan: ${n.kendaraan?.platNomor || '-'}`,
       `Pabrik: ${n.pabrikSawit.name}`,
+      `Perusahaan: ${(n as any).perusahaan?.name || '-'}`,
       `Bruto/Tara/Netto: ${(n.bruto || n.timbangan?.grossKg || 0).toLocaleString('id-ID')} / ${(n.tara || n.timbangan?.tareKg || 0).toLocaleString('id-ID')} / ${(n.netto || n.timbangan?.netKg || 0).toLocaleString('id-ID')} kg`,
       `Potongan: ${n.potongan.toLocaleString('id-ID')} kg`,
       `Total Berat (Net): ${beratTotal.toLocaleString('id-ID')} kg`,
@@ -240,15 +241,17 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
     const titleText = `${capitalize(nota.timbangan?.kebun.name || nota.kebun?.name || '-')} - ${nota.kendaraan?.platNomor || '-'}`;
     doc.text(titleText, contentMargin, currentY);
     
-    // Subtext: Pabrik • Supir
+    // Subtext: Pabrik • Perusahaan • Supir
     currentY += 5;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor('#6B7280'); // Gray 500
-    doc.text(`${nota.pabrikSawit.name} • ${nota.supir.name}`, contentMargin, currentY);
+    const subText = `${nota.pabrikSawit.name} • ${(nota as any).perusahaan?.name || '-'} • ${nota.supir.name}`
+    const subLines = (doc as any).splitTextToSize ? (doc as any).splitTextToSize(subText, contentWidth) : [subText]
+    doc.text(subLines, contentMargin, currentY);
 
     // Spacing after subtext
-    currentY += 6;
+    currentY += 6 + (subLines.length - 1) * 4;
 
     // --- Detail Box (Weights) ---
     const lineHeight = 9; // kompresi line height global
@@ -641,7 +644,9 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
                   <span className="capitalize">{kebunName}</span> - {nota.kendaraan?.platNomor || '-'}
                </h3>
                <div className="flex items-center gap-1.5 text-gray-500 mt-1">
-                  <span className="text-sm font-medium">{nota.pabrikSawit.name} • {nota.supir.name}</span>
+                  <span className="text-sm font-medium">
+                    {nota.pabrikSawit.name} • {(nota as any).perusahaan?.name || '-'} • {nota.supir.name}
+                  </span>
                </div>
             </div>
           </div>

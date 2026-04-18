@@ -1233,30 +1233,36 @@ export default function NotaSawitPage() {
       const tglNota = nota?.tanggalBongkar
         ? new Date(nota.tanggalBongkar).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
         : '-'
+      const plat = String(nota?.kendaraanPlatNomor || '-')
+      const supirName = String(nota?.supir?.name || '-')
       const beratAkhir = Math.round(Number(nota?.beratAkhir || 0))
       const hargaPerKg = Math.round(Number(nota?.hargaPerKg || 0))
-      const plat = String(nota?.kendaraanPlatNomor || '-')
       const nominal = Math.round(Number(i?.tagihanNet || 0))
-      return [tanggalText, kebunName, tglNota, beratAkhir, hargaPerKg, plat, nominal]
+      const ket = keteranganText ? keteranganText : '-'
+      return [tanggalText, kebunName, tglNota, plat, supirName, beratAkhir, hargaPerKg, nominal, ket]
     })
 
     autoTable(doc, {
       startY: cardY + cardH + 10,
-      head: [['Tanggal Transfer', 'Kebun', 'Tanggal Nota', 'Berat Akhir', 'Harga', 'Plat', 'Nominal']],
+      margin: { left: marginX, right: marginX },
+      tableWidth: contentW,
+      head: [['Tanggal Transfer', 'Kebun', 'Tanggal Nota', 'Plat', 'Supir', 'Berat Akhir', 'Harga', 'Nominal', 'Keterangan']],
       body: rows,
-      styles: { font: 'helvetica', fontSize: 10, cellPadding: 2 },
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: [16, 185, 129] },
       columnStyles: {
-        0: { cellWidth: 32 },
-        1: { cellWidth: 36 },
-        2: { cellWidth: 32 },
-        3: { halign: 'right', cellWidth: 24, font: 'courier' },
-        4: { halign: 'right', cellWidth: 26, font: 'courier' },
-        5: { cellWidth: 26 },
-        6: { halign: 'right', cellWidth: 30, font: 'courier' },
+        0: { cellWidth: 30 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 30 },
+        5: { halign: 'right', cellWidth: 20, font: 'courier' },
+        6: { halign: 'right', cellWidth: 22, font: 'courier' },
+        7: { halign: 'right', cellWidth: 28, font: 'courier' },
+        8: { cellWidth: 53, overflow: 'linebreak' },
       },
       didParseCell: (data: any) => {
-        if (data?.column?.index === 3) {
+        if (data?.column?.index === 5) {
           data.cell.styles.halign = 'right'
           if (data.section === 'head') data.cell.styles.font = 'helvetica'
           if (data.section === 'body') {
@@ -1269,7 +1275,7 @@ export default function NotaSawitPage() {
             data.cell.styles.fontStyle = 'bold'
           }
         }
-        if (data?.column?.index === 4) {
+        if (data?.column?.index === 6) {
           data.cell.styles.halign = 'right'
           if (data.section === 'head') data.cell.styles.font = 'helvetica'
           if (data.section === 'body') {
@@ -1282,7 +1288,7 @@ export default function NotaSawitPage() {
             data.cell.styles.fontStyle = 'bold'
           }
         }
-        if (data?.column?.index === 6) {
+        if (data?.column?.index === 7) {
           data.cell.styles.halign = 'right'
           if (data.section === 'head') data.cell.styles.font = 'helvetica'
           if (data.section === 'body') {
@@ -1298,8 +1304,9 @@ export default function NotaSawitPage() {
       },
       foot: [
         [
-          { content: 'Total Jumlah', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: 'Total Jumlah', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+          { content: '' },
         ],
       ],
       footStyles: { fillColor: [249, 250, 251], textColor: [17, 24, 39], fontStyle: 'bold' },
@@ -1484,11 +1491,11 @@ export default function NotaSawitPage() {
         foot: [
           [
             { content: 'Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
-            totalNota,
-            totalTagihan,
-            totalKasMasuk,
-            totalSelisih,
-            '',
+            { content: formatNumberLocal(totalNota), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: formatCurrencyLocal(totalTagihan), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: formatCurrencyLocal(totalKasMasuk), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: formatCurrencyLocal(totalSelisih), styles: { halign: 'right', font: 'courier', fontStyle: 'bold' } },
+            { content: '' },
           ],
         ],
         footStyles: { fillColor: [249, 250, 251], textColor: [17, 24, 39], fontStyle: 'bold' },
@@ -1594,8 +1601,10 @@ export default function NotaSawitPage() {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor('#6B7280');
-      doc.text(`${nota.pabrikSawit.name} • ${nota.supir.name}`, contentMargin, currentY);
-      currentY += 6;
+      const subText = `${nota.pabrikSawit.name} • ${(nota as any).perusahaan?.name || '-'} • ${nota.supir.name}`
+      const subLines = (doc as any).splitTextToSize ? (doc as any).splitTextToSize(subText, contentWidth) : [subText]
+      doc.text(subLines, contentMargin, currentY);
+      currentY += 6 + (subLines.length - 1) * 4;
 
       const lineHeight = 9;
       const formatWeight = (num: number) => `${num.toLocaleString('id-ID')} kg`;

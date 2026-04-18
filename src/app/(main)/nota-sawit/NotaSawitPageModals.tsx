@@ -674,10 +674,7 @@ export default function NotaSawitPageModals(props: {
                       </span>
                     </div>
                     <div className="text-sm font-semibold text-gray-700">
-                      {reconcileDetail?.tanggal
-                        ? new Date(reconcileDetail.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
-                        : '-'}{' '}
-                      • <span className="font-extrabold text-gray-900">{reconcileDetail?.pabrikSawit?.name || '-'}</span> •{' '}
+                      <span className="font-extrabold text-gray-900">{reconcileDetail?.pabrikSawit?.name || '-'}</span> •{' '}
                       <span className="font-extrabold text-gray-900">{formatNumber(Number(reconcileDetail?.count || 0))}</span> nota
                     </div>
                     <div className="mt-1 text-xs text-gray-600">
