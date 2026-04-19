@@ -136,6 +136,11 @@ export const links: NavLink[] = [
         icon: BanknotesIcon,
     },
     {
+        name: 'Ledger Biaya',
+        href: '/ledger-biaya',
+        icon: BanknotesIcon,
+    },
+    {
         name: 'Audit Trail',
         href: '/audit-trail',
         icon: ClockIcon,

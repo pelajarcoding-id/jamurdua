@@ -353,7 +353,7 @@ export default function NotificationDropdown() {
                                         >
                                             <div className="flex-shrink-0 mt-0.5">
                                                 {getIcon(notification.type)}
-                                            </div>
+                                              </div>
                                             <div className="flex-1 space-y-1">
                                                 <p className={cn("text-sm font-medium text-gray-800", !notification.isRead && notification.source === 'database' ? "font-bold" : "")}>
                                                     {notification.title}

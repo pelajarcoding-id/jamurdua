@@ -461,19 +461,52 @@ export async function POST(request: Request) {
       })
 
       if (status === 'FINALIZED') {
-        const amount = Math.max(0, Math.round(Number(totalGajiFinal || 0)))
-        if (amount > 0) {
-          const pemilik = await tx.user.findFirst({ where: { role: 'PEMILIK' }, select: { id: true } })
-          const transactionUserId = pemilik?.id ?? currentUserId
-          const periodeText = `${String(startYmd.y).padStart(4, '0')}-${String(startYmd.m).padStart(2, '0')}-${String(startYmd.d).padStart(2, '0')} - ${String(endYmd.y).padStart(4, '0')}-${String(endYmd.m).padStart(2, '0')}-${String(endYmd.d).padStart(2, '0')}`
-          const deskripsiKas = `Pembayaran Gaji via Proses Gaji #${upsertedGajian.id}`
+        const pemilik = await tx.user.findFirst({ where: { role: 'PEMILIK' }, select: { id: true } })
+        const transactionUserId = pemilik?.id ?? currentUserId
+        const periodeText = `${String(startYmd.y).padStart(4, '0')}-${String(startYmd.m).padStart(2, '0')}-${String(startYmd.d).padStart(2, '0')} - ${String(endYmd.y).padStart(4, '0')}-${String(endYmd.m).padStart(2, '0')}-${String(endYmd.d).padStart(2, '0')}`
+
+        // 1. Create individual transactions for each employee's pay
+        if (sanitizedDetailKaryawan.length > 0) {
+          for (const d of sanitizedDetailKaryawan) {
+            const amount = Math.max(0, Math.round(Number(d.total || 0)))
+            if (amount <= 0) continue
+
+            const user = await tx.user.findUnique({ where: { id: d.userId }, select: { name: true } })
+            const employeeName = user?.name || `Karyawan #${d.userId}`
+            const deskripsiKas = `Pembayaran Gaji: ${employeeName} (Gajian #${upsertedGajian.id})`
+            const keteranganKas = `Gajian #${upsertedGajian.id} • Periode ${periodeText}`
+
+            await tx.kasTransaksi.create({
+              data: {
+                date: tanggalSelesaiUtc,
+                tipe: 'PENGELUARAN',
+                deskripsi: deskripsiKas,
+                jumlah: amount,
+                kategori: 'GAJI',
+                keterangan: keteranganKas,
+                kebunId: parsedKebunId,
+                userId: transactionUserId,
+                gajianId: upsertedGajian.id,
+                karyawanId: d.userId,
+              } as any,
+            })
+          }
+        }
+
+        // 2. Create transaction for remaining non-salary expenses (Biaya Lain - Salary Already Accounted)
+        // If there are other expenses (e.g. food, tools) not part of individual pay
+        const totalPaidToKaryawan = sanitizedDetailKaryawan.reduce((sum: number, d: any) => sum + Math.max(0, Math.round(Number(d.total || 0))), 0)
+        const remainingExpense = Math.round(totalGajiFinal - totalPaidToKaryawan)
+        
+        if (remainingExpense > 0) {
+          const deskripsiKas = `Biaya Operasional Lainnya (Gajian #${upsertedGajian.id})`
           const keteranganKas = `Gajian #${upsertedGajian.id} • Periode ${periodeText}`
           await tx.kasTransaksi.create({
             data: {
               date: tanggalSelesaiUtc,
               tipe: 'PENGELUARAN',
               deskripsi: deskripsiKas,
-              jumlah: amount,
+              jumlah: remainingExpense,
               kategori: 'GAJI',
               keterangan: keteranganKas,
               kebunId: parsedKebunId,

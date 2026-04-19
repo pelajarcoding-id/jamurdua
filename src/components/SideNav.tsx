@@ -59,7 +59,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
 
     // Role SUPIR memiliki batasan akses menu tertentu
     if (userRole === 'SUPIR') {
-      return !['Kebun', 'Gajian', 'Kendaraan', 'Kasir', 'Jurnal', 'Pabrik Sawit', 'Supir', 'Inventory', 'Laporan Biaya', 'Audit Trail', 'Hutang Bank'].includes(link.name);
+      return !['Kebun', 'Gajian', 'Kendaraan', 'Kasir', 'Jurnal', 'Pabrik Sawit', 'Supir', 'Inventory', 'Laporan Biaya', 'Ledger Biaya', 'Audit Trail', 'Hutang Bank'].includes(link.name);
     }
 
     // Role MANDOR: akses menu Kebun dan Timbangan
