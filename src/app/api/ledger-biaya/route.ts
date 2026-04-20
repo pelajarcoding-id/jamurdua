@@ -124,9 +124,13 @@ export async function GET(request: Request) {
     if (range) whereKas.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
     
     // Filter pendapatan hanya yang dibuat oleh pemilik
-    const incomeFilter = { 
-      tipe: 'PEMASUKAN', 
-      user: { role: 'PEMILIK' } 
+    const incomeFilter = {
+      tipe: 'PEMASUKAN',
+      user: { role: 'PEMILIK' },
+      NOT: [
+        { kategori: 'PENJUALAN_SAWIT' },
+        { notaSawitId: { not: null } },
+      ],
     }
     const expenseFilter = { tipe: 'PENGELUARAN' }
 
@@ -516,11 +520,11 @@ export async function GET(request: Request) {
       tasks.push(
         prisma.notaSawit.aggregate({
           where: whereNota,
-          _sum: { totalPembayaran: true },
+          _sum: { netto: true },
         })
       )
     } else {
-      tasks.push(Promise.resolve({ _sum: { totalPembayaran: 0 } }))
+      tasks.push(Promise.resolve({ _sum: { netto: 0 } }))
     }
 
     const [
@@ -833,7 +837,7 @@ export async function GET(request: Request) {
     const totalPages = Math.max(1, Math.ceil(total / limit))
     const pageData = merged.slice((page - 1) * limit, (page - 1) * limit + limit)
 
-    const notaIncome = Number(notaSawitAgg?._sum?.totalPembayaran || 0)
+    const notaIncome = Number(notaSawitAgg?._sum?.netto || 0)
     const pemasukanRaw =
       Number(kasPemasukanAgg?._sum?.jumlah || 0) + Number(ujPemasukanAgg?._sum?.amount || 0) + Number(pbPemasukanAgg?._sum?.jumlah || 0) + notaIncome
     const pengeluaranRaw =
@@ -925,14 +929,14 @@ export async function GET(request: Request) {
             deletedAt: null,
             tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
           },
-          select: { kebunId: true, timbanganId: true, totalPembayaran: true },
+          select: { kebunId: true, timbanganId: true, netto: true },
         })
 
         const notaByKebun = new Map<number, number>()
         for (const n of notaRows) {
           const kid = (n.kebunId ?? (n.timbanganId ? timbanganById.get(n.timbanganId) : undefined)) as number | undefined
           if (!kid) continue
-          notaByKebun.set(kid, (notaByKebun.get(kid) || 0) + Number(n.totalPembayaran || 0))
+          notaByKebun.set(kid, (notaByKebun.get(kid) || 0) + Number(n.netto || 0))
         }
 
         const kasIncomeRows = await prisma.kasTransaksi.findMany({
@@ -1059,14 +1063,14 @@ export async function GET(request: Request) {
             deletedAt: null,
             tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
           },
-          select: { perusahaanId: true, pabrikSawitId: true, totalPembayaran: true },
+          select: { perusahaanId: true, pabrikSawitId: true, netto: true },
         })
 
         const notaByPerusahaan = new Map<number, number>()
         for (const n of notaRows) {
           const pid = (n.perusahaanId ?? pabrikToPerusahaan.get(n.pabrikSawitId) ?? null) as number | null
           if (!pid) continue
-          notaByPerusahaan.set(pid, (notaByPerusahaan.get(pid) || 0) + Number(n.totalPembayaran || 0))
+          notaByPerusahaan.set(pid, (notaByPerusahaan.get(pid) || 0) + Number(n.netto || 0))
         }
 
         const taggedKasIncome = await prisma.kasTransaksi.findMany({
@@ -1149,14 +1153,14 @@ export async function GET(request: Request) {
             tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
             kendaraanPlatNomor: { not: null },
           },
-          select: { kendaraanPlatNomor: true, totalPembayaran: true },
+          select: { kendaraanPlatNomor: true, netto: true },
         })
 
         const notaByPlat = new Map<string, number>()
         for (const n of notaRows) {
           const plat = String(n.kendaraanPlatNomor || '').trim()
           if (!plat) continue
-          notaByPlat.set(plat, (notaByPlat.get(plat) || 0) + Number(n.totalPembayaran || 0))
+          notaByPlat.set(plat, (notaByPlat.get(plat) || 0) + Number(n.netto || 0))
         }
 
         const kasIncomeRows = await prisma.kasTransaksi.findMany({
