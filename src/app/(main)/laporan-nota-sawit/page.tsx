@@ -96,14 +96,15 @@ function SearchableFilter({
           <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-50" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100]" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>Tidak ada data.</CommandEmpty>
             <CommandGroup>
               <CommandItem
-                value={allLabel}
+                value="__ALL__"
+                className="cursor-pointer"
                 onSelect={() => {
                   onChange('')
                   setOpen(false)
@@ -115,7 +116,8 @@ function SearchableFilter({
               {options.map((opt) => (
                 <CommandItem
                   key={opt.value}
-                  value={opt.label}
+                  value={`${opt.value}::${opt.label}`}
+                  className="cursor-pointer"
                   onSelect={() => {
                     onChange(opt.value)
                     setOpen(false)

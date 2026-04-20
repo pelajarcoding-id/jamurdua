@@ -81,7 +81,7 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md p-0 overflow-hidden [&>button.absolute]:hidden rounded-2xl">
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
+        <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -89,7 +89,7 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
               </div>
               <div>
                 <DialogTitle className="text-white">{pabrik ? 'Ubah Pabrik Sawit' : 'Tambah Pabrik Sawit'}</DialogTitle>
-                <DialogDescription className="text-blue-100 text-xs">
+                <DialogDescription className="text-emerald-100 text-xs">
                   Isi formulir di bawah ini untuk {pabrik ? 'mengubah' : 'menambah'} data pabrik sawit.
                 </DialogDescription>
               </div>
@@ -97,7 +97,7 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
             <button
               type="button"
               onClick={onClose}
-              className="h-9 w-9 rounded-md border border-white/70 bg-white text-blue-600 flex items-center justify-center hover:bg-white/90"
+              className="h-9 w-9 rounded-md border border-white/70 bg-white text-emerald-600 flex items-center justify-center hover:bg-white/90"
               aria-label="Tutup"
             >
               <XMarkIcon className="h-4 w-4" />
@@ -125,7 +125,7 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
                 id="perusahaanId"
                 value={defaultPerusahaanId}
                 onChange={e => setDefaultPerusahaanId(e.target.value)}
-                className="w-full h-10 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full h-10 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
               >
                 <option value="">-- Pilih Default --</option>
                 {perusahaans
@@ -181,7 +181,7 @@ export default function PabrikSawitModal({ isOpen, onClose, onSave, pabrik }: Pa
               <XMarkIcon className="h-4 w-4 mr-2" />
               Batal
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto rounded-full px-6 text-white">
+            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto rounded-full px-6 text-white">
               <CheckIcon className="h-4 w-4 mr-2" />
               Simpan
             </Button>

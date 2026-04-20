@@ -296,19 +296,19 @@ export default function NotaSawitPage() {
       return sum + (Number.isFinite(v) ? v : 0)
     }, 0)
     const totalPembayaran = rows.reduce((sum, r) => {
-      const v = Number(r?.pembayaranAktual ?? r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
+      const v = Number(r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
       return sum + (Number.isFinite(v) ? v : 0)
     }, 0)
     const lunasCount = rows.filter((r) => String(r?.statusPembayaran) === 'LUNAS').length
     const belumLunasCount = rows.filter((r) => String(r?.statusPembayaran) === 'BELUM_LUNAS').length
     const totalPembayaranLunas = rows.reduce((sum, r) => {
       if (String(r?.statusPembayaran) !== 'LUNAS') return sum
-      const v = Number(r?.pembayaranAktual ?? r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
+      const v = Number(r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
       return sum + (Number.isFinite(v) ? v : 0)
     }, 0)
     const totalPembayaranBelumLunas = rows.reduce((sum, r) => {
       if (String(r?.statusPembayaran) !== 'BELUM_LUNAS') return sum
-      const v = Number(r?.pembayaranAktual ?? r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
+      const v = Number(r?.pembayaranSetelahPph ?? r?.totalPembayaran ?? 0)
       return sum + (Number.isFinite(v) ? v : 0)
     }, 0)
 

@@ -703,6 +703,7 @@ export default function PabrikSawitClient() {
         onConfirm={handleDelete}
         title="Konfirmasi Hapus"
         description="Apakah Anda yakin ingin menghapus pabrik sawit ini?"
+        variant="emerald"
       />
     </main>
   );
