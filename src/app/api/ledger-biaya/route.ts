@@ -136,17 +136,12 @@ export async function GET(request: Request) {
     }
     const expenseFilter = { tipe: 'PENGELUARAN' }
 
+    // Ledger Biaya: pemasukan sawit dihitung dari Nota Sawit (netto),
+    // jadi pemasukan dari transaksi kas (termasuk "Penjualan Sawit") tidak dimasukkan agar tidak double.
     if (tipe === 'PEMASUKAN') {
-      whereKas.AND.push(incomeFilter)
-    } else if (tipe === 'PENGELUARAN') {
-      whereKas.AND.push(expenseFilter)
+      whereKas.AND.push({ id: -1 })
     } else {
-      whereKas.AND.push({
-        OR: [
-          expenseFilter,
-          incomeFilter
-        ]
-      })
+      whereKas.AND.push(expenseFilter)
     }
 
     if (kategori) whereKas.AND.push({ kategori })
@@ -309,19 +304,7 @@ export async function GET(request: Request) {
         }),
         prisma.kasTransaksi.count({ where: whereKas }),
         prisma.kasTransaksi.aggregate({ where: { ...whereKas, tipe: 'PENGELUARAN' }, _sum: { jumlah: true } }),
-        prisma.kasTransaksi.aggregate({
-          where: {
-            ...whereKas,
-            tipe: 'PEMASUKAN',
-            NOT: [
-              { kategori: { equals: 'PENJUALAN_SAWIT', mode: 'insensitive' } },
-              { kategori: { equals: 'PENJUALAN SAWIT', mode: 'insensitive' } },
-              { kategori: { contains: 'PENJUALAN_SAWIT', mode: 'insensitive' } },
-              { notaSawitId: { not: null } },
-            ],
-          } as any,
-          _sum: { jumlah: true },
-        }),
+        Promise.resolve({ _sum: { jumlah: 0 } }),
       )
     } else {
       tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { jumlah: 0 } }), Promise.resolve({ _sum: { jumlah: 0 } }))
@@ -345,7 +328,7 @@ export async function GET(request: Request) {
         }),
         prisma.uangJalan.count({ where: whereUj }),
         prisma.uangJalan.aggregate({ where: { ...whereUj, tipe: { equals: 'PENGELUARAN', mode: 'insensitive' } }, _sum: { amount: true } }),
-        prisma.uangJalan.aggregate({ where: { ...whereUj, tipe: { equals: 'PEMASUKAN', mode: 'insensitive' } }, _sum: { amount: true } }),
+        Promise.resolve({ _sum: { amount: 0 } }),
       )
     } else {
       tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { amount: 0 } }), Promise.resolve({ _sum: { amount: 0 } }))
@@ -360,7 +343,7 @@ export async function GET(request: Request) {
         }),
         prisma.perusahaanBiaya.count({ where: wherePb }),
         prisma.perusahaanBiaya.aggregate({ where: { ...wherePb, type: 'PENGELUARAN' }, _sum: { jumlah: true } }),
-        prisma.perusahaanBiaya.aggregate({ where: { ...wherePb, type: 'PEMASUKAN' }, _sum: { jumlah: true } }),
+        Promise.resolve({ _sum: { jumlah: 0 } }),
       )
     } else {
       tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { jumlah: 0 } }), Promise.resolve({ _sum: { jumlah: 0 } }))
@@ -852,8 +835,7 @@ export async function GET(request: Request) {
     const pageData = merged.slice((page - 1) * limit, (page - 1) * limit + limit)
 
     const notaIncome = Number(notaSawitAgg?._sum?.netto || 0)
-    const pemasukanRaw =
-      Number(kasPemasukanAgg?._sum?.jumlah || 0) + Number(ujPemasukanAgg?._sum?.amount || 0) + Number(pbPemasukanAgg?._sum?.jumlah || 0) + notaIncome
+    const pemasukanRaw = notaIncome
     const pengeluaranRaw =
       Number(kasPengeluaranAgg?._sum?.jumlah || 0) +
       Number(ujPengeluaranAgg?._sum?.amount || 0) +
@@ -896,10 +878,7 @@ export async function GET(request: Request) {
       })
     }
 
-    const incomeBreakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : {
-      NOTA_SAWIT: notaIncome,
-      LAINNYA: Number(ujPemasukanAgg?._sum?.amount || 0) + Number(pbPemasukanAgg?._sum?.jumlah || 0),
-    }
+    const incomeBreakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : { NOTA_SAWIT: notaIncome }
 
     // Process KasTransaksi categories for breakdown
     const kasRowsAgg = await prisma.kasTransaksi.findMany({
@@ -922,12 +901,6 @@ export async function GET(request: Request) {
         } else {
           if (breakdown[cat] === undefined) breakdown[cat] = 0
           breakdown[cat] += val
-        }
-      } else if (b.tipe === 'PEMASUKAN') {
-        if (cat === 'NOTA_SAWIT') incomeBreakdown.NOTA_SAWIT += val
-        else {
-          if (incomeBreakdown[cat] === undefined) incomeBreakdown[cat] = 0
-          incomeBreakdown[cat] += val
         }
       }
     })
@@ -1048,7 +1021,7 @@ export async function GET(request: Request) {
         }
 
         const rows = kebuns.map(k => {
-          const pemasukanVal = (notaByKebun.get(k.id) || 0) + (kasIncomeByKebun.get(k.id) || 0)
+          const pemasukanVal = (notaByKebun.get(k.id) || 0)
           const pengeluaranVal =
             (kasExpenseByKebun.get(k.id) || 0) + (boronganByKebun.get(k.id) || 0) + (absensiByKebun.get(k.id) || 0)
           const saldoVal = pemasukanVal - pengeluaranVal
@@ -1139,7 +1112,7 @@ export async function GET(request: Request) {
         }
 
         const rows = perusahaanRows.map(p => {
-          const pemasukanVal = (notaByPerusahaan.get(p.id) || 0) + (kasIncomeByPerusahaan.get(p.id) || 0)
+          const pemasukanVal = (notaByPerusahaan.get(p.id) || 0)
           const pengeluaranVal = (pbExpenseByPerusahaan.get(p.id) || 0) + (kasExpenseByPerusahaan.get(p.id) || 0)
           const saldoVal = pemasukanVal - pengeluaranVal
           const profitMarginVal = pemasukanVal > 0 ? (saldoVal / pemasukanVal) * 100 : 0
@@ -1265,7 +1238,7 @@ export async function GET(request: Request) {
 
         const rows = kendaraans.map(k => {
           const plat = String(k.platNomor || '').trim()
-          const pemasukanVal = (notaByPlat.get(plat) || 0) + (kasIncomeByPlat.get(plat) || 0)
+          const pemasukanVal = (notaByPlat.get(plat) || 0)
           const pengeluaranVal =
             (kasExpenseByPlat.get(plat) || 0) + (slByPlat.get(plat) || 0) + (rdByPlat.get(plat) || 0) + (ujByPlat.get(plat) || 0)
           const saldoVal = pemasukanVal - pengeluaranVal
