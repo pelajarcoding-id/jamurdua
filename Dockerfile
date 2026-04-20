@@ -10,7 +10,7 @@ FROM node:20-bullseye-slim AS builder
 WORKDIR /app
 ENV NODE_ENV=production
 ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
-ENV AUTH_URL=http://localhost:3000
+ENV AUTH_URL=http:/187.127.107.15:3000
 ENV AUTH_TRUST_HOST=true
 ENV AUTH_SECRET=build-secret
 ENV NEXTAUTH_URL=http://localhost:3000
@@ -31,10 +31,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
 RUN mkdir -p /app/public/uploads && chown -R app:app /app/public/uploads
 USER app
 EXPOSE 3000
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["npm","run","start"]
