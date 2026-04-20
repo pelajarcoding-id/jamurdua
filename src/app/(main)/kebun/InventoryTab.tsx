@@ -35,6 +35,8 @@ type InventoryTransaction = {
   imageUrl?: string | null
   date: string
   createdAt: string
+  kendaraanPlatNomor?: string | null
+  kendaraan?: { platNomor: string; merk: string; jenis: string } | null
   item: {
     id: number
     name: string
@@ -74,6 +76,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
   const [quantity, setQuantity] = useState('')
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [trxKendaraanPlatNomor, setTrxKendaraanPlatNomor] = useState<string>('')
   const [trxFile, setTrxFile] = useState<File | null>(null)
   const [trxPreview, setTrxPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -81,6 +84,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
   const [editQuantity, setEditQuantity] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editDate, setEditDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [editTrxKendaraanPlatNomor, setEditTrxKendaraanPlatNomor] = useState<string>('')
   const [editTrxFile, setEditTrxFile] = useState<File | null>(null)
   const [editTrxPreview, setEditTrxPreview] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
@@ -161,7 +165,8 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
       if (!res.ok) return
       const data = await res.json()
       const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
-      const filtered = rows.filter((k: any) => ['Mobil Truck', 'Alat Berat'].includes(k.jenis))
+      const allowedJenis = new Set(['mobil truck', 'alat berat', 'mobil langsir'])
+      const filtered = rows.filter((k: any) => allowedJenis.has(String(k.jenis || '').trim().toLowerCase()))
       setKendaraanList(filtered.map((k: any) => ({ platNomor: k.platNomor, jenis: k.jenis })))
     } catch {
       setKendaraanList([])
@@ -180,6 +185,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     setQuantity('')
     setNotes('')
     setDate(format(new Date(), 'yyyy-MM-dd'))
+    setTrxKendaraanPlatNomor('')
     setTrxFile(null)
     setTrxPreview(null)
     setIsModalOpen(true)
@@ -191,6 +197,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     setQuantity('')
     setNotes('')
     setDate(format(new Date(), 'yyyy-MM-dd'))
+    setTrxKendaraanPlatNomor('')
     setTrxFile(null)
     setTrxPreview(null)
     setIsModalOpen(true)
@@ -221,6 +228,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
     setEditQuantity(String(trx.quantity))
     setEditNotes(trx.notes || '')
     setEditDate(format(new Date(trx.date), 'yyyy-MM-dd'))
+    setEditTrxKendaraanPlatNomor(trx.kendaraanPlatNomor || '')
     setEditTrxFile(null)
     setEditTrxPreview(trx.imageUrl || null)
     setIsEditOpen(true)
@@ -254,6 +262,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
           quantity: qty,
           date,
           notes,
+          kendaraanPlatNomor: trxKendaraanPlatNomor,
           ...(imageUrl ? { imageUrl } : {}),
         }),
       })
@@ -369,6 +378,7 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
           quantity: qty,
           date: editDate,
           notes: editNotes,
+          kendaraanPlatNomor: editTrxKendaraanPlatNomor,
           ...(typeof imageUrl !== 'undefined' ? { imageUrl } : {}),
         }),
       })
@@ -717,6 +727,12 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                     <div className="text-xs text-gray-500">
                       {format(new Date(trx.date), 'dd MMM yyyy', { locale: idLocale })} • {trx.user?.name || '-'}
                     </div>
+                    {trx.kendaraanPlatNomor ? (
+                      <div className="text-xs text-gray-500">
+                        Kendaraan: {trx.kendaraan?.platNomor || trx.kendaraanPlatNomor}
+                        {trx.kendaraan?.jenis ? ` • ${trx.kendaraan.jenis}` : ''}
+                      </div>
+                    ) : null}
                     {trx.notes ? <div className="text-xs text-gray-400">{trx.notes}</div> : null}
                   </div>
                   <div className="flex items-center gap-2">
@@ -795,6 +811,31 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                 className="rounded-xl"
               />
             </div>
+            {trxType === 'OUT' ? (
+              <div className="space-y-2">
+                <Label>Kendaraan (Opsional)</Label>
+                <Select
+                  value={trxKendaraanPlatNomor || ''}
+                  onValueChange={(value) => setTrxKendaraanPlatNomor(value === '__none__' ? '' : value)}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="Pilih kendaraan (opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Tidak ada</SelectItem>
+                    {kendaraanList.length === 0 ? (
+                      <SelectItem value="-" disabled>Tidak ada kendaraan</SelectItem>
+                    ) : (
+                      kendaraanList.map((k) => (
+                        <SelectItem key={k.platNomor} value={k.platNomor}>
+                          {k.platNomor} • {k.jenis}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Upload Gambar (Opsional)</Label>
               <ImageUpload
@@ -1119,6 +1160,29 @@ export default function InventoryTab({ kebunId }: { kebunId: number }) {
                 placeholder="Contoh: koreksi catatan"
                 className="rounded-xl"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Kendaraan (Opsional)</Label>
+              <Select
+                value={editTrxKendaraanPlatNomor || ''}
+                onValueChange={(value) => setEditTrxKendaraanPlatNomor(value === '__none__' ? '' : value)}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Pilih kendaraan (opsional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Tidak ada</SelectItem>
+                  {kendaraanList.length === 0 ? (
+                    <SelectItem value="-" disabled>Tidak ada kendaraan</SelectItem>
+                  ) : (
+                    kendaraanList.map((k) => (
+                      <SelectItem key={k.platNomor} value={k.platNomor}>
+                        {k.platNomor} • {k.jenis}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Upload Gambar (Opsional)</Label>

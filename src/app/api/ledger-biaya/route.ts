@@ -101,16 +101,19 @@ export async function GET(request: Request) {
     const kendaraanPlatNomor = String(sp.get('kendaraanPlatNomor') || '').trim()
     const includeOperasional = sp.get('includeOperasional') !== '0'
     const includeEntityStats = sp.get('includeEntityStats') === '1'
+    const incomeOnly = tipe === 'PEMASUKAN'
+    const expenseOnly = tipe === 'PENGELUARAN'
 
     const range = getWibRangeUtcFromParams(sp)
     const includeKas = scope === 'ALL' || scope === 'KAS' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN' || scope === 'UANG_JALAN'
     const includeUangJalan = scope === 'ALL' || scope === 'UANG_JALAN' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN'
     const includePerusahaanBiaya = scope === 'ALL' || scope === 'PERUSAHAAN'
-    const includeBorongan = includeOperasional && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'KENDARAAN')
-    const includeAbsensi = includeOperasional && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN')
-    const includeServiceLog = scope === 'ALL' || scope === 'KENDARAAN'
-    const includeRiwayatDokumen = scope === 'ALL' || scope === 'KENDARAAN'
+    const includeBorongan = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'KENDARAAN')
+    const includeAbsensi = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN')
+    const includeServiceLog = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
+    const includeRiwayatDokumen = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
     const includeNotaSawitIncome =
+      !expenseOnly &&
       (scope === 'ALL' || scope === 'KEBUN' || scope === 'KENDARAAN' || scope === 'PERUSAHAAN') &&
       (scope === 'KEBUN' ||
         (Number.isFinite(kebunId) && kebunId > 0) ||
@@ -831,9 +834,9 @@ export async function GET(request: Request) {
     const pageData = merged.slice((page - 1) * limit, (page - 1) * limit + limit)
 
     const notaIncome = Number(notaSawitAgg?._sum?.totalPembayaran || 0)
-    const pemasukan =
+    const pemasukanRaw =
       Number(kasPemasukanAgg?._sum?.jumlah || 0) + Number(ujPemasukanAgg?._sum?.amount || 0) + Number(pbPemasukanAgg?._sum?.jumlah || 0) + notaIncome
-    const pengeluaran =
+    const pengeluaranRaw =
       Number(kasPengeluaranAgg?._sum?.jumlah || 0) +
       Number(ujPengeluaranAgg?._sum?.amount || 0) +
       Number(pbPengeluaranAgg?._sum?.jumlah || 0) +
@@ -842,8 +845,11 @@ export async function GET(request: Request) {
       Number(rdAgg?._sum?.biaya || 0) +
       normalizedAb.reduce((sum: number, r: any) => sum + (r.isPaid ? 0 : Number(r?.jumlah || 0)), 0)
 
+    const pemasukan = incomeOnly ? pemasukanRaw : expenseOnly ? 0 : pemasukanRaw
+    const pengeluaran = expenseOnly ? pengeluaranRaw : incomeOnly ? 0 : pengeluaranRaw
+
     // Breakdown calculation for KPIs
-    const breakdown: Record<string, number> = {
+    const breakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : {
       GAJI: 0,
       ABSENSI: normalizedAb.reduce((sum: number, r: any) => sum + (r.isPaid ? 0 : Number(r?.jumlah || 0)), 0),
       UANG_JALAN: Number(ujPengeluaranAgg?._sum?.amount || 0),
@@ -854,23 +860,25 @@ export async function GET(request: Request) {
     }
 
     // 1. Process detailed Borongan breakdown by category
-    const boronganRows = await prisma.pekerjaanKebun.findMany({
-      where: wherePk,
-      select: {
-        biaya: true,
-        jenisPekerjaan: true,
-        kategoriBorongan: true,
-      } as any,
-    })
+    if (!(expenseOnly || incomeOnly)) {
+      const boronganRows = await prisma.pekerjaanKebun.findMany({
+        where: wherePk,
+        select: {
+          biaya: true,
+          jenisPekerjaan: true,
+          kategoriBorongan: true,
+        } as any,
+      })
 
-    boronganRows.forEach((b: any) => {
-      const catName = (b.kategoriBorongan || b.jenisPekerjaan || 'BORONGAN_LAIN').toUpperCase()
-      const key = `BORONGAN: ${catName}`
-      if (breakdown[key] === undefined) breakdown[key] = 0
-      breakdown[key] += Number(b.biaya || 0)
-    })
+      boronganRows.forEach((b: any) => {
+        const catName = (b.kategoriBorongan || b.jenisPekerjaan || 'BORONGAN_LAIN').toUpperCase()
+        const key = `BORONGAN: ${catName}`
+        if (breakdown[key] === undefined) breakdown[key] = 0
+        breakdown[key] += Number(b.biaya || 0)
+      })
+    }
 
-    const incomeBreakdown: Record<string, number> = {
+    const incomeBreakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : {
       NOTA_SAWIT: notaIncome,
       LAINNYA: Number(ujPemasukanAgg?._sum?.amount || 0) + Number(pbPemasukanAgg?._sum?.jumlah || 0),
     }
@@ -885,7 +893,7 @@ export async function GET(request: Request) {
       }
     })
 
-    kasRowsAgg.forEach(b => {
+    if (!(expenseOnly || incomeOnly)) kasRowsAgg.forEach(b => {
       const cat = (b.kategori || 'OPERASIONAL').toUpperCase()
       const val = Number(b.jumlah || 0)
       if (b.tipe === 'PENGELUARAN') {
@@ -905,7 +913,7 @@ export async function GET(request: Request) {
     })
 
     let entityStats: any = null
-    if (includeEntityStats) {
+    if (includeEntityStats && !(incomeOnly || expenseOnly)) {
       if (scope === 'KEBUN' && !(Number.isFinite(kebunId) && kebunId > 0)) {
         const kebuns = await prisma.kebun.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
         const timbanganRows = await prisma.timbangan.findMany({ select: { id: true, kebunId: true } })
@@ -967,7 +975,6 @@ export async function GET(request: Request) {
           ? await prisma.pekerjaanKebun.groupBy({
               by: ['kebunId'],
               where: {
-                kebunId: { not: null },
                 date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
                 upahBorongan: true,
                 biaya: { gt: 0 },

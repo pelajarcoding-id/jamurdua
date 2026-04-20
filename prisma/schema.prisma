@@ -274,6 +274,7 @@ model Kendaraan {
   sesiUangJalan       SesiUangJalan[]
   timbangan           Timbangan[]
   kebunInventoryItems KebunInventoryItem[]
+  kebunInventoryTransactions KebunInventoryTransaction[]
   pekerjaanKebun      PekerjaanKebun[]
 }
 
@@ -414,14 +415,17 @@ model KebunInventoryTransaction {
   quantity  Float
   notes     String?
   imageUrl  String?
+  kendaraanPlatNomor String?
   date      DateTime      @default(now())
   createdAt DateTime      @default(now())
   userId    Int
   kebun     Kebun         @relation(fields: [kebunId], references: [id], onDelete: Cascade)
   item      KebunInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   user      User          @relation(fields: [userId], references: [id])
+  kendaraan Kendaraan?    @relation(fields: [kendaraanPlatNomor], references: [platNomor])
 
   @@index([kebunId, date])
+  @@index([kendaraanPlatNomor])
 }
 
 model Kebun {

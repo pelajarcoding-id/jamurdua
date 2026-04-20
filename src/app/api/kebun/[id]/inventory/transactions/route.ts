@@ -39,8 +39,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
         imageUrl: true,
         date: true,
         createdAt: true,
+        kendaraanPlatNomor: true,
         item: { select: { id: true, name: true, unit: true, category: true } },
         user: { select: { id: true, name: true } },
+        kendaraan: { select: { platNomor: true, merk: true, jenis: true } },
       }
     })
 
@@ -73,12 +75,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       date: z.string().optional(),
       notes: z.string().trim().max(500).optional(),
       imageUrl: z.string().trim().max(2048).optional(),
+      kendaraanPlatNomor: z.string().trim().max(64).optional(),
     })
     const parsed = schema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 })
     }
-    const { itemId, type, quantity, date, notes, imageUrl } = parsed.data
+    const { itemId, type, quantity, date, notes, imageUrl, kendaraanPlatNomor } = parsed.data
+    const kendaraanPlatNomorFinal = String(kendaraanPlatNomor || '').trim()
 
     const item = await (prisma as any).kebunInventoryItem.findFirst({ where: { id: itemId, kebunId } })
     if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
@@ -106,6 +110,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
           quantity: Number(quantity),
           notes,
           imageUrl: imageUrl || null,
+          kendaraanPlatNomor: kendaraanPlatNomorFinal ? kendaraanPlatNomorFinal : null,
           date: date ? new Date(date) : new Date(),
           userId: currentUserId,
         },
@@ -144,12 +149,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       date: z.string().optional(),
       notes: z.string().trim().max(500).optional(),
       imageUrl: z.string().trim().max(2048).optional(),
+      kendaraanPlatNomor: z.string().trim().max(64).optional(),
     })
     const parsed = schema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 })
     }
-    const { id, quantity, date, notes, imageUrl } = parsed.data
+    const { id, quantity, date, notes, imageUrl, kendaraanPlatNomor } = parsed.data
+    const kendaraanPlatNomorFinal = String(kendaraanPlatNomor || '').trim()
 
     const existing = await (prisma as any).kebunInventoryTransaction.findFirst({
       where: { id, kebunId },
@@ -184,6 +191,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         data: {
           quantity: Number(quantity),
           notes,
+          ...(typeof kendaraanPlatNomor !== 'undefined' ? { kendaraanPlatNomor: kendaraanPlatNomorFinal ? kendaraanPlatNomorFinal : null } : {}),
           ...(typeof imageUrl !== 'undefined' ? { imageUrl: imageUrl || null } : {}),
           date: date ? new Date(date) : existing.date,
           userId: currentUserId,
