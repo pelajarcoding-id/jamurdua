@@ -178,19 +178,19 @@ export async function GET(request: Request) {
       return acc
     }, new Map<number, { kebunId: number; name: string; totalBerat: number }>())
     const totalPembayaran = rows.reduce((sum, r) => {
-      const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
+      const val = Number(r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
       return sum + (Number.isFinite(val) ? val : 0)
     }, 0)
     const lunasCount = rows.filter((r) => r.statusPembayaran === 'LUNAS').length
     const belumLunasCount = rows.filter((r) => r.statusPembayaran === 'BELUM_LUNAS').length
     const totalPembayaranLunas = rows.reduce((sum, r) => {
       if (r.statusPembayaran !== 'LUNAS') return sum
-      const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
+      const val = Number(r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
       return sum + (Number.isFinite(val) ? val : 0)
     }, 0)
     const totalPembayaranBelumLunas = rows.reduce((sum, r) => {
       if (r.statusPembayaran !== 'BELUM_LUNAS') return sum
-      const val = Number(r.pembayaranAktual ?? r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
+      const val = Number(r.pembayaranSetelahPph ?? r.totalPembayaran ?? 0)
       return sum + (Number.isFinite(val) ? val : 0)
     }, 0)
     const tonaseByKebun = Array.from(tonaseByKebunMap.values())
