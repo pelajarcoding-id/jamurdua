@@ -113,12 +113,7 @@ export async function GET(request: Request) {
     const includeServiceLog = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
     const includeRiwayatDokumen = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
     const includeNotaSawitIncome =
-      !expenseOnly &&
-      (scope === 'ALL' || scope === 'KEBUN' || scope === 'KENDARAAN' || scope === 'PERUSAHAAN') &&
-      (scope === 'KEBUN' ||
-        (Number.isFinite(kebunId) && kebunId > 0) ||
-        kendaraanPlatNomor ||
-        (Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0))
+      !expenseOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KENDARAAN' || scope === 'PERUSAHAAN')
 
     const whereKas: any = { deletedAt: null, AND: [] as any[] }
     if (range) whereKas.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
@@ -506,39 +501,58 @@ export async function GET(request: Request) {
     }
 
     if (includeNotaSawitIncome) {
-      const whereNota: Prisma.NotaSawitWhereInput = {
-        deletedAt: null,
-        tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+      const andConditions: Prisma.NotaSawitWhereInput[] = []
+      if (range) {
+        andConditions.push({
+          OR: [
+            { tanggalBongkar: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+            { tanggalBongkar: null, createdAt: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+            { timbangan: { date: { gte: range.startUtc, lt: range.endExclusiveUtc } } },
+          ],
+        })
       }
 
-      const orConditions: Prisma.NotaSawitWhereInput[] = []
+      const entityOr: Prisma.NotaSawitWhereInput[] = []
       if (Number.isFinite(kebunId) && kebunId > 0) {
-        orConditions.push({ timbangan: { kebunId: kebunId } })
-        orConditions.push({ timbanganId: null, kebunId: kebunId })
+        entityOr.push({ timbangan: { kebunId: kebunId } })
+        entityOr.push({ timbanganId: null, kebunId: kebunId })
       } else if (scope === 'KEBUN' && !kendaraanPlatNomor && !(Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0)) {
-        orConditions.push({ kebunId: { not: null } })
-        orConditions.push({ timbanganId: { not: null } })
+        entityOr.push({ kebunId: { not: null } })
+        entityOr.push({ timbanganId: { not: null } })
       }
       if (kendaraanPlatNomor) {
-        orConditions.push({ kendaraanPlatNomor: kendaraanPlatNomor })
+        entityOr.push({ kendaraanPlatNomor: kendaraanPlatNomor })
       }
       if (Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0) {
-        orConditions.push({ perusahaanId: perusahaanIdParam })
-        orConditions.push({ pabrikSawit: { perusahaanId: perusahaanIdParam } })
+        entityOr.push({ perusahaanId: perusahaanIdParam })
+        entityOr.push({ pabrikSawit: { perusahaanId: perusahaanIdParam } })
       }
+      if (entityOr.length > 0) andConditions.push({ OR: entityOr })
 
-      if (orConditions.length > 0) {
-        whereNota.OR = orConditions
+      const whereNota: Prisma.NotaSawitWhereInput = {
+        deletedAt: null,
+        ...(andConditions.length > 0 ? { AND: andConditions } : {}),
       }
 
       tasks.push(
-        prisma.notaSawit.aggregate({
+        prisma.notaSawit.findMany({
           where: whereNota,
-          _sum: { netto: true },
+          select: {
+            id: true,
+            statusPembayaran: true,
+            tanggalBongkar: true,
+            createdAt: true,
+            kendaraanPlatNomor: true,
+            pembayaranAktual: true,
+            pembayaranSetelahPph: true,
+            totalPembayaran: true,
+            kebun: { select: { id: true, name: true } },
+            timbangan: { select: { id: true, date: true, kebun: { select: { id: true, name: true } } } },
+          },
         })
       )
     } else {
-      tasks.push(Promise.resolve({ _sum: { netto: 0 } }))
+      tasks.push(Promise.resolve([]))
     }
 
     const [
@@ -565,7 +579,7 @@ export async function GET(request: Request) {
       rdRows,
       rdCount,
       rdAgg,
-      notaSawitAgg,
+      notaSawitRows,
     ] = await Promise.all(tasks)
 
     const perusahaanIds = Array.from(
@@ -822,6 +836,37 @@ export async function GET(request: Request) {
       isPaid: false,
     }))
 
+    const normalizedNota = (notaSawitRows as any[])
+      .map((n: any) => {
+        const aktual = Number(n?.pembayaranAktual || 0)
+        const setelahPph = Number(n?.pembayaranSetelahPph || 0)
+        const total = Number(n?.totalPembayaran || 0)
+        const netRp = aktual > 0 ? aktual : setelahPph > 0 ? setelahPph : total
+        const kebun = n?.kebun || n?.timbangan?.kebun || null
+        const date = n?.tanggalBongkar || n?.timbangan?.date || n?.createdAt
+        const plat = String(n?.kendaraanPlatNomor || '').trim()
+        return {
+          key: `NOTA_SAWIT:${n.id}`,
+          source: 'NOTA_SAWIT',
+          id: n.id,
+          date,
+          tipe: 'PEMASUKAN',
+          kategori: 'NOTA_SAWIT',
+          deskripsi: `Nota Sawit #${n.id}`,
+          keterangan: plat ? `Plat: ${plat}` : null,
+          jumlah: netRp,
+          gambarUrl: null,
+          scope: kebun ? 'KEBUN' : plat ? 'KENDARAAN' : 'ALL',
+          kebun: kebun ? { id: Number(kebun.id), name: String(kebun.name) } : null,
+          karyawan: null,
+          kendaraan: plat ? { platNomor: plat, merk: '-' } : null,
+          perusahaan: null,
+          isPaid: String(n?.statusPembayaran || '').toUpperCase() === 'LUNAS',
+        }
+      })
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, takeN)
+
     const merged = [
       ...normalizedKas,
       ...normalizedUj,
@@ -830,6 +875,7 @@ export async function GET(request: Request) {
       ...normalizedAb,
       ...normalizedSl,
       ...normalizedRd,
+      ...normalizedNota,
     ].sort((a: any, b: any) => {
       const da = new Date(a.date).getTime()
       const db = new Date(b.date).getTime()
@@ -847,11 +893,18 @@ export async function GET(request: Request) {
       Number(pkCount || 0) +
       Number(abCount || 0) +
       Number(slCount || 0) +
-      Number(rdCount || 0)
+      Number(rdCount || 0) +
+      Number((notaSawitRows as any[])?.length || 0)
     const totalPages = Math.max(1, Math.ceil(total / limit))
     const pageData = merged.slice((page - 1) * limit, (page - 1) * limit + limit)
 
-    const notaIncome = Number(notaSawitAgg?._sum?.netto || 0)
+    const notaIncome = (notaSawitRows as any[]).reduce((acc: number, n: any) => {
+      const aktual = Number(n?.pembayaranAktual || 0)
+      const setelahPph = Number(n?.pembayaranSetelahPph || 0)
+      const total = Number(n?.totalPembayaran || 0)
+      const netRp = aktual > 0 ? aktual : setelahPph > 0 ? setelahPph : total
+      return acc + netRp
+    }, 0)
     const pemasukanRaw =
       Number(kasPemasukanAgg?._sum?.jumlah || 0) + Number(ujPemasukanAgg?._sum?.amount || 0) + Number(pbPemasukanAgg?._sum?.jumlah || 0) + notaIncome
     const pengeluaranRaw =
@@ -943,16 +996,28 @@ export async function GET(request: Request) {
         const notaRows = await prisma.notaSawit.findMany({
           where: {
             deletedAt: null,
-            tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            ...(range
+              ? {
+                  OR: [
+                    { tanggalBongkar: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+                    { tanggalBongkar: null, createdAt: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+                    { timbangan: { date: { gte: range.startUtc, lt: range.endExclusiveUtc } } },
+                  ],
+                }
+              : {}),
           },
-          select: { kebunId: true, timbanganId: true, netto: true },
+          select: { kebunId: true, timbanganId: true, pembayaranAktual: true, pembayaranSetelahPph: true, totalPembayaran: true },
         })
 
         const notaByKebun = new Map<number, number>()
-        for (const n of notaRows) {
+        for (const n of notaRows as any[]) {
           const kid = (n.kebunId ?? (n.timbanganId ? timbanganById.get(n.timbanganId) : undefined)) as number | undefined
           if (!kid) continue
-          notaByKebun.set(kid, (notaByKebun.get(kid) || 0) + Number(n.netto || 0))
+          const aktual = Number(n?.pembayaranAktual || 0)
+          const setelahPph = Number(n?.pembayaranSetelahPph || 0)
+          const total = Number(n?.totalPembayaran || 0)
+          const netRp = aktual > 0 ? aktual : setelahPph > 0 ? setelahPph : total
+          notaByKebun.set(kid, (notaByKebun.get(kid) || 0) + netRp)
         }
 
         const kasIncomeRows = await prisma.kasTransaksi.findMany({
@@ -1077,16 +1142,28 @@ export async function GET(request: Request) {
         const notaRows = await prisma.notaSawit.findMany({
           where: {
             deletedAt: null,
-            tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            ...(range
+              ? {
+                  OR: [
+                    { tanggalBongkar: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+                    { tanggalBongkar: null, createdAt: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+                    { timbangan: { date: { gte: range.startUtc, lt: range.endExclusiveUtc } } },
+                  ],
+                }
+              : {}),
           },
-          select: { perusahaanId: true, pabrikSawitId: true, netto: true },
+          select: { perusahaanId: true, pabrikSawitId: true, pembayaranAktual: true, pembayaranSetelahPph: true, totalPembayaran: true },
         })
 
         const notaByPerusahaan = new Map<number, number>()
-        for (const n of notaRows) {
+        for (const n of notaRows as any[]) {
           const pid = (n.perusahaanId ?? pabrikToPerusahaan.get(n.pabrikSawitId) ?? null) as number | null
           if (!pid) continue
-          notaByPerusahaan.set(pid, (notaByPerusahaan.get(pid) || 0) + Number(n.netto || 0))
+          const aktual = Number(n?.pembayaranAktual || 0)
+          const setelahPph = Number(n?.pembayaranSetelahPph || 0)
+          const total = Number(n?.totalPembayaran || 0)
+          const netRp = aktual > 0 ? aktual : setelahPph > 0 ? setelahPph : total
+          notaByPerusahaan.set(pid, (notaByPerusahaan.get(pid) || 0) + netRp)
         }
 
         const taggedKasIncome = await prisma.kasTransaksi.findMany({
@@ -1166,17 +1243,29 @@ export async function GET(request: Request) {
         const notaRows = await prisma.notaSawit.findMany({
           where: {
             deletedAt: null,
-            tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
             kendaraanPlatNomor: { not: null },
+            ...(range
+              ? {
+                  OR: [
+                    { tanggalBongkar: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+                    { tanggalBongkar: null, createdAt: { gte: range.startUtc, lt: range.endExclusiveUtc } },
+                    { timbangan: { date: { gte: range.startUtc, lt: range.endExclusiveUtc } } },
+                  ],
+                }
+              : {}),
           },
-          select: { kendaraanPlatNomor: true, netto: true },
+          select: { kendaraanPlatNomor: true, pembayaranAktual: true, pembayaranSetelahPph: true, totalPembayaran: true },
         })
 
         const notaByPlat = new Map<string, number>()
-        for (const n of notaRows) {
+        for (const n of notaRows as any[]) {
           const plat = String(n.kendaraanPlatNomor || '').trim()
           if (!plat) continue
-          notaByPlat.set(plat, (notaByPlat.get(plat) || 0) + Number(n.netto || 0))
+          const aktual = Number(n?.pembayaranAktual || 0)
+          const setelahPph = Number(n?.pembayaranSetelahPph || 0)
+          const total = Number(n?.totalPembayaran || 0)
+          const netRp = aktual > 0 ? aktual : setelahPph > 0 ? setelahPph : total
+          notaByPlat.set(plat, (notaByPlat.get(plat) || 0) + netRp)
         }
 
         const kasIncomeRows = await prisma.kasTransaksi.findMany({
