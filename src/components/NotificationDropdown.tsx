@@ -301,6 +301,10 @@ export default function NotificationDropdown() {
                 return <DocumentTextIcon className="w-5 h-5 text-blue-500" />;
             case 'PERMINTAAN_KEBUN':
                 return <ShoppingCartIcon className="w-5 h-5 text-purple-500" />;
+            case 'INVENTORY_MIN_STOCK':
+                return <ExclamationTriangleIcon className="w-5 h-5 text-rose-500" />;
+            case 'ATTENDANCE_CHECKIN_REMINDER':
+                return <ExclamationTriangleIcon className="w-5 h-5 text-blue-500" />;
             case 'KARYAWAN_DELETE_REQUEST':
                 return <TrashIcon className="w-5 h-5 text-red-500" />;
             case 'SUCCESS':

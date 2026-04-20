@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { 
   BanknotesIcon, 
@@ -154,6 +154,22 @@ export default function LedgerBiayaPage() {
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0, limit }
   const entityStats = data?.entityStats || null
 
+  const formatKategori = useCallback((raw: any) => {
+    const s = String(raw || '').trim()
+    if (!s) return '-'
+    const upper = s.toUpperCase()
+    if (upper === 'ABSENSI') return 'ABSENSI / HARIAN KARYAWAN'
+    return upper
+  }, [])
+
+  const formatKpiKategori = useCallback((raw: any) => {
+    const s = String(raw || '').trim()
+    if (!s) return '-'
+    const normalized = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase()
+    if (normalized === 'ABSENSI') return 'ABSENSI / HARIAN KARYAWAN'
+    return normalized
+  }, [])
+
   const profitMargin = summary.pemasukan > 0 ? ((summary.saldo / summary.pemasukan) * 100).toFixed(1) : '0'
   const costRatio = summary.pemasukan > 0 ? ((summary.pengeluaran / summary.pemasukan) * 100).toFixed(1) : '0'
 
@@ -230,7 +246,7 @@ export default function LedgerBiayaPage() {
       'Sumber': r.source || '-',
       'Scope': r.scope,
       'Tipe': r.tipe,
-      'Kategori': r.kategori || '-',
+      'Kategori': formatKategori(r.kategori),
       'Entitas': r.kendaraan?.platNomor || r.kebun?.name || r.karyawan?.name || r.perusahaan?.name || '-',
       'Deskripsi': r.deskripsi || '-',
       'Jumlah': r.jumlah
@@ -266,7 +282,7 @@ export default function LedgerBiayaPage() {
         r.source || '-',
         r.scope,
         r.tipe,
-        r.kategori || '-',
+        formatKategori(r.kategori),
         r.kendaraan?.platNomor || r.kebun?.name || r.karyawan?.name || r.perusahaan?.name || '-',
         r.deskripsi || '-',
         formatCurrency(r.jumlah)
@@ -339,23 +355,23 @@ export default function LedgerBiayaPage() {
   return (
     <main className="p-4 md:p-8 space-y-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
               <BanknotesIcon className="w-6 h-6 text-emerald-700" />
             </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Ledger Biaya Terpadu</h1>
-              <p className="text-sm text-gray-500">Biaya kendaraan, kebun, uang jalan, perusahaan, karyawan, dan kas dalam satu daftar</p>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-2xl md:text-3xl font-bold text-gray-800 truncate">Ledger Biaya Terpadu</h1>
+              <p className="hidden sm:block text-sm text-gray-500 truncate">Biaya kendaraan, kebun, uang jalan, perusahaan, karyawan, dan kas dalam satu daftar</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2" disabled={exporting}>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2 px-3 sm:px-4 whitespace-nowrap" disabled={exporting}>
                   <ArrowDownTrayIcon className="w-4 h-4" />
-                  {exporting ? 'Mengekspor...' : 'Ekspor Laporan'}
-                  <ChevronDownIcon className="w-4 h-4 opacity-50" />
+                  <span className="hidden sm:inline">{exporting ? 'Mengekspor...' : 'Ekspor Laporan'}</span>
+                  <ChevronDownIcon className="w-4 h-4 opacity-50 hidden sm:inline" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 rounded-xl">
@@ -371,17 +387,17 @@ export default function LedgerBiayaPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-gray-100/80 p-1 rounded-2xl inline-flex">
+          <TabsList className="bg-gray-100/80 p-1 rounded-2xl w-full sm:w-auto flex overflow-x-auto whitespace-nowrap">
             <TabsTrigger 
               value="list" 
-              className="rounded-xl px-6 py-2.5 flex items-center gap-2.5 transition-all data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
+              className="rounded-xl px-4 sm:px-6 py-2.5 flex items-center gap-2.5 transition-all whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
             >
               <ListBulletIcon className="w-5 h-5" />
               <span className="font-semibold text-sm">Daftar Transaksi</span>
             </TabsTrigger>
             <TabsTrigger 
               value="kpi" 
-              className="rounded-xl px-6 py-2.5 flex items-center gap-2.5 transition-all data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
+              className="rounded-xl px-4 sm:px-6 py-2.5 flex items-center gap-2.5 transition-all whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
             >
               <ChartBarSquareIcon className="w-5 h-5" />
               <span className="font-semibold text-sm">KPI & Analisis Visual</span>
@@ -596,7 +612,7 @@ export default function LedgerBiayaPage() {
                             {r.isPaid && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded uppercase font-bold">Lunas</span>}
                           </div>
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600 uppercase">{r.kategori || '-'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600 uppercase">{formatKategori(r.kategori)}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-700">
                           {r.kendaraan?.platNomor || r.kebun?.name || r.karyawan?.name || r.perusahaan?.name || '-'}
                         </td>
@@ -819,7 +835,7 @@ export default function LedgerBiayaPage() {
                         const percentage = ((val as number) / (summary.pemasukan || 1) * 100)
                         return (
                           <tr key={`income-row-${cat}`}>
-                            <td className="px-4 py-3 font-medium text-gray-900 uppercase text-xs">{cat.replace('_', ' ')}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900 uppercase text-xs">{formatKpiKategori(cat)}</td>
                             <td className="px-4 py-3 text-right font-semibold text-gray-800">{formatCurrency(val as number)}</td>
                             <td className="px-4 py-3 text-right">
                               <span className="font-bold text-emerald-600">{percentage.toFixed(1)}%</span>
@@ -859,7 +875,7 @@ export default function LedgerBiayaPage() {
                         const percentage = ((val as number) / (summary.pengeluaran || 1) * 100)
                         return (
                           <tr key={`expense-row-${cat}`}>
-                            <td className="px-4 py-3 font-medium text-gray-900 uppercase text-xs">{cat.replace('_', ' ')}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900 uppercase text-xs">{formatKpiKategori(cat)}</td>
                             <td className="px-4 py-3 text-right font-semibold text-gray-800">{formatCurrency(val as number)}</td>
                             <td className="px-4 py-3 text-right">
                               <span className={cn("font-bold", idx === 0 ? "text-rose-600" : "text-amber-600")}>{percentage.toFixed(1)}%</span>

@@ -3,8 +3,65 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireRole } from '@/lib/route-auth'
 import { ensureKebunAccess } from '@/lib/kebun-access'
+import { sendPushNotification } from '@/lib/web-push'
 
 export const dynamic = 'force-dynamic'
+
+async function notifyMinStock(params: {
+  kebunId: number
+  itemId: number
+  itemName: string
+  stock: number
+  minStock: number
+  actorUserId: number
+}) {
+  try {
+    if (!(params.minStock > 0)) return
+    if (!(params.stock <= params.minStock)) return
+
+    const [kebun, actor, recipients] = await Promise.all([
+      prisma.kebun.findUnique({ where: { id: params.kebunId }, select: { name: true } }),
+      prisma.user.findUnique({ where: { id: params.actorUserId }, select: { name: true } }),
+      prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'PEMILIK'] } },
+        select: { id: true },
+      }),
+    ])
+
+    if (!recipients || recipients.length === 0) return
+
+    const kebunName = kebun?.name || `Kebun #${params.kebunId}`
+    const actorName = actor?.name || 'User'
+    const message = `Stok minimum tercapai: ${kebunName} - ${params.itemName} (stok ${params.stock} / min ${params.minStock}) oleh ${actorName}`
+    const url = `/kebun/${params.kebunId}?tab=inventory`
+
+    await prisma.notification.createMany({
+      data: recipients.map(r => ({
+        userId: r.id,
+        type: 'INVENTORY_MIN_STOCK',
+        title: 'Stok Minimum Inventory',
+        message,
+        link: url,
+        isRead: false,
+      })),
+    })
+
+    const subscriptions = await (prisma as any).pushSubscription.findMany({
+      where: { userId: { in: recipients.map(r => r.id) } },
+    })
+
+    await Promise.all(
+      (subscriptions || []).map((sub: any) =>
+        sendPushNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          { title: 'Stok Minimum Inventory', body: message, url },
+        ),
+      ),
+    )
+  } catch (error) {
+    console.error('Failed to send inventory min stock notification:', error)
+  }
+}
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -89,6 +146,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const result = await prisma.$transaction(async (tx) => {
       const currentStock = Number(item?.stock || 0)
+      const minStock = Number(item?.minStock || 0)
       let newStock = currentStock
       if (type === 'IN') newStock = currentStock + Number(quantity)
       if (type === 'OUT') newStock = currentStock - Number(quantity)
@@ -115,8 +173,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
           userId: currentUserId,
         },
       })
-      return { stock, trx }
+      const crossedDown = minStock > 0 && currentStock > minStock && newStock <= minStock
+      return { stock, trx, crossedDown, minStock }
     })
+
+    if ((result as any)?.crossedDown) {
+      await notifyMinStock({
+        kebunId,
+        itemId,
+        itemName: String(item?.name || 'Barang'),
+        stock: Number((result as any)?.stock?.stock || 0),
+        minStock: Number((result as any)?.minStock || 0),
+        actorUserId: currentUserId,
+      })
+    }
 
     return NextResponse.json(result)
   } catch (error: any) {
@@ -173,6 +243,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
     const result = await prisma.$transaction(async (tx) => {
       const currentStock = Number(item?.stock || 0)
+      const minStock = Number(item?.minStock || 0)
       const oldQty = Number(existing.quantity || 0)
       const oldEffect = existing.type === 'IN' ? oldQty : -oldQty
       const newEffect = existing.type === 'IN' ? Number(quantity) : -Number(quantity)
@@ -197,8 +268,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           userId: currentUserId,
         },
       })
-      return { stock, trx }
+      const crossedDown = minStock > 0 && currentStock > minStock && newStock <= minStock
+      return { stock, trx, crossedDown, minStock }
     })
+
+    if ((result as any)?.crossedDown) {
+      await notifyMinStock({
+        kebunId,
+        itemId: Number(existing.itemId),
+        itemName: String(item?.name || 'Barang'),
+        stock: Number((result as any)?.stock?.stock || 0),
+        minStock: Number((result as any)?.minStock || 0),
+        actorUserId: currentUserId,
+      })
+    }
 
     return NextResponse.json(result)
   } catch (error: any) {
@@ -243,6 +326,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
 
     const result = await prisma.$transaction(async (tx) => {
       const currentStock = Number(item?.stock || 0)
+      const minStock = Number(item?.minStock || 0)
       const oldQty = Number(existing.quantity || 0)
       let newStock = currentStock
 
@@ -261,8 +345,20 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
         data: { stock: newStock },
       })
       await (tx as any).kebunInventoryTransaction.delete({ where: { id: existing.id } })
-      return { stock }
+      const crossedDown = minStock > 0 && currentStock > minStock && newStock <= minStock
+      return { stock, crossedDown, minStock }
     })
+
+    if ((result as any)?.crossedDown) {
+      await notifyMinStock({
+        kebunId,
+        itemId: Number(existing.itemId),
+        itemName: String(item?.name || 'Barang'),
+        stock: Number((result as any)?.stock?.stock || 0),
+        minStock: Number((result as any)?.minStock || 0),
+        actorUserId: guard.id,
+      })
+    }
 
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {

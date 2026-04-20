@@ -128,7 +128,9 @@ export async function GET(request: Request) {
       tipe: 'PEMASUKAN',
       user: { role: 'PEMILIK' },
       NOT: [
-        { kategori: 'PENJUALAN_SAWIT' },
+        { kategori: { equals: 'PENJUALAN_SAWIT', mode: 'insensitive' } },
+        { kategori: { equals: 'PENJUALAN SAWIT', mode: 'insensitive' } },
+        { kategori: { contains: 'PENJUALAN_SAWIT', mode: 'insensitive' } },
         { notaSawitId: { not: null } },
       ],
     }
@@ -307,7 +309,19 @@ export async function GET(request: Request) {
         }),
         prisma.kasTransaksi.count({ where: whereKas }),
         prisma.kasTransaksi.aggregate({ where: { ...whereKas, tipe: 'PENGELUARAN' }, _sum: { jumlah: true } }),
-        prisma.kasTransaksi.aggregate({ where: { ...whereKas, tipe: 'PEMASUKAN' }, _sum: { jumlah: true } }),
+        prisma.kasTransaksi.aggregate({
+          where: {
+            ...whereKas,
+            tipe: 'PEMASUKAN',
+            NOT: [
+              { kategori: { equals: 'PENJUALAN_SAWIT', mode: 'insensitive' } },
+              { kategori: { equals: 'PENJUALAN SAWIT', mode: 'insensitive' } },
+              { kategori: { contains: 'PENJUALAN_SAWIT', mode: 'insensitive' } },
+              { notaSawitId: { not: null } },
+            ],
+          } as any,
+          _sum: { jumlah: true },
+        }),
       )
     } else {
       tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { jumlah: 0 } }), Promise.resolve({ _sum: { jumlah: 0 } }))
@@ -899,6 +913,8 @@ export async function GET(request: Request) {
 
     if (!(expenseOnly || incomeOnly)) kasRowsAgg.forEach(b => {
       const cat = (b.kategori || 'OPERASIONAL').toUpperCase()
+      const catKey = cat.replace(/\s+/g, '_')
+      if (catKey === 'PENJUALAN_SAWIT') return
       const val = Number(b.jumlah || 0)
       if (b.tipe === 'PENGELUARAN') {
         if (breakdown[cat] !== undefined) {
