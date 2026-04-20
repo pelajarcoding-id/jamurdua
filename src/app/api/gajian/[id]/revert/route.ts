@@ -36,22 +36,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
         throw new Error('Hanya gajian yang sudah FINALIZED yang dapat dibatalkan');
       }
 
-      const newerFinalized = await tx.gajian.findFirst({
-        where: {
-          kebunId: gajian.kebunId,
-          status: 'FINALIZED',
-          tanggalSelesai: { gt: gajian.tanggalSelesai },
-        },
-        select: { id: true, tanggalMulai: true, tanggalSelesai: true },
-        orderBy: { tanggalSelesai: 'desc' },
-      })
-      if (newerFinalized) {
-        const fmt = (d: Date) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)
-        throw new Error(
-          `Tidak bisa membatalkan finalisasi gajian ini karena ada gajian FINAL yang lebih baru pada kebun yang sama (ID ${newerFinalized.id}, periode ${fmt(new Date(newerFinalized.tanggalMulai))} - ${fmt(new Date(newerFinalized.tanggalSelesai))}). Batalkan yang paling baru terlebih dahulu.`
-        )
-      }
-
       const gajiTrxRows = await tx.kasTransaksi.findMany({
         where: {
           gajianId: gajianId,
@@ -61,20 +45,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
         select: { id: true, karyawanId: true, deskripsi: true },
       });
 
-      const autoPrefix = `Pembayaran Gaji via Proses Gaji #${gajianId}`
-      const autoGajiTrxIds = gajiTrxRows
-        .filter((t) => t.karyawanId === null && String(t.deskripsi || '').startsWith(autoPrefix))
-        .map((t) => t.id)
-      const manualOrOther = gajiTrxRows.filter((t) => !autoGajiTrxIds.includes(t.id))
-      if (manualOrOther.length > 0) {
-        throw new Error('Gajian sudah dibayar di Kasir. Batalkan pembayaran gaji di Kasir terlebih dahulu.')
-      }
+      const gajiTrxIds = gajiTrxRows.map((t) => t.id)
 
       // 1. Revert NotaSawit status
       const notaSawitIds = gajian.detailGajian.map(d => d.notaSawitId);
       if (notaSawitIds.length > 0) {
         await tx.notaSawit.updateMany({
-          where: { id: { in: notaSawitIds } },
+          where: { id: { in: notaSawitIds }, gajianId: gajianId },
           data: {
             statusGajian: 'BELUM_DIPROSES',
             gajianId: null,
@@ -84,15 +61,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
       // 2. Delete linked KasTransaksi (auto-generated during finalization)
       // We don't use soft delete here because these are auto-generated during finalization
-      await (tx as any).kasTransaksi.deleteMany({
+      const hutangTrxRows = await tx.kasTransaksi.findMany({
         where: {
           gajianId,
           kategori: { in: ['PEMBAYARAN_HUTANG', 'HUTANG_KARYAWAN'] },
         },
-      });
-      if (autoGajiTrxIds.length > 0) {
-        await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: { in: autoGajiTrxIds } } })
-        await (tx as any).kasTransaksi.deleteMany({ where: { id: { in: autoGajiTrxIds } } })
+        select: { id: true },
+      })
+      const hutangTrxIds = hutangTrxRows.map((t) => t.id)
+
+      const trxIdsToDelete = Array.from(new Set([...hutangTrxIds, ...gajiTrxIds]))
+      if (trxIdsToDelete.length > 0) {
+        await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: { in: trxIdsToDelete } } })
+        await (tx as any).kasTransaksi.deleteMany({ where: { id: { in: trxIdsToDelete } } })
       }
 
       // 3. Delete GajianHutangTambahan

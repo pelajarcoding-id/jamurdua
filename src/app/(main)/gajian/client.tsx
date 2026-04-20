@@ -900,20 +900,75 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       return;
     }
 
-    const totalBerat = selectedNotas.reduce((sum, nota) => sum + nota.beratAkhir, 0);
+    const totalBeratAll = [...notasToProcess, ...selectedNotas].reduce((sum, nota) => sum + (Number(nota.beratAkhir) || 0), 0)
 
-    // Map default biaya from database for this kebun
-    const mappedDefaultBiaya = kebunDefaultBiaya.map((db, idx) => ({
-      id: `default-${db.id}-${Date.now()}-${idx}`,
-      deskripsi: db.deskripsi,
-      jumlah: db.isAutoKg ? totalBerat : 0,
-      satuan: db.satuan || 'Kg',
-      hargaSatuan: db.hargaSatuan || 0,
-      total: db.isAutoKg ? Math.round(totalBerat * (db.hargaSatuan || 0)) : 0,
-      isAutoKg: !!db.isAutoKg
-    }))
+    setSavedBiaya((prev) => {
+      if (!kebunId) return prev
+      const next = [...prev]
 
-    setSavedBiaya(prev => [...prev, ...mappedDefaultBiaya]);
+      const normalize = (v: any) => String(v || '').trim().toLowerCase()
+      for (const db of kebunDefaultBiaya) {
+        const dbId = String((db as any)?.id || '').trim()
+        const dbDesc = String((db as any)?.deskripsi || '').trim()
+        const dbSatuan = String((db as any)?.satuan || 'Kg').trim() || 'Kg'
+        const dbHarga = Number((db as any)?.hargaSatuan || 0)
+        const isAutoKg = !!(db as any)?.isAutoKg
+        if (!dbDesc) continue
+
+        const stableId = `default-${kebunId}-${dbId || normalize(dbDesc)}`
+        const existingIdx = next.findIndex((b: any) => {
+          const bid = String((b as any)?.id || '')
+          if (bid === stableId) return true
+          return normalize((b as any)?.deskripsi) === normalize(dbDesc) && String((b as any)?.satuan || 'Kg').trim() === dbSatuan && Number((b as any)?.hargaSatuan || 0) === dbHarga
+        })
+
+        if (!isAutoKg) {
+          if (existingIdx === -1) {
+            next.push({
+              id: stableId,
+              deskripsi: dbDesc,
+              jumlah: 0,
+              satuan: dbSatuan,
+              hargaSatuan: dbHarga,
+              total: 0,
+              isAutoKg: false,
+            } as any)
+          }
+          continue
+        }
+
+        const desiredJumlah = totalBeratAll
+        const desiredTotal = Math.round(totalBeratAll * dbHarga)
+
+        if (existingIdx === -1) {
+          next.push({
+            id: stableId,
+            deskripsi: dbDesc,
+            jumlah: desiredJumlah,
+            satuan: dbSatuan,
+            hargaSatuan: dbHarga,
+            total: desiredTotal,
+            isAutoKg: true,
+            keterangan: '',
+          } as any)
+          continue
+        }
+
+        const existing: any = next[existingIdx]
+        next[existingIdx] = {
+          ...existing,
+          id: stableId,
+          deskripsi: dbDesc,
+          satuan: dbSatuan,
+          hargaSatuan: dbHarga,
+          jumlah: desiredJumlah,
+          total: desiredTotal,
+          isAutoKg: true,
+        }
+      }
+
+      return next
+    })
     setBiayaLain([]);
     // Create new objects to avoid reference sharing issues
     setNotasToProcess(prev => [...prev, ...selectedNotas.map(n => ({ ...n }))]);
