@@ -6,67 +6,9 @@ import { Prisma } from '@prisma/client';
 import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
+import { validateKasKategoriOrThrow } from '@/lib/kasir/kasKategori'
 
 export const dynamic = 'force-dynamic'
-
-async function ensureKasKategoriTable() {
-  await prisma.$executeRaw`
-    CREATE TABLE IF NOT EXISTS "KasKategori" (
-      "code" TEXT PRIMARY KEY,
-      "label" TEXT NOT NULL,
-      "tipe" TEXT NOT NULL,
-      "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
-      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-  `
-  await prisma.$executeRaw`
-    CREATE INDEX IF NOT EXISTS "KasKategori_tipe_idx" ON "KasKategori" ("tipe");
-  `
-  await prisma.$executeRaw`
-    CREATE INDEX IF NOT EXISTS "KasKategori_isActive_idx" ON "KasKategori" ("isActive");
-  `
-  const defaults = [
-    { code: 'UMUM', label: 'Umum', tipe: 'BOTH' },
-    { code: 'KEBUN', label: 'Kebun', tipe: 'BOTH' },
-    { code: 'KENDARAAN', label: 'Kendaraan', tipe: 'BOTH' },
-    { code: 'KARYAWAN', label: 'Karyawan', tipe: 'BOTH' },
-    { code: 'GAJI', label: 'Gaji', tipe: 'PENGELUARAN' },
-    { code: 'HUTANG_KARYAWAN', label: 'Hutang Karyawan', tipe: 'PENGELUARAN' },
-    { code: 'PEMBAYARAN_HUTANG', label: 'Pembayaran Hutang', tipe: 'PEMASUKAN' },
-    { code: 'PENJUALAN_SAWIT', label: 'Penjualan Sawit', tipe: 'PEMASUKAN' },
-  ]
-  for (const d of defaults) {
-    await prisma.$executeRaw`
-      INSERT INTO "KasKategori" ("code","label","tipe","isActive","updatedAt")
-      VALUES (${d.code}, ${d.label}, ${d.tipe}, TRUE, CURRENT_TIMESTAMP)
-      ON CONFLICT ("code") DO UPDATE SET
-        "label" = EXCLUDED."label",
-        "tipe" = EXCLUDED."tipe",
-        "updatedAt" = CURRENT_TIMESTAMP;
-    `
-  }
-}
-
-async function validateKasKategoriOrThrow(kategoriRaw: string | undefined, tipe: 'PEMASUKAN' | 'PENGELUARAN') {
-  const kategori = (kategoriRaw || 'UMUM').trim().toUpperCase()
-  await ensureKasKategoriTable()
-  const rows = await prisma.$queryRaw<Array<{ tipe: string; isActive: boolean }>>(
-    Prisma.sql`SELECT "tipe","isActive" FROM "KasKategori" WHERE "code" = ${kategori} LIMIT 1`
-  )
-  if (rows.length === 0) {
-    throw new Error('Kategori tidak valid')
-  }
-  const row = rows[0]
-  if (!row.isActive) {
-    throw new Error('Kategori tidak aktif')
-  }
-  const allowed = row.tipe === 'BOTH' || row.tipe === tipe
-  if (!allowed) {
-    throw new Error('Kategori tidak sesuai dengan tipe transaksi')
-  }
-  return kategori
-}
 
 async function resolveKendaraanPlatNomorOrThrow(input?: string | null) {
   const raw = typeof input === 'string' ? input.trim() : ''
@@ -107,18 +49,21 @@ async function resolveKendaraanPlatNomorOrThrow(input?: string | null) {
 // Fungsi untuk mendapatkan saldo awal hingga tanggal tertentu (tidak termasuk tanggal tersebut)
 async function getSaldoAwal(untilDate: Date, userId?: number | null) {
   const baseWhere: any = {
+    deletedAt: null,
     date: { lt: untilDate },
   };
   if (userId) baseWhere.userId = userId;
 
-  const pemasukanAgg = await prisma.kasTransaksi.aggregate({
-    _sum: { jumlah: true },
-    where: { ...baseWhere, tipe: 'PEMASUKAN' },
-  });
-  const pengeluaranAgg = await prisma.kasTransaksi.aggregate({
-    _sum: { jumlah: true },
-    where: { ...baseWhere, tipe: 'PENGELUARAN' },
-  });
+  const [pemasukanAgg, pengeluaranAgg] = await Promise.all([
+    prisma.kasTransaksi.aggregate({
+      _sum: { jumlah: true },
+      where: { ...baseWhere, tipe: 'PEMASUKAN' },
+    }),
+    prisma.kasTransaksi.aggregate({
+      _sum: { jumlah: true },
+      where: { ...baseWhere, tipe: 'PENGELUARAN' },
+    }),
+  ])
   const pemasukan = pemasukanAgg._sum.jumlah ?? 0;
   const pengeluaran = pengeluaranAgg._sum.jumlah ?? 0;
   return pemasukan - pengeluaran;
@@ -259,21 +204,13 @@ export async function GET(request: Request) {
       prisma.kasTransaksi.count({ where: whereClause }),
     ]);
 
-    let totalPemasukan = 0;
-    let totalPengeluaran = 0;
-
-    // Untuk menghitung total pemasukan/pengeluaran hari ini, kita perlu fetch semua transaksi hari ini tanpa pagination
-    const allTodayTransactions = await prisma.kasTransaksi.findMany({
+    const grouped = await prisma.kasTransaksi.groupBy({
+      by: ['tipe'],
       where: whereClause,
-    });
-
-    allTodayTransactions.forEach((trx: { tipe: string; jumlah: number }) => {
-      if (trx.tipe === 'PEMASUKAN') {
-        totalPemasukan += trx.jumlah;
-      } else {
-        totalPengeluaran += trx.jumlah;
-      }
-    });
+      _sum: { jumlah: true },
+    })
+    const totalPemasukan = Number(grouped.find((g) => g.tipe === 'PEMASUKAN')?._sum?.jumlah || 0)
+    const totalPengeluaran = Number(grouped.find((g) => g.tipe === 'PENGELUARAN')?._sum?.jumlah || 0)
 
     const saldoAkhir = saldoAwal + totalPemasukan - totalPengeluaran;
     const pageCount = Math.ceil(totalItems / limit);
@@ -319,15 +256,6 @@ export async function POST(request: Request) {
     const { tipe, deskripsi, jumlah, keterangan, gambarUrl, date, kendaraanPlatNomor, kebunId, karyawanId } = parsed.data;
     const kategori = await validateKasKategoriOrThrow(parsed.data.kategori, tipe)
     const resolvedKendaraanPlatNomor = await resolveKendaraanPlatNomorOrThrow(kendaraanPlatNomor)
-
-    const formData = new FormData();
-    if (gambarUrl && gambarUrl.length > 0) {
-      // Handle upload from FormData if needed, but current implementation sends url directly
-      // If gambarUrl is sent as string from frontend upload, validation is fine.
-    }
-    // If we need to support FormData directly in this route instead of JSON
-    // We would need to rewrite this whole handler.
-    // Assuming frontend uploads first then sends JSON.
 
     const newTransaction = await prisma.kasTransaksi.create({
       data: {

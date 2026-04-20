@@ -22,6 +22,10 @@ import { PembayaranTab } from './PembayaranTab'
 import { usePembayaranNotaSawit } from './usePembayaranNotaSawit'
 import NotaSawitPageModals from './NotaSawitPageModals'
 import { useNotaSawitModalsState } from './useNotaSawitModalsState'
+import { NotaSawitTabs } from './NotaSawitTabs'
+import { NotaSawitSummary } from './NotaSawitSummary'
+import { NotaSawitBulkActionsBar } from './NotaSawitBulkActionsBar'
+import { NotaSawitToolbar } from './NotaSawitToolbar'
 
 interface SummaryData {
   totalBerat: number;
@@ -2135,22 +2139,7 @@ export default function NotaSawitPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
-          <TabsList className="w-full sm:w-auto flex items-center gap-1 h-12 rounded-2xl bg-gray-50 border border-gray-100 p-1">
-            <TabsTrigger
-              value="nota"
-              className="flex-1 rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
-            >
-              <ClipboardDocumentListIcon className="h-4 w-4 mr-2" />
-              Daftar Nota Sawit
-            </TabsTrigger>
-            <TabsTrigger
-              value="pembayaran"
-              className="flex-1 rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
-            >
-              <BanknotesIcon className="h-4 w-4 mr-2" />
-              Pembayaran Nota Sawit
-            </TabsTrigger>
-          </TabsList>
+          <NotaSawitTabs value={activeTab} />
 
           <TabsContent value="nota" className="space-y-8">
         {loading && data.length === 0 ? (
@@ -2173,84 +2162,9 @@ export default function NotaSawitPage() {
               </div>
             </div>
           </div>
-        ) : summary && (
-          <div className="mb-8">
-            <div className="card-style p-4 rounded-2xl">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <ClipboardDocumentListIcon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Ringkasan Nota Sawit</p>
-                    <p className="text-xs text-gray-500">Status pembayaran dan total tonase</p>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  <span className="whitespace-nowrap">Periode: </span>
-                  <span className="font-semibold text-gray-900 whitespace-nowrap">{dateDisplay}</span>
-                </div>
-              </div>
-              <div className={cn("mt-4 grid gap-3 items-stretch", role !== 'SUPIR' ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
-                <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3 h-full flex flex-col">
-                  <div className="text-xs font-semibold text-emerald-700 whitespace-nowrap">Total Nota</div>
-                  <div className="mt-0.5 text-xl font-extrabold text-gray-900 tabular-nums whitespace-nowrap" title={summary.totalNota.toLocaleString('id-ID')}>
-                    {summary.totalNota.toLocaleString('id-ID')}
-                  </div>
-                  {role !== 'SUPIR' && (
-                    <div className="mt-1 text-[11px] text-gray-600 whitespace-nowrap">
-                      Nota dibayar: <span className="font-semibold text-gray-900">{summary.lunasCount.toLocaleString('id-ID')}</span> • Nota belum dibayar: <span className="font-semibold text-gray-900">{summary.belumLunasCount.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-3 h-full flex flex-col">
-                  <div className="text-xs font-semibold text-amber-700 whitespace-nowrap">Total Tonase</div>
-                  <div className="mt-0.5 text-xl font-extrabold text-gray-900 tabular-nums whitespace-nowrap" title={`${summary.totalBerat.toLocaleString('id-ID')} Kg`}>
-                    {summary.totalBerat.toLocaleString('id-ID')} <span className="text-sm font-semibold text-gray-500">Kg</span>
-                  </div>
-                  <div className="mt-1 space-y-1">
-                    {Array.isArray(summary.tonaseByKebun) && summary.tonaseByKebun.length > 0 ? (
-                      <div className="max-h-24 overflow-y-auto pr-1 space-y-1">
-                        {summary.tonaseByKebun.map((r) => (
-                          <div key={String(r.kebunId)} className="flex items-center justify-between gap-2 text-[11px] text-gray-600">
-                            <div className="min-w-0 truncate">{r.name}</div>
-                            <div className="font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatNumber(Number(r.totalBerat || 0))} Kg</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-gray-600 whitespace-nowrap">Berat akhir nota</div>
-                    )}
-                  </div>
-                </div>
-                {role !== 'SUPIR' && (
-                  <>
-                    <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/80 to-white p-3 h-full flex flex-col">
-                      <div className="text-xs font-semibold text-sky-700 whitespace-nowrap">Pembayaran</div>
-                      <div className="mt-0.5 text-lg font-extrabold text-gray-900 tabular-nums whitespace-nowrap" title={formatCurrency(summary.totalPembayaran)}>
-                        {formatCurrency(summary.totalPembayaran)}
-                      </div>
-                      <div className="mt-1 grid grid-cols-1 gap-2">
-                        <div className="rounded-xl border border-sky-100 bg-white/70 px-3 py-1.5 min-w-0">
-                          <div className="text-[11px] font-semibold text-sky-700 whitespace-nowrap">Nota Sawit Lunas</div>
-                          <div className="text-sm font-extrabold text-gray-900 tabular-nums whitespace-nowrap truncate leading-tight" title={formatCurrency(summary.totalPembayaranLunas)}>
-                            {formatCurrency(summary.totalPembayaranLunas)}
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-sky-100 bg-white/70 px-3 py-1.5 min-w-0">
-                          <div className="text-[11px] font-semibold text-sky-700 whitespace-nowrap">Nota Sawit Belum Lunas</div>
-                          <div className="text-sm font-extrabold text-gray-900 tabular-nums whitespace-nowrap truncate leading-tight" title={formatCurrency(summary.totalPembayaranBelumLunas)}>
-                            {formatCurrency(summary.totalPembayaranBelumLunas)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        ) : summary ? (
+          <NotaSawitSummary summary={summary as any} role={role} dateDisplay={dateDisplay} formatNumber={formatNumber} formatCurrency={formatCurrency} />
+        ) : null}
 
         <div className="card-style">
           {role !== 'SUPIR' ? (
@@ -2265,196 +2179,62 @@ export default function NotaSawitPage() {
               </Button>
             </div>
           ) : null}
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-            <div className="grid grid-cols-2 gap-4 w-full lg:flex lg:flex-wrap lg:items-center lg:gap-3">
-              <div className="col-span-2 w-full min-w-0 lg:flex-1 lg:min-w-[320px] lg:max-w-[640px]">
-                <div className="relative">
-                  <Input
-                      type="text"
-                      placeholder="Cari semua kolom (supir, plat, pabrik, perusahaan, kebun, angka, dll)..."
-                      value={searchDraft}
-                      onChange={(e) => {
-                        const next = e.target.value
-                        setSearchDraft(next)
-                        if (!String(next || '').trim()) {
-                          setSearchQuery('')
-                          setPage(1)
-                          setCursorId(null)
-                          setCursorStack([])
-                          setNextCursor(null)
-                          const params = new URLSearchParams(searchParams.toString())
-                          params.delete('search')
-                          router.replace(`?${params.toString()}`, { scroll: false })
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          applySearch()
-                        }
-                      }}
-                      className="input-style rounded-lg pr-10"
-                  />
-                  {notaSoftLoading ? (
-                    <ArrowPathIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={applySearch}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                      aria-label="Cari"
-                    >
-                      <MagnifyingGlassIcon className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="col-span-1 w-full lg:flex-none lg:w-[260px] flex items-center gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="date"
-                      variant={"outline"}
-                      className={cn(
-                        "w-full lg:w-full justify-start text-left font-normal bg-white",
-                        !startDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateDisplay}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-4 bg-white" align="start">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <h4 className="font-medium leading-none">Rentang Waktu</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Pilih rentang waktu cepat
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('all')} className={quickRange === 'all' ? 'bg-accent' : ''}>Semua</Button>
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('today')} className={quickRange === 'today' ? 'bg-accent' : ''}>Hari Ini</Button>
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('yesterday')} className={quickRange === 'yesterday' ? 'bg-accent' : ''}>Kemarin</Button>
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_week')} className={quickRange === 'last_week' ? 'bg-accent' : ''}>7 Hari</Button>
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_30_days')} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_month')} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
-                        <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_year')} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
-                      </div>
-                      <div className="border-t pt-4 space-y-2">
-                        <h4 className="font-medium leading-none">Kustom</h4>
-                        <div className="grid gap-2">
-                          <div className="grid grid-cols-3 items-center gap-4">
-                            <Label htmlFor="start-date" className="text-xs">Dari</Label>
-                            <Input
-                              id="start-date"
-                              type="date"
-                              className="col-span-2 h-8"
-                              value={startDate ? toWibYmd(startDate) : ''}
-                              onChange={(e) => {
-                                setStartDate(e.target.value ? wibStartFromYmd(e.target.value) : undefined);
-                                setQuickRange('custom');
-                              }}
-                            />
-                          </div>
-                          <div className="grid grid-cols-3 items-center gap-4">
-                            <Label htmlFor="end-date" className="text-xs">Sampai</Label>
-                            <Input
-                              id="end-date"
-                              type="date"
-                              className="col-span-2 h-8"
-                              value={endDate ? toWibYmd(endDate) : ''}
-                              onChange={(e) => {
-                                setEndDate(e.target.value ? wibEndFromYmd(e.target.value) : undefined);
-                                setQuickRange('custom');
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <select
-                value={selectedKebun}
-                onChange={(e) => setSelectedKebun(e.target.value)}
-                className="w-full lg:flex-none lg:w-[220px] input-style rounded-lg"
-              >
-                <option value="">Semua Kebun</option>
-                {kebunList.map((kebun) => (
-                  <option key={kebun.id} value={kebun.id}>
-                    {kebun.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedPabrik}
-                onChange={(e) => setSelectedPabrik(e.target.value)}
-                className="w-full lg:flex-none lg:w-[220px] input-style rounded-lg"
-              >
-                <option value="">Semua Pabrik</option>
-                {pabrikList.map((pabrik) => (
-                  <option key={pabrik.id} value={pabrik.id}>
-                    {pabrik.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="col-span-1 w-full lg:flex-none lg:w-[180px] input-style rounded-lg"
-              >
-                <option value="">Semua Status</option>
-                <option value="LUNAS">Lunas</option>
-                <option value="BELUM_LUNAS">Belum Lunas</option>
-              </select>
-              <div className="col-span-2 w-full lg:w-auto lg:flex-none lg:ml-auto flex items-center gap-2 justify-between lg:justify-end">
-                {role !== 'SUPIR' ? (
-                  <Button
-                    onClick={() => { setSelectedNota(null); setIsModalOpen(true); }}
-                    className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white justify-center lg:hidden"
-                    title="Tambah Nota Sawit"
-                  >
-                    <PlusIcon className="w-4 h-4 mr-2" />
-                    Tambah Nota Sawit
-                  </Button>
-                ) : null}
-                <Button
-                  onClick={handleRefresh}
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full shrink-0"
-                  title="Refresh data"
-                  aria-label="Refresh data"
-                >
-                  <ArrowPathIcon className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            </div>
-          </div>
+          <NotaSawitToolbar
+            role={role}
+            searchDraft={searchDraft}
+            notaSoftLoading={notaSoftLoading}
+            onSearchDraftChange={(value) => {
+              const next = value
+              setSearchDraft(next)
+              if (!String(next || '').trim()) {
+                setSearchQuery('')
+                setPage(1)
+                setCursorId(null)
+                setCursorStack([])
+                setNextCursor(null)
+                const params = new URLSearchParams(searchParams.toString())
+                params.delete('search')
+                router.replace(`?${params.toString()}`, { scroll: false })
+              }
+            }}
+            onSearchSubmit={applySearch}
+            dateDisplay={dateDisplay}
+            quickRange={quickRange}
+            onQuickRange={applyQuickRange}
+            startDateYmd={startDate ? toWibYmd(startDate) : ''}
+            endDateYmd={endDate ? toWibYmd(endDate) : ''}
+            onStartDateYmdChange={(ymd) => {
+              setStartDate(ymd ? wibStartFromYmd(ymd) : undefined)
+              setQuickRange('custom')
+            }}
+            onEndDateYmdChange={(ymd) => {
+              setEndDate(ymd ? wibEndFromYmd(ymd) : undefined)
+              setQuickRange('custom')
+            }}
+            selectedKebun={selectedKebun}
+            kebunList={kebunList}
+            onSelectedKebunChange={setSelectedKebun}
+            selectedPabrik={selectedPabrik}
+            pabrikList={pabrikList}
+            onSelectedPabrikChange={setSelectedPabrik}
+            selectedStatus={selectedStatus}
+            onSelectedStatusChange={setSelectedStatus}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            onAddNota={() => {
+              setSelectedNota(null)
+              setIsModalOpen(true)
+            }}
+          />
 
-          {Object.keys(rowSelection).length > 0 && (
-          <div className="mb-6 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
-              <span className="text-sm font-semibold text-blue-700 sm:mr-2">{Object.keys(rowSelection).length} terpilih:</span>
-              <span className="text-sm font-semibold text-blue-700 sm:mr-2 whitespace-nowrap">
-                Berat Akhir: {new Intl.NumberFormat('id-ID').format(Math.round(Number(bulkSelectedBeratAkhir || 0)))} kg
-              </span>
-              {role !== 'SUPIR' ? (
-                <>
-                  <Button variant="destructive" onClick={() => setIsBulkDeleteConfirmOpen(true)} className="rounded-full w-full sm:w-auto">
-                    Hapus
-                  </Button>
-                  <Button onClick={() => setIsBulkHargaOpen(true)} className="rounded-full w-full sm:w-auto">
-                    Update Harga
-                  </Button>
-                </>
-              ) : null}
-              <Button variant="destructive" onClick={handleBulkPrint} className="inline-flex items-center gap-2 rounded-full w-full sm:w-auto">
-                <ArrowDownTrayIcon className="w-4 h-4" />
-                Ekspor PDF
-              </Button>
-            </div>
-          )}
+          <NotaSawitBulkActionsBar
+            selectedCount={Object.keys(rowSelection).length}
+            totalBeratAkhir={Number(bulkSelectedBeratAkhir || 0)}
+            role={role}
+            onDelete={() => setIsBulkDeleteConfirmOpen(true)}
+            onUpdateHarga={() => setIsBulkHargaOpen(true)}
+            onExportPdf={handleBulkPrint}
+          />
 
           <div className="md:hidden space-y-3">
             {loading && data.length === 0 ? (

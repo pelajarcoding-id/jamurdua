@@ -16,6 +16,9 @@ import { id as idLocale } from 'date-fns/locale'
 import useSWRImmutable from 'swr/immutable'
 import KaryawanPageModals from './KaryawanPageModals'
 import { useKaryawanModalsState } from './useKaryawanModalsState'
+import { KaryawanHeader } from './KaryawanHeader'
+import { KaryawanSummaryCards } from './KaryawanSummaryCards'
+import { KaryawanTabs } from './KaryawanTabs'
 
 type Kebun = { id: number; name: string }
 type WorkLocation = { id: number; name: string; type: string; kebunId?: number | null }
@@ -1732,78 +1735,29 @@ export default function KaryawanKebunPage() {
           </div>
         </div>
       )}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-        <div>
-          <h1 className="text-2xl font-bold">Karyawan</h1>
-          <p className="text-sm text-gray-500 mt-1">Untuk pekerja yang dikelola absensi, upah, penugasan, dan hutang.</p>
-        </div>
-        <div className="flex flex-wrap md:flex-nowrap gap-2 w-full md:w-auto">
-          <Button
-            size="icon"
-            variant="outline"
-            className="rounded-full"
-            onClick={handleRefresh}
-            title="Refresh data"
-            aria-label="Refresh data"
-          >
-            <ArrowPathIcon className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button
-            size="sm"
-            className="rounded-full w-full md:w-auto whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-            onClick={() => { setEditKaryawan(null); setFormName(''); setFormPhotoFile(null); setFormPhotoPreview(null); setFormKebunId(null); setFormJobType('KEBUN'); setFormStatus('AKTIF'); setFormRole('KARYAWAN'); setFormTanggalMulaiBekerja(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())); setFormKendaraanPlatNomor(''); setOpenAddEditKaryawan(true) }}
-          >
-            Tambah Karyawan
-          </Button>
-        </div>
-      </div>
+      <KaryawanHeader
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onAdd={() => {
+          setEditKaryawan(null)
+          setFormName('')
+          setFormPhotoFile(null)
+          setFormPhotoPreview(null)
+          setFormKebunId(null)
+          setFormJobType('KEBUN')
+          setFormStatus('AKTIF')
+          setFormRole('KARYAWAN')
+          setFormTanggalMulaiBekerja(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()))
+          setFormKendaraanPlatNomor('')
+          setOpenAddEditKaryawan(true)
+        }}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-emerald-50 rounded-lg">
-              <UserGroupIcon className="w-5 h-5 text-emerald-600" />
-            </div>
-            <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Karyawan</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-gray-900">
-              {summaryData?.totalKaryawan ?? 0}
-            </span>
-            <span className="text-sm text-gray-500 font-medium">Orang</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-emerald-50 rounded-lg">
-              <BanknotesIcon className="w-5 h-5 text-emerald-600" />
-            </div>
-            <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Gaji</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-gray-900">Rp</span>
-            <span className="text-3xl font-bold text-gray-900">
-              {(summaryData?.gaji?.total ?? 0).toLocaleString('id-ID')}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-red-50 rounded-lg">
-              <CreditCardIcon className="w-5 h-5 text-red-600" />
-            </div>
-            <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Hutang</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-red-600">Rp</span>
-            <span className="text-3xl font-bold text-red-600">
-              {(summaryData?.hutang?.total ?? 0).toLocaleString('id-ID')}
-            </span>
-          </div>
-        </div>
-      </div>
+      <KaryawanSummaryCards
+        totalKaryawan={summaryData?.totalKaryawan ?? 0}
+        totalGaji={Number(summaryData?.gaji?.total ?? 0)}
+        totalHutang={Number(summaryData?.hutang?.total ?? 0)}
+      />
 
       <div className="bg-white p-4 md:p-6 rounded-lg shadow mb-6">
         <div className="flex items-center justify-between gap-3">
@@ -2130,11 +2084,7 @@ export default function KaryawanKebunPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-      <TabsList className="w-full bg-gray-100 rounded-full p-1 gap-1 grid grid-cols-3 h-auto md:inline-flex md:w-auto md:h-9">
-          <TabsTrigger value="karyawan" className="rounded-full px-2 md:px-4">Data Karyawan</TabsTrigger>
-          <TabsTrigger value="ringkasan" className="rounded-full px-2 md:px-4">Ringkasan</TabsTrigger>
-          <TabsTrigger value="hutang" className="rounded-full px-2 md:px-4">Hutang</TabsTrigger>
-        </TabsList>
+        <KaryawanTabs />
 
         <TabsContent value="karyawan">
           {canDelete && (

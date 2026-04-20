@@ -27,6 +27,13 @@ import type { BiayaLainGajian, DetailGajian, PotonganGajian, DetailGajianKaryawa
 import { createWIBDate, formatWIBDateForInput, getCurrentWIBDateParts, parseWIBDateFromInput } from '@/lib/wib-date';
 import { useGajianModalsState } from './useGajianModalsState';
 import GajianPageModals from './GajianPageModals';
+import { upsertDefaultBiaya } from './default-biaya'
+import { GajianCreateSection } from './GajianCreateSection'
+import { GajianNotaPickerSection } from './GajianNotaPickerSection'
+import { GajianProcessNotasSection } from './GajianProcessNotasSection'
+import { GajianBiayaSection } from './GajianBiayaSection'
+import { GajianPotonganSection } from './GajianPotonganSection'
+import { GajianHutangSection } from './GajianHutangSection'
 
 
 interface GajianClientProps {
@@ -904,70 +911,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
     setSavedBiaya((prev) => {
       if (!kebunId) return prev
-      const next = [...prev]
-
-      const normalize = (v: any) => String(v || '').trim().toLowerCase()
-      for (const db of kebunDefaultBiaya) {
-        const dbId = String((db as any)?.id || '').trim()
-        const dbDesc = String((db as any)?.deskripsi || '').trim()
-        const dbSatuan = String((db as any)?.satuan || 'Kg').trim() || 'Kg'
-        const dbHarga = Number((db as any)?.hargaSatuan || 0)
-        const isAutoKg = !!(db as any)?.isAutoKg
-        if (!dbDesc) continue
-
-        const stableId = `default-${kebunId}-${dbId || normalize(dbDesc)}`
-        const existingIdx = next.findIndex((b: any) => {
-          const bid = String((b as any)?.id || '')
-          if (bid === stableId) return true
-          return normalize((b as any)?.deskripsi) === normalize(dbDesc) && String((b as any)?.satuan || 'Kg').trim() === dbSatuan && Number((b as any)?.hargaSatuan || 0) === dbHarga
-        })
-
-        if (!isAutoKg) {
-          if (existingIdx === -1) {
-            next.push({
-              id: stableId,
-              deskripsi: dbDesc,
-              jumlah: 0,
-              satuan: dbSatuan,
-              hargaSatuan: dbHarga,
-              total: 0,
-              isAutoKg: false,
-            } as any)
-          }
-          continue
-        }
-
-        const desiredJumlah = totalBeratAll
-        const desiredTotal = Math.round(totalBeratAll * dbHarga)
-
-        if (existingIdx === -1) {
-          next.push({
-            id: stableId,
-            deskripsi: dbDesc,
-            jumlah: desiredJumlah,
-            satuan: dbSatuan,
-            hargaSatuan: dbHarga,
-            total: desiredTotal,
-            isAutoKg: true,
-            keterangan: '',
-          } as any)
-          continue
-        }
-
-        const existing: any = next[existingIdx]
-        next[existingIdx] = {
-          ...existing,
-          id: stableId,
-          deskripsi: dbDesc,
-          satuan: dbSatuan,
-          hargaSatuan: dbHarga,
-          jumlah: desiredJumlah,
-          total: desiredTotal,
-          isAutoKg: true,
-        }
-      }
-
-      return next
+      return upsertDefaultBiaya({
+        prev,
+        kebunId,
+        kebunDefaultBiaya: kebunDefaultBiaya as any,
+        totalBeratAll,
+      }) as any
     })
     setBiayaLain([]);
     // Create new objects to avoid reference sharing issues
@@ -1966,236 +1915,57 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
   return (
     <div className="space-y-8">
-      {/* Section for Creating New Gajian */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-          <div className="w-full flex flex-col gap-1">
-            <h2 className="text-lg md:text-xl font-semibold flex items-center gap-2">
-              <BanknotesIcon className="h-5 w-5 text-blue-600" />
-              {editingGajianId ? 'Edit Gajian Draft' : 'Buat Gajian Baru'}
-            </h2>
-            <div className="hidden md:flex items-center gap-2 text-xs text-gray-500">
-              <StarIcon className="h-4 w-4 text-red-600" />
-              <span>Pilih kebun dan periode gajian terlebih dahulu sebelum mengambil nota.</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {editingGajianId && (
-              <Button
-                onClick={(e) => { e.stopPropagation(); handleRefreshDraftData(); }}
-                variant="outline"
-                disabled={refreshingData || loading || boronganLoading}
-                className="w-full md:w-auto h-9 md:h-10 px-3 md:px-4 text-sm md:text-base whitespace-nowrap"
-              >
-                {refreshingData ? 'Memperbarui...' : 'Perbarui Data'}
-              </Button>
-            )}
-          </div>
+      <GajianCreateSection
+        editingGajianId={editingGajianId}
+        refreshingData={refreshingData}
+        loading={loading}
+        boronganLoading={boronganLoading}
+        onRefreshDraftData={handleRefreshDraftData}
+        kebunId={kebunId}
+        kebunList={kebunList}
+        onKebunIdChange={setKebunId}
+        startDateYmd={startDate ? formatWIBDateForInput(startDate) : ''}
+        endDateYmd={endDate ? formatWIBDateForInput(endDate) : ''}
+        onStartDateYmdChange={(ymd) => setStartDate(parseWIBDateFromInput(ymd))}
+        onEndDateYmdChange={(ymd) => setEndDate(parseWIBDateFromInput(ymd, true))}
+        onFetchNotas={handleFetchNotas}
+        canSearchNota={canSearchNota}
+        hasDraftConflict={hasDraftConflict}
+        draftConflictId={draftConflict?.id || null}
+        onContinueDraft={handleContinueDraft}
+        onDeleteDraft={handleOpenDraftDeleteConfirm}
+      />
+
+      {searchAttempted && notas.length === 0 && (
+        <div className="mt-6 text-center text-gray-500">
+          <p>Tidak ada nota yang ditemukan untuk kebun dan periode yang dipilih.</p>
         </div>
-        
-        <div className="transition-all duration-300 overflow-hidden opacity-100">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start md:items-end mb-6">
-            <div className="lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">1. Pilih Kebun</label>
-              <Select onValueChange={id => {
-                setKebunId(id);
-              }} value={kebunId}>
-                <SelectTrigger className="input-style rounded-xl"><SelectValue placeholder="Pilih Kebun">{kebunId ? kebunList.find(k => String(k.id) === kebunId)?.name : "Pilih Kebun"}</SelectValue></SelectTrigger>
-                <SelectContent>
-                  {kebunList.map(kebun => <SelectItem key={kebun.id} value={String(kebun.id)}>{kebun.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+      )}
+
+      {notas.length > 0 ? (
+        <div className="mt-6" ref={notasSectionRef}>
+          <GajianNotaPickerSection
+            notas={notas as any}
+            totalNotas={totalNotas}
+            notaFetchLimit={notaFetchLimit}
+            rowSelection={rowSelection as any}
+            setRowSelection={setRowSelection as any}
+            canProcessNota={canProcessNota}
+            onMoveToProcess={handleMoveToProcess}
+            onClearSelection={() => setRowSelection({})}
+            formatDate={formatDate as any}
+            formatNumber={formatNumber as any}
+            getNotaNetto={getNotaNetto as any}
+            columns={columns as any}
+          />
+
+          {notasToProcess.length === 0 && detailKaryawan.length === 0 && savedBiaya.length === 0 && manualPotonganRows.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-600">
+              Rincian gajian akan muncul setelah nota dipilih dan diproses.
             </div>
-            <div className="lg:col-span-2 w-full">
-              <label className="block text-sm font-medium text-gray-700 mb-1">2. Pilih Periode</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                <Input 
-                  className="input-style rounded-xl w-full min-w-0" 
-                  type="date" 
-                  value={startDate ? formatWIBDateForInput(startDate) : ''}
-                  onChange={(e) => setStartDate(parseWIBDateFromInput(e.target.value))} 
-                />
-                <Input 
-                  className="input-style rounded-xl w-full min-w-0" 
-                  type="date" 
-                  value={endDate ? formatWIBDateForInput(endDate) : ''}
-                  onChange={(e) => setEndDate(parseWIBDateFromInput(e.target.value, true))} 
-                />
-              </div>
-            </div>
-            <Button
-              onClick={() => handleFetchNotas()}
-              disabled={!canSearchNota || hasDraftConflict}
-              className={cn(
-                'w-full rounded-xl lg:col-span-1 h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words border',
-                canSearchNota && !hasDraftConflict
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
-                  : 'border-gray-300 bg-gray-50 text-gray-400'
-              )}
-            >
-              {loading ? 'Mencari...' : '3. Cari Nota'}
-            </Button>
-          </div>
-          <div className="md:hidden flex items-center gap-2 text-xs text-gray-500 mb-4">
-            <StarIcon className="h-4 w-4 text-red-600" />
-            <span>Pilih kebun dan periode gajian terlebih dahulu sebelum mengambil nota.</span>
-          </div>
-          {hasDraftConflict && (
-            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-              <div className="text-sm font-semibold text-amber-900">Draft gajian untuk periode ini sudah ada.</div>
-              <div className="text-xs text-amber-800 mt-1">
-                Hapus draft terlebih dahulu atau lanjutkan draft yang sudah ada.
-              </div>
-              <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                <Button
-                  onClick={() => draftConflict && handleContinueDraft(draftConflict.id)}
-                  className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  Lanjutkan Draft
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => draftConflict && handleOpenDraftDeleteConfirm(draftConflict.id)}
-                  className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
-                >
-                  Hapus Draft
-                </Button>
-              </div>
-            </div>
-          )}
+          ) : null}
         </div>
-
-        {searchAttempted && notas.length === 0 && (
-          <div className="mt-6 text-center text-gray-500">
-            <p>Tidak ada nota yang ditemukan untuk kebun dan periode yang dipilih.</p>
-          </div>
-        )}
-
-        {notas.length > 0 && (
-          <div className="mt-6" ref={notasSectionRef}>
-            <h3 className="text-base md:text-lg font-semibold mb-4 flex items-center gap-2">
-              <ClipboardDocumentListIcon className="h-5 w-5 text-indigo-600" />
-              4. Pilih Nota Yang Akan Digaji
-            </h3>
-            <div className="md:hidden space-y-3">
-              {notas.map((nota, index) => {
-                const isPaid = String((nota as any)?.statusGajian || '').toUpperCase() === 'DIPROSES'
-                const isSelected = !!(rowSelection as any)[index];
-                return (
-                  <div
-                    key={`nota-card-${nota.id}`}
-                    onClick={() => {
-                      if (isPaid) return
-                      setRowSelection((prev: any) => {
-                        const next = { ...prev };
-                        if (next[index]) delete next[index];
-                        else next[index] = true;
-                        return next;
-                      });
-                    }}
-                    className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3 transition-colors ${isSelected ? 'ring-2 ring-emerald-500' : 'hover:bg-gray-50/50'} ${isPaid ? 'opacity-90' : ''}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="font-semibold text-gray-900">{nota.kendaraan?.platNomor || '-'}</div>
-                        {isPaid ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold">
-                            Sudah Digaji
-                          </span>
-                        ) : null}
-                        <div className="text-xs text-gray-500">{nota.supir?.name || '-'}</div>
-                        <div className="text-xs text-gray-500">{nota.timbangan?.kebun?.name || nota.kebun?.name || '-'}</div>
-                      </div>
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          disabled={isPaid}
-                          onCheckedChange={(v) => {
-                            setRowSelection((prev: any) => {
-                              const next = { ...prev };
-                              if (v) next[index] = true;
-                              else delete next[index];
-                              return next;
-                            });
-                          }}
-                          aria-label="Pilih nota"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="text-gray-400">Tanggal Bongkar</div>
-                        <div className="font-medium text-gray-800">{nota.tanggalBongkar ? formatDate(new Date(nota.tanggalBongkar)) : '-'}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Netto (Kg)</div>
-                        <div className="font-semibold text-gray-900">
-                          {typeof getNotaNetto(nota) === 'number' ? formatNumber(getNotaNetto(nota) as number) : '-'}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Potongan</div>
-                        <div className="font-semibold text-red-600">{formatNumber(nota.potongan || 0)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Berat Akhir</div>
-                        <div className="font-semibold text-gray-900">{formatNumber(nota.beratAkhir || 0)}</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-700">Jumlah Netto</span>
-                  <span className="font-semibold text-gray-900">{formatNumber(notas.reduce((sum, n) => sum + (Number(getNotaNetto(n)) || 0), 0))} Kg</span>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="font-semibold text-red-600">Jumlah Potongan</span>
-                  <span className="font-semibold text-red-600">{formatNumber(notas.reduce((sum, n) => sum + (Number(n.potongan) || 0), 0))} Kg</span>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="font-semibold text-gray-700">Jumlah Berat Akhir</span>
-                  <span className="font-semibold text-gray-900">{formatNumber(notas.reduce((sum, n) => sum + (Number(n.beratAkhir) || 0), 0))} Kg</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="hidden md:block">
-              <DataTable columns={columns} data={notas} rowSelection={rowSelection} setRowSelection={setRowSelection} />
-            </div>
-            <div className="mt-4 text-xs md:text-sm text-gray-700">
-              Total nota ditemukan: {totalNotas} • Ditampilkan: {notas.length}
-              {totalNotas > notas.length ? ` (dibatasi ${notaFetchLimit} data)` : ''}
-            </div>
-            <div className="flex flex-col md:flex-row justify-end mt-6 gap-4">
-              {Object.keys(rowSelection).length > 0 && (
-                <Button onClick={() => setRowSelection({})} variant="secondary" className="w-full md:w-auto h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words">
-                  Batalkan Pilihan ({Object.keys(rowSelection).length})
-                </Button>
-              )}
-              <Button
-                onClick={handleMoveToProcess}
-                disabled={!canProcessNota}
-                className={cn(
-                  'w-full md:w-auto h-auto min-h-[40px] px-3 py-2 text-sm md:text-base whitespace-normal break-words border rounded-xl',
-                  canProcessNota
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
-                    : 'border-gray-300 bg-gray-50 text-gray-400'
-                )}
-              >
-                5. Proses Nota Terpilih <ArrowRightIcon className="ml-2 h-4 w-4 flex-shrink-0" />
-              </Button>
-            </div>
-
-            {notasToProcess.length === 0 && detailKaryawan.length === 0 && savedBiaya.length === 0 && manualPotonganRows.length === 0 && (
-              <div className="mt-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-600">
-                Rincian gajian akan muncul setelah nota dipilih dan diproses.
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      ) : null}
 
       {/* Section for Processing Gajian */}
       {(notasToProcess.length > 0 || detailKaryawan.length > 0 || savedBiaya.length > 0 || manualPotonganRows.length > 0) && (
@@ -2204,581 +1974,71 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             <BanknotesIcon className="h-5 w-5 text-emerald-600" />
             5. Rincian Gajian
           </h2>
-          
-          {notasToProcess.length > 0 && (
-            <div className="mb-6">
-              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                      <ClipboardDocumentListIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Ringkasan Proses Gajian</p>
-                      <p className="text-xs text-gray-500">Total tonase, hari, dan jumlah nota</p>
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Periode: <span className="font-semibold text-gray-900">{startDate && endDate ? `${formatDate(startDate)} - ${formatDate(endDate)}` : '-'}</span>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
-                    <p className="text-xs text-emerald-700">Total Tonase (Netto)</p>
-                    <p className="text-lg font-semibold text-gray-900">{formatNumber(summaryData.totalBerat)} Kg</p>
-                  </div>
-                  <div className="rounded-xl bg-amber-50/70 px-3 py-2">
-                    <p className="text-xs text-amber-700">Total Hari</p>
-                    <p className="text-lg font-semibold text-gray-900">{summaryData.totalHari}</p>
-                  </div>
-                  <div className="rounded-xl bg-sky-50/70 px-3 py-2">
-                    <p className="text-xs text-sky-700">Jumlah Nota</p>
-                    <p className="text-lg font-semibold text-gray-900">{summaryData.totalNota}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {notasToProcess.length > 0 && (
-            <>
-              <div className="md:hidden space-y-3">
-                {notasToProcess.map((nota) => (
-                  <div key={`process-${nota.id}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="font-semibold text-gray-900">{nota.kendaraan?.platNomor || '-'}</div>
-                        <div className="text-xs text-gray-500">{nota.supir?.name || '-'}</div>
-                        <div className="text-xs text-gray-500">{nota.timbangan?.kebun?.name || nota.kebun?.name || '-'}</div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        onClick={() => handleRemoveFromProcess(nota.id)}
-                      >
-                        <span className="sr-only">Hapus Nota</span>
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="text-gray-400">Tanggal Bongkar</div>
-                        <div className="font-medium text-gray-800">{nota.tanggalBongkar ? formatDate(new Date(nota.tanggalBongkar)) : '-'}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Berat Akhir</div>
-                        <div className="font-semibold text-gray-900">{formatNumber(nota.beratAkhir || 0)} Kg</div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-400 mb-1">Keterangan</div>
-                      <Input
-                        value={nota.keterangan || ''}
-                        onChange={(e) => handleKeteranganChange(nota.id, e.target.value)}
-                        placeholder="Keterangan..."
-                        className="h-9"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="hidden md:block">
-                <DataTable columns={processingColumns} data={notasToProcess} rowSelection={{}} setRowSelection={() => {}} />
-              </div>
-            </>
-          )}
+          <GajianProcessNotasSection
+            startDate={startDate}
+            endDate={endDate}
+            formatDate={formatDate}
+            formatNumber={formatNumber}
+            summaryData={summaryData as any}
+            notasToProcess={notasToProcess as any}
+            processingColumns={processingColumns as any}
+            onRemoveFromProcess={handleRemoveFromProcess}
+            onKeteranganChange={handleKeteranganChange}
+          />
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <div className="mb-2">
-                <div className="flex items-start justify-between gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="flex items-start gap-2 shrink-0">
-                    <BanknotesIcon className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
-                    <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
-                      Biaya Gaji
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2 flex-nowrap shrink-0">
-                    <Button
-                      variant="outline"
-                      onClick={importUpahBorongan}
-                      disabled={!kebunId || !startDate || !endDate || boronganLoading}
-                      className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                    >
-                      {boronganLoading ? 'Memuat...' : 'Tarik Biaya Kebun'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={addBiayaLain}
-                      className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                    >
-                      <span className="sm:hidden">Tambah Biaya</span>
-                      <span className="hidden sm:inline">+ Tambah Biaya Gaji</span>
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-1 pl-7 text-xs text-gray-500">
-                  <span>Periode:</span>{' '}
-                  <span className="font-semibold text-gray-900">{startDate ? formatDate(startDate) : '-'}</span>{' '}
-                  <span className="text-gray-400">-</span>{' '}
-                  <span className="font-semibold text-gray-900">{endDate ? formatDate(endDate) : '-'}</span>
-                </div>
-              </div>
-            <div className="space-y-4">
-              {savedBiaya.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-500">
-                  Tambahkan biaya gaji untuk menambah total gajian.
-                </div>
-              )}
-              {savedBiaya.map((item) => (
-                <div
-                  key={item.id}
-                  data-biaya-row={item.id}
-                  className={cn(
-                    "rounded-2xl border bg-white p-4 space-y-3",
-                    biayaFieldErrors[item.id] ? "border-red-300 ring-2 ring-red-200" : "border-gray-100"
-                  )}
-                >
-                  {editingBiayaId === item.id ? (
-                    <>
-                      <Input
-                        placeholder="Deskripsi"
-                        value={item.deskripsi}
-                        onChange={(e) => handleBiayaLainChange(item.id, 'deskripsi', e.target.value)}
-                        data-biaya-id={item.id}
-                        data-biaya-field="deskripsi"
-                        className={cn(
-                          "h-10 rounded-full",
-                          biayaFieldErrors[item.id]?.deskripsi ? "border-red-500 ring-2 ring-red-500/20" : ""
-                        )}
-                      />
-                      <Input
-                        placeholder="Keterangan (opsional)"
-                        value={item.keterangan || ''}
-                        onChange={(e) => handleBiayaLainChange(item.id, 'keterangan', e.target.value)}
-                        className="h-10 rounded-full"
-                      />
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="Jumlah"
-                          value={item.jumlah || ''}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            const numericValue = val ? parseFloat(val) : 0
-                            handleBiayaLainChange(item.id, 'jumlah', numericValue)
-                          }}
-                          data-biaya-id={item.id}
-                          data-biaya-field="jumlah"
-                          className={cn(
-                            "h-10 rounded-full text-right",
-                            biayaFieldErrors[item.id]?.jumlah ? "border-red-500 ring-2 ring-red-500/20" : ""
-                          )}
-                        />
-                        <Input
-                          placeholder="Satuan"
-                          value={item.satuan}
-                          onChange={(e) => handleBiayaLainChange(item.id, 'satuan', e.target.value)}
-                          className="h-10 rounded-full"
-                        />
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="Harga Satuan"
-                          value={item.hargaSatuan ? formatNumber(item.hargaSatuan) : ''}
-                          onChange={(e) => {
-                            const digits = e.target.value.replace(/\D/g, '')
-                            const numericValue = digits ? Number(digits) : 0
-                            handleBiayaLainChange(item.id, 'hargaSatuan', numericValue)
-                          }}
-                          data-biaya-id={item.id}
-                          data-biaya-field="hargaSatuan"
-                          className={cn(
-                            "h-10 rounded-full text-right",
-                            biayaFieldErrors[item.id]?.hargaSatuan ? "border-red-500 ring-2 ring-red-500/20" : ""
-                          )}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Total</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(Math.round(item.jumlah * item.hargaSatuan))}</span>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-full"
-                          onClick={() => setEditingBiayaId(null)}
-                        >
-                          Simpan
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="rounded-full"
-                          onClick={() => {
-                            removeSavedBiaya(item.id)
-                            setEditingBiayaId(null)
-                          }}
-                        >
-                          Hapus
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 break-words">{item.deskripsi || '-'}</div>
-                          {cleanBiayaKeterangan(item.keterangan) ? (
-                            <div className="text-xs text-gray-500 break-words mt-1">{cleanBiayaKeterangan(item.keterangan)}</div>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                            onClick={() => setEditingBiayaId(item.id)}
-                          >
-                            <PencilSquareIcon className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => removeSavedBiaya(item.id)}
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1">
-                        <span className="font-semibold text-gray-900">{formatNumber(Number(item.jumlah || 0), 2)}</span>
-                        <span>{String(item.satuan || '').trim()}</span>
-                        <span className="text-gray-400">x</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(Number(item.hargaSatuan || 0))}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Total</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(Math.round(item.jumlah * item.hargaSatuan))}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-              {savedBiaya.length > 0 && (
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-gray-700">Jumlah Biaya</span>
-                    <span className="text-lg font-extrabold text-gray-900">{formatCurrency(savedBiaya.reduce((sum, b) => sum + Math.round(b.jumlah * b.hargaSatuan), 0))}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            </div>
-            <div>
-            <div className="mb-2">
-              <div className="flex items-start justify-between gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex items-start gap-2 shrink-0">
-                  <AdjustmentsHorizontalIcon className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
-                  <h3 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
-                    Potongan
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2 flex-nowrap shrink-0">
-                  <Button
-                    variant="outline"
-                    onClick={importPotonganPengajuan}
-                    disabled={!kebunId || !startDate || !endDate || importPotonganLoading}
-                    className="h-10 px-4 rounded-full border-red-500 text-red-700 bg-white hover:bg-red-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                  >
-                    {importPotonganLoading ? (
-                      'Memuat...'
-                    ) : (
-                      <>
-                        <span className="sm:hidden">Tarik</span>
-                        <span className="hidden sm:inline">Tarik Potongan</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={addPotongan}
-                    className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
-                  >
-                    <span className="sm:hidden">Tambah</span>
-                    <span className="hidden sm:inline">+ Tambah Potongan</span>
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-1 pl-7 text-xs text-gray-500">
-                <span>Periode:</span>{' '}
-                <span className="font-semibold text-gray-900">{startDate ? formatDate(startDate) : '-'}</span>{' '}
-                <span className="text-gray-400">-</span>{' '}
-                <span className="font-semibold text-gray-900">{endDate ? formatDate(endDate) : '-'}</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {manualPotonganRows.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-sm text-gray-500">
-                  Tambahkan potongan lain (di luar potongan hutang) untuk mengurangi total gaji.
-                </div>
-              )}
-              {manualPotonganRows.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
-                  {editingPotonganId === item.id ? (
-                    <>
-                      <Input
-                        placeholder="Deskripsi"
-                        value={item.deskripsi}
-                        onChange={(e) => handlePotonganChange(item.id, 'deskripsi', e.target.value)}
-                        className="h-10 rounded-full"
-                      />
-                      <Input
-                        placeholder="Keterangan (opsional)"
-                        value={item.keterangan || ''}
-                        onChange={(e) => handlePotonganChange(item.id, 'keterangan', e.target.value)}
-                        className="h-10 rounded-full"
-                      />
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="Total"
-                        value={item.total ? formatNumber(item.total) : ''}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, '')
-                          const numericValue = digits ? Number(digits) : 0
-                          handlePotonganChange(item.id, 'total', numericValue)
-                        }}
-                        className="h-10 rounded-full text-right"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-full"
-                          onClick={() => setEditingPotonganId(null)}
-                        >
-                          Simpan
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="rounded-full"
-                          onClick={() => {
-                            removeSavedPotongan(item.id)
-                            setEditingPotonganId(null)
-                          }}
-                        >
-                          Hapus
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 break-words">{item.deskripsi || '-'}</div>
-                          {item.keterangan ? <div className="text-xs text-gray-500 break-words mt-1">{item.keterangan}</div> : null}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                            onClick={() => setEditingPotonganId(item.id)}
-                          >
-                            <PencilSquareIcon className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 rounded-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => removeSavedPotongan(item.id)}
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Total</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(Number(item.total || 0))}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            {manualPotonganRows.length > 0 ? (
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 mt-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-700">Total Potongan</span>
-                  <span className="text-lg font-extrabold text-red-600">-{formatCurrency(manualPotonganRows.reduce((sum, p) => sum + (Number(p.total) || 0), 0))}</span>
-                </div>
-              </div>
-            ) : null}
-            </div>
+            <GajianBiayaSection
+              kebunId={kebunId}
+              startDate={startDate}
+              endDate={endDate}
+              formatDate={formatDate}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber as any}
+              boronganLoading={boronganLoading}
+              onImportUpahBorongan={importUpahBorongan}
+              onAddBiaya={addBiayaLain}
+              savedBiaya={savedBiaya as any}
+              editingBiayaId={editingBiayaId}
+              setEditingBiayaId={setEditingBiayaId}
+              biayaFieldErrors={biayaFieldErrors as any}
+              cleanBiayaKeterangan={cleanBiayaKeterangan}
+              onBiayaChange={handleBiayaLainChange as any}
+              onRemoveSavedBiaya={removeSavedBiaya}
+            />
+            <GajianPotonganSection
+              kebunId={kebunId}
+              startDate={startDate}
+              endDate={endDate}
+              formatDate={formatDate}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              importPotonganLoading={importPotonganLoading}
+              onImportPotonganPengajuan={importPotonganPengajuan}
+              onAddPotongan={addPotongan}
+              manualPotonganRows={manualPotonganRows as any}
+              editingPotonganId={editingPotonganId}
+              setEditingPotonganId={setEditingPotonganId}
+              onPotonganChange={handlePotonganChange as any}
+              onRemoveSavedPotongan={removeSavedPotongan}
+            />
           </div>
 
-            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
-                <div className="flex items-start gap-2 min-w-0">
-                  <BanknotesIcon className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-                  <h4 className="text-base md:text-lg font-semibold leading-tight text-gray-900">
-                    Daftar Hutang Karyawan <span className="text-gray-700">(Periode)</span>
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:justify-end sm:w-auto">
-                  <Button
-                    variant="outline"
-                    onClick={() => setOpenPotongHutangMassal(true)}
-                    disabled={!kebunId || !startDate || !endDate || detailKaryawan.length === 0 || hutangLoading}
-                    className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
-                  >
-                    {hutangLoading ? (
-                      'Memuat...'
-                    ) : (
-                      <>
-                        <span className="sm:hidden">Potong Hutang</span>
-                        <span className="hidden sm:inline">Potong Hutang Massal</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={resetPotonganHutang}
-                    disabled={detailKaryawan.length === 0 || detailKaryawan.every(d => Number(d.potongan || 0) === 0)}
-                    className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
-                  >
-                    <span className="sm:hidden">Reset</span>
-                    <span className="hidden sm:inline">Reset Potongan</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOpenTambahHutang()}
-                    disabled={detailKaryawan.length === 0 || hutangLoading}
-                    className="border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
-                  >
-                    <span className="sm:hidden">+ Hutang</span>
-                    <span className="hidden sm:inline">+ Tambah Hutang</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={resetHutangBaru}
-                    disabled={Object.keys(hutangTambahanMap).length === 0}
-                    className="border border-red-200 bg-white hover:bg-red-50 text-red-700 w-full sm:w-auto h-10 px-3 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center"
-                  >
-                    <span className="sm:hidden">Reset Hutang</span>
-                    <span className="hidden sm:inline">Reset Hutang Baru</span>
-                  </Button>
-                </div>
-              </div>
-              {hutangDisplayRows.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-500">
-                  Tidak ada data karyawan untuk ditampilkan.
-                </div>
-              ) : (
-                <>
-                  <div className="md:hidden space-y-3">
-                    {hutangDisplayRows.map((r, idx) => (
-                      <div key={`hutang-${idx}`} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-2">
-                        <div className="font-semibold text-gray-900">{r.name}</div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <div className="text-gray-400">Tanggal</div>
-                            <div className="font-medium text-gray-800">{r.tanggal}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-400">Saldo</div>
-                            <div className="font-semibold text-gray-900">Rp {r.saldo.toLocaleString('id-ID')}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-400">Potong</div>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={formatNumber(r.potong || 0)}
-                              onChange={(e) => updatePotonganHutangByUserId(Number(r.userId), e.target.value)}
-                              className="h-9 mt-1 text-right"
-                              placeholder="0"
-                            />
-                          </div>
-                          <div>
-                            <div className="text-gray-400">Sisa</div>
-                            <div className="font-semibold text-emerald-700">Rp {r.sisa.toLocaleString('id-ID')}</div>
-                          </div>
-                        </div>
-                        <div className="text-xs text-gray-500">{r.keterangan || '-'}</div>
-                      </div>
-                    ))}
-                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-gray-700">Jumlah Saldo</span>
-                        <span className="font-semibold text-gray-900">Rp {hutangDisplayRows.reduce((a, r) => a + r.saldo, 0).toLocaleString('id-ID')}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="font-semibold text-red-600">Total Potong</span>
-                        <span className="font-semibold text-red-600">Rp {hutangDisplayRows.reduce((a, r) => a + r.potong, 0).toLocaleString('id-ID')}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="font-semibold text-emerald-700">Total Sisa</span>
-                        <span className="font-semibold text-emerald-700">Rp {hutangDisplayRows.reduce((a, r) => a + r.sisa, 0).toLocaleString('id-ID')}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="min-w-full text-xs md:text-sm border">
-                    <thead>
-                      <tr className="border">
-                        <th className="p-2 border">NO</th>
-                        <th className="p-2 border">NAMA</th>
-                        <th className="p-2 border">TANGGAL</th>
-                        <th className="p-2 border">SALDO</th>
-                        <th className="p-2 border">POTONG</th>
-                        <th className="p-2 border">SISA</th>
-                        <th className="p-2 border">KETERANGAN</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hutangDisplayRows.map((r, idx) => (
-                        <tr key={idx} className="border">
-                          <td className="p-2 border">{idx + 1}</td>
-                          <td className="p-2 border">{r.name}</td>
-                          <td className="p-2 border">{r.tanggal}</td>
-                          <td className="p-2 border text-right">RP. {r.saldo.toLocaleString('id-ID')}</td>
-                          <td className="p-2 border">
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={formatNumber(r.potong || 0)}
-                              onChange={(e) => updatePotonganHutangByUserId(Number(r.userId), e.target.value)}
-                              className="w-32 ml-auto text-right"
-                              placeholder="0"
-                            />
-                          </td>
-                          <td className="p-2 border text-right">RP. {r.sisa.toLocaleString('id-ID')}</td>
-                          <td className="p-2 border">{r.keterangan}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border font-bold">
-                        <td className="p-2 border" colSpan={2}></td>
-                        <td className="p-2 border text-center">JUMLAH</td>
-                        <td className="p-2 border text-right">RP. {hutangDisplayRows.reduce((a, r) => a + r.saldo, 0).toLocaleString('id-ID')}</td>
-                        <td className="p-2 border text-right">RP. {hutangDisplayRows.reduce((a, r) => a + r.potong, 0).toLocaleString('id-ID')}</td>
-                        <td className="p-2 border text-right">RP. {hutangDisplayRows.reduce((a, r) => a + r.sisa, 0).toLocaleString('id-ID')}</td>
-                        <td className="p-2 border"></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                  </div>
-                </>
-              )}
-            </div>
+            <GajianHutangSection
+              kebunId={kebunId}
+              startDate={startDate}
+              endDate={endDate}
+              hutangLoading={hutangLoading}
+              detailKaryawanLength={detailKaryawan.length}
+              hasAnyPotonganHutang={detailKaryawan.some(d => Number(d.potongan || 0) !== 0)}
+              hutangTambahanCount={Object.keys(hutangTambahanMap).length}
+              onOpenPotongHutangMassal={() => setOpenPotongHutangMassal(true)}
+              onResetPotonganHutang={resetPotonganHutang}
+              onOpenTambahHutang={() => handleOpenTambahHutang()}
+              onResetHutangBaru={resetHutangBaru}
+              hutangDisplayRows={hutangDisplayRows as any}
+              formatNumber={formatNumber}
+              updatePotonganHutangByUserId={updatePotonganHutangByUserId}
+            />
           {/* Employee Detail Table */}
           {detailKaryawan.length > 0 && (
             <div className="mb-6 mt-6">
