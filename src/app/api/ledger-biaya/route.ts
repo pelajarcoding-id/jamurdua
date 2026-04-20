@@ -100,6 +100,7 @@ export async function GET(request: Request) {
     const perusahaanIdParam = Number(sp.get('perusahaanId') || 0)
     const kendaraanPlatNomor = String(sp.get('kendaraanPlatNomor') || '').trim()
     const includeOperasional = sp.get('includeOperasional') !== '0'
+    const includeEntityStats = sp.get('includeEntityStats') === '1'
 
     const range = getWibRangeUtcFromParams(sp)
     const includeKas = scope === 'ALL' || scope === 'KAS' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN' || scope === 'UANG_JALAN'
@@ -109,14 +110,36 @@ export async function GET(request: Request) {
     const includeAbsensi = includeOperasional && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN')
     const includeServiceLog = scope === 'ALL' || scope === 'KENDARAAN'
     const includeRiwayatDokumen = scope === 'ALL' || scope === 'KENDARAAN'
-    const includeNotaSawitIncome = (scope === 'ALL' || scope === 'KEBUN' || scope === 'KENDARAAN' || scope === 'PERUSAHAAN') && 
-                                    ( (Number.isFinite(kebunId) && kebunId > 0) || 
-                                      kendaraanPlatNomor || 
-                                      (Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0) )
+    const includeNotaSawitIncome =
+      (scope === 'ALL' || scope === 'KEBUN' || scope === 'KENDARAAN' || scope === 'PERUSAHAAN') &&
+      (scope === 'KEBUN' ||
+        (Number.isFinite(kebunId) && kebunId > 0) ||
+        kendaraanPlatNomor ||
+        (Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0))
 
     const whereKas: any = { deletedAt: null, AND: [] as any[] }
     if (range) whereKas.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
-    if (tipe === 'PEMASUKAN' || tipe === 'PENGELUARAN') whereKas.AND.push({ tipe })
+    
+    // Filter pendapatan hanya yang dibuat oleh pemilik
+    const incomeFilter = { 
+      tipe: 'PEMASUKAN', 
+      user: { role: 'PEMILIK' } 
+    }
+    const expenseFilter = { tipe: 'PENGELUARAN' }
+
+    if (tipe === 'PEMASUKAN') {
+      whereKas.AND.push(incomeFilter)
+    } else if (tipe === 'PENGELUARAN') {
+      whereKas.AND.push(expenseFilter)
+    } else {
+      whereKas.AND.push({
+        OR: [
+          expenseFilter,
+          incomeFilter
+        ]
+      })
+    }
+
     if (kategori) whereKas.AND.push({ kategori })
     if (Number.isFinite(kebunId) && kebunId > 0) whereKas.AND.push({ kebunId })
     if (Number.isFinite(karyawanId) && karyawanId > 0) whereKas.AND.push({ karyawanId })
@@ -189,7 +212,16 @@ export async function GET(request: Request) {
 
     const whereUj: any = { deletedAt: null, AND: [] as any[] }
     if (range) whereUj.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
-    if (tipe === 'PEMASUKAN' || tipe === 'PENGELUARAN') whereUj.AND.push({ tipe: { equals: tipe, mode: 'insensitive' } })
+    
+    // Uang Jalan Pemasukan tidak memiliki creator, sehingga kita exclude jika hanya ingin dari pemilik
+    if (tipe === 'PEMASUKAN') {
+      whereUj.AND.push({ id: -1 })
+    } else if (tipe === 'PENGELUARAN') {
+      whereUj.AND.push({ tipe: { equals: 'PENGELUARAN', mode: 'insensitive' } })
+    } else {
+      whereUj.AND.push({ tipe: { equals: 'PENGELUARAN', mode: 'insensitive' } })
+    }
+
     if (kategori && kategori.toUpperCase() !== 'UANG_JALAN') whereUj.AND.push({ id: -1 })
     if (kendaraanPlatNomor) {
       whereUj.AND.push({
@@ -226,7 +258,16 @@ export async function GET(request: Request) {
       const end = toDateOnlyUtc(range.endYmd)
       wherePb.AND.push({ date: { gte: start, lte: end } })
     }
-    if (tipe === 'PEMASUKAN' || tipe === 'PENGELUARAN') wherePb.AND.push({ type: tipe })
+    
+    // Perusahaan Biaya Pemasukan tidak memiliki creator, sehingga kita exclude jika hanya ingin dari pemilik
+    if (tipe === 'PEMASUKAN') {
+      wherePb.AND.push({ id: -1 })
+    } else if (tipe === 'PENGELUARAN') {
+      wherePb.AND.push({ type: 'PENGELUARAN' })
+    } else {
+      wherePb.AND.push({ type: 'PENGELUARAN' })
+    }
+
     if (kategori) wherePb.AND.push({ kategori })
     if (Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0) wherePb.AND.push({ perusahaanId: perusahaanIdParam })
     if (scope !== 'ALL') {
@@ -252,6 +293,7 @@ export async function GET(request: Request) {
             kebun: { select: { id: true, name: true } },
             karyawan: { select: { id: true, name: true } },
             kendaraan: { select: { platNomor: true, merk: true } },
+            user: { select: { name: true, role: true } },
           },
           orderBy: [{ date: 'desc' }, { id: 'desc' }],
           take: takeN,
@@ -369,12 +411,12 @@ export async function GET(request: Request) {
 
     const whereSl: any = { AND: [] as any[] }
     if (range) whereSl.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
-    if (kendaraanPlatNomor) whereSl.AND.push({ kendaraanPlatNomor: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
+    if (kendaraanPlatNomor) whereSl.AND.push({ kendaraanPlat: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
     if (search) {
       whereSl.AND.push({
         OR: [
           { description: { contains: search, mode: 'insensitive' } },
-          { kendaraanPlatNomor: { contains: search, mode: 'insensitive' } },
+          { kendaraanPlat: { contains: search, mode: 'insensitive' } },
         ],
       })
     }
@@ -382,13 +424,13 @@ export async function GET(request: Request) {
 
     const whereRd: any = { AND: [] as any[] }
     if (range) whereRd.AND.push({ tanggalBayar: { gte: range.startUtc, lt: range.endExclusiveUtc } })
-    if (kendaraanPlatNomor) whereRd.AND.push({ kendaraanPlatNomor: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
+    if (kendaraanPlatNomor) whereRd.AND.push({ kendaraanPlat: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
     if (search) {
       whereRd.AND.push({
         OR: [
           { jenis: { contains: search, mode: 'insensitive' } },
           { keterangan: { contains: search, mode: 'insensitive' } },
-          { kendaraanPlatNomor: { contains: search, mode: 'insensitive' } },
+          { kendaraanPlat: { contains: search, mode: 'insensitive' } },
         ],
       })
     }
@@ -452,6 +494,9 @@ export async function GET(request: Request) {
       if (Number.isFinite(kebunId) && kebunId > 0) {
         orConditions.push({ timbangan: { kebunId: kebunId } })
         orConditions.push({ timbanganId: null, kebunId: kebunId })
+      } else if (scope === 'KEBUN' && !kendaraanPlatNomor && !(Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0)) {
+        orConditions.push({ kebunId: { not: null } })
+        orConditions.push({ timbanganId: { not: null } })
       }
       if (kendaraanPlatNomor) {
         orConditions.push({ kendaraanPlatNomor: kendaraanPlatNomor })
@@ -607,6 +652,7 @@ export async function GET(request: Request) {
         karyawan: r.karyawan ? { id: r.karyawan.id, name: r.karyawan.name } : null,
         kendaraan: r.kendaraan ? { platNomor: r.kendaraan.platNomor, merk: r.kendaraan.merk } : null,
         perusahaan: perusahaanId ? { id: perusahaanId, name: perusahaanMap.get(perusahaanId) || `Perusahaan #${perusahaanId}` } : null,
+        createdBy: r.user ? { name: r.user.name, role: r.user.role } : null,
       }
     })
 
@@ -813,11 +859,11 @@ export async function GET(request: Request) {
       select: {
         biaya: true,
         jenisPekerjaan: true,
-        kategoriBorongan: true
-      }
+        kategoriBorongan: true,
+      } as any,
     })
 
-    boronganRows.forEach(b => {
+    boronganRows.forEach((b: any) => {
       const catName = (b.kategoriBorongan || b.jenisPekerjaan || 'BORONGAN_LAIN').toUpperCase()
       const key = `BORONGAN: ${catName}`
       if (breakdown[key] === undefined) breakdown[key] = 0
@@ -858,6 +904,362 @@ export async function GET(request: Request) {
       }
     })
 
+    let entityStats: any = null
+    if (includeEntityStats) {
+      if (scope === 'KEBUN' && !(Number.isFinite(kebunId) && kebunId > 0)) {
+        const kebuns = await prisma.kebun.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
+        const timbanganRows = await prisma.timbangan.findMany({ select: { id: true, kebunId: true } })
+        const timbanganById = new Map<number, number>()
+        for (const t of timbanganRows) timbanganById.set(t.id, t.kebunId)
+
+        const notaRows = await prisma.notaSawit.findMany({
+          where: {
+            deletedAt: null,
+            tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+          },
+          select: { kebunId: true, timbanganId: true, totalPembayaran: true },
+        })
+
+        const notaByKebun = new Map<number, number>()
+        for (const n of notaRows) {
+          const kid = (n.kebunId ?? (n.timbanganId ? timbanganById.get(n.timbanganId) : undefined)) as number | undefined
+          if (!kid) continue
+          notaByKebun.set(kid, (notaByKebun.get(kid) || 0) + Number(n.totalPembayaran || 0))
+        }
+
+        const kasIncomeRows = await prisma.kasTransaksi.findMany({
+          where: {
+            deletedAt: null,
+            tipe: 'PEMASUKAN',
+            kebunId: { not: null },
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            user: { role: 'PEMILIK' },
+          },
+          select: { kebunId: true, jumlah: true },
+        })
+
+        const kasIncomeByKebun = new Map<number, number>()
+        for (const r of kasIncomeRows) {
+          const kid = r.kebunId as number | null
+          if (!kid) continue
+          kasIncomeByKebun.set(kid, (kasIncomeByKebun.get(kid) || 0) + Number(r.jumlah || 0))
+        }
+
+        const kasExpenseAggByKebun = await prisma.kasTransaksi.groupBy({
+          by: ['kebunId'],
+          where: {
+            deletedAt: null,
+            tipe: 'PENGELUARAN',
+            kebunId: { not: null },
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+          },
+          _sum: { jumlah: true },
+        })
+
+        const kasExpenseByKebun = new Map<number, number>()
+        for (const g of kasExpenseAggByKebun) {
+          const kid = g.kebunId as number | null
+          if (!kid) continue
+          kasExpenseByKebun.set(kid, Number(g._sum.jumlah || 0))
+        }
+
+        const boronganAggByKebun = includeBorongan
+          ? await prisma.pekerjaanKebun.groupBy({
+              by: ['kebunId'],
+              where: {
+                kebunId: { not: null },
+                date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+                upahBorongan: true,
+                biaya: { gt: 0 },
+                gajianId: null,
+              } as any,
+              _sum: { biaya: true },
+            })
+          : []
+
+        const boronganByKebun = new Map<number, number>()
+        for (const g of boronganAggByKebun as any[]) {
+          const kid = g.kebunId as number | null
+          if (!kid) continue
+          boronganByKebun.set(kid, Number(g._sum.biaya || 0))
+        }
+
+        const absensiByKebun = new Map<number, number>()
+        if (includeAbsensi && range) {
+          const start = toDateOnlyUtc(range.startYmd)
+          const end = toDateOnlyUtc(range.endYmd)
+
+          const paidKeysRows = await prisma.absensiGajiHarian.findMany({
+            where: {
+              gajianId: { not: null },
+              date: { gte: start, lte: end },
+            },
+            select: { kebunId: true, karyawanId: true, date: true },
+          })
+
+          const paidKeys = new Set<string>()
+          for (const p of paidKeysRows) {
+            paidKeys.add(`${p.kebunId}:${p.karyawanId}:${p.date.toISOString().slice(0, 10)}`)
+          }
+
+          const absensiRows = await prisma.absensiHarian.findMany({
+            where: {
+              date: { gte: start, lte: end },
+              OR: [{ jumlah: { gt: 0 } }, { uangMakan: { gt: 0 } }],
+            },
+            select: { kebunId: true, karyawanId: true, date: true, jumlah: true, uangMakan: true },
+          })
+
+          for (const a of absensiRows) {
+            const key = `${a.kebunId}:${a.karyawanId}:${a.date.toISOString().slice(0, 10)}`
+            if (paidKeys.has(key)) continue
+            absensiByKebun.set(
+              a.kebunId,
+              (absensiByKebun.get(a.kebunId) || 0) + Number(a.jumlah || 0) + Number(a.uangMakan || 0)
+            )
+          }
+        }
+
+        const rows = kebuns.map(k => {
+          const pemasukanVal = (notaByKebun.get(k.id) || 0) + (kasIncomeByKebun.get(k.id) || 0)
+          const pengeluaranVal =
+            (kasExpenseByKebun.get(k.id) || 0) + (boronganByKebun.get(k.id) || 0) + (absensiByKebun.get(k.id) || 0)
+          const saldoVal = pemasukanVal - pengeluaranVal
+          const profitMarginVal = pemasukanVal > 0 ? (saldoVal / pemasukanVal) * 100 : 0
+          const costRatioVal = pemasukanVal > 0 ? (pengeluaranVal / pemasukanVal) * 100 : 0
+          return {
+            key: k.id,
+            name: k.name,
+            pemasukan: pemasukanVal,
+            pengeluaran: pengeluaranVal,
+            saldo: saldoVal,
+            profitMargin: profitMarginVal,
+            costRatio: costRatioVal,
+          }
+        })
+
+        rows.sort((a, b) => (b.pengeluaran || 0) - (a.pengeluaran || 0))
+        entityStats = { type: 'kebun', rows }
+      } else if (scope === 'PERUSAHAAN' && !(Number.isFinite(perusahaanIdParam) && perusahaanIdParam > 0)) {
+        const perusahaanRows = await prisma.perusahaan.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
+
+        const pabrikRows = await prisma.pabrikSawit.findMany({ select: { id: true, perusahaanId: true } })
+        const pabrikToPerusahaan = new Map<number, number | null>()
+        for (const p of pabrikRows) pabrikToPerusahaan.set(p.id, p.perusahaanId ?? null)
+
+        const notaRows = await prisma.notaSawit.findMany({
+          where: {
+            deletedAt: null,
+            tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+          },
+          select: { perusahaanId: true, pabrikSawitId: true, totalPembayaran: true },
+        })
+
+        const notaByPerusahaan = new Map<number, number>()
+        for (const n of notaRows) {
+          const pid = (n.perusahaanId ?? pabrikToPerusahaan.get(n.pabrikSawitId) ?? null) as number | null
+          if (!pid) continue
+          notaByPerusahaan.set(pid, (notaByPerusahaan.get(pid) || 0) + Number(n.totalPembayaran || 0))
+        }
+
+        const taggedKasIncome = await prisma.kasTransaksi.findMany({
+          where: {
+            deletedAt: null,
+            tipe: 'PEMASUKAN',
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            keterangan: { contains: '[PERUSAHAAN:', mode: 'insensitive' },
+            user: { role: 'PEMILIK' },
+          },
+          select: { keterangan: true, jumlah: true },
+        })
+
+        const taggedKasExpense = await prisma.kasTransaksi.findMany({
+          where: {
+            deletedAt: null,
+            tipe: 'PENGELUARAN',
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            keterangan: { contains: '[PERUSAHAAN:', mode: 'insensitive' },
+          },
+          select: { keterangan: true, jumlah: true },
+        })
+
+        const kasIncomeByPerusahaan = new Map<number, number>()
+        for (const r of taggedKasIncome) {
+          const pid = extractPerusahaanIdFromKeterangan(String(r.keterangan || ''))
+          if (!pid) continue
+          kasIncomeByPerusahaan.set(pid, (kasIncomeByPerusahaan.get(pid) || 0) + Number(r.jumlah || 0))
+        }
+
+        const kasExpenseByPerusahaan = new Map<number, number>()
+        for (const r of taggedKasExpense) {
+          const pid = extractPerusahaanIdFromKeterangan(String(r.keterangan || ''))
+          if (!pid) continue
+          kasExpenseByPerusahaan.set(pid, (kasExpenseByPerusahaan.get(pid) || 0) + Number(r.jumlah || 0))
+        }
+
+        const pbExpenseAgg = await prisma.perusahaanBiaya.groupBy({
+          by: ['perusahaanId'],
+          where: {
+            type: 'PENGELUARAN',
+            date: range ? { gte: toDateOnlyUtc(range.startYmd), lte: toDateOnlyUtc(range.endYmd) } : undefined,
+          },
+          _sum: { jumlah: true },
+        })
+
+        const pbExpenseByPerusahaan = new Map<number, number>()
+        for (const g of pbExpenseAgg) {
+          pbExpenseByPerusahaan.set(g.perusahaanId, Number(g._sum.jumlah || 0))
+        }
+
+        const rows = perusahaanRows.map(p => {
+          const pemasukanVal = (notaByPerusahaan.get(p.id) || 0) + (kasIncomeByPerusahaan.get(p.id) || 0)
+          const pengeluaranVal = (pbExpenseByPerusahaan.get(p.id) || 0) + (kasExpenseByPerusahaan.get(p.id) || 0)
+          const saldoVal = pemasukanVal - pengeluaranVal
+          const profitMarginVal = pemasukanVal > 0 ? (saldoVal / pemasukanVal) * 100 : 0
+          const costRatioVal = pemasukanVal > 0 ? (pengeluaranVal / pemasukanVal) * 100 : 0
+          return {
+            key: p.id,
+            name: p.name,
+            pemasukan: pemasukanVal,
+            pengeluaran: pengeluaranVal,
+            saldo: saldoVal,
+            profitMargin: profitMarginVal,
+            costRatio: costRatioVal,
+          }
+        })
+
+        rows.sort((a, b) => (b.pengeluaran || 0) - (a.pengeluaran || 0))
+        entityStats = { type: 'perusahaan', rows }
+      } else if (scope === 'KENDARAAN' && !kendaraanPlatNomor) {
+        const kendaraans = await prisma.kendaraan.findMany({
+          select: { platNomor: true, merk: true },
+          orderBy: [{ platNomor: 'asc' }],
+        })
+
+        const notaRows = await prisma.notaSawit.findMany({
+          where: {
+            deletedAt: null,
+            tanggalBongkar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            kendaraanPlatNomor: { not: null },
+          },
+          select: { kendaraanPlatNomor: true, totalPembayaran: true },
+        })
+
+        const notaByPlat = new Map<string, number>()
+        for (const n of notaRows) {
+          const plat = String(n.kendaraanPlatNomor || '').trim()
+          if (!plat) continue
+          notaByPlat.set(plat, (notaByPlat.get(plat) || 0) + Number(n.totalPembayaran || 0))
+        }
+
+        const kasIncomeRows = await prisma.kasTransaksi.findMany({
+          where: {
+            deletedAt: null,
+            tipe: 'PEMASUKAN',
+            kendaraanPlatNomor: { not: null },
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            user: { role: 'PEMILIK' },
+          },
+          select: { kendaraanPlatNomor: true, jumlah: true },
+        })
+
+        const kasIncomeByPlat = new Map<string, number>()
+        for (const r of kasIncomeRows) {
+          const plat = String(r.kendaraanPlatNomor || '').trim()
+          if (!plat) continue
+          kasIncomeByPlat.set(plat, (kasIncomeByPlat.get(plat) || 0) + Number(r.jumlah || 0))
+        }
+
+        const kasExpenseAggByPlat = await prisma.kasTransaksi.groupBy({
+          by: ['kendaraanPlatNomor'],
+          where: {
+            deletedAt: null,
+            tipe: 'PENGELUARAN',
+            kendaraanPlatNomor: { not: null },
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+          },
+          _sum: { jumlah: true },
+        })
+
+        const kasExpenseByPlat = new Map<string, number>()
+        for (const g of kasExpenseAggByPlat) {
+          const plat = String(g.kendaraanPlatNomor || '').trim()
+          if (!plat) continue
+          kasExpenseByPlat.set(plat, Number(g._sum.jumlah || 0))
+        }
+
+        const slAggByPlat = await prisma.serviceLog.groupBy({
+          by: ['kendaraanPlat'],
+          where: {
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            kendaraanPlat: { not: '' },
+          } as any,
+          _sum: { cost: true },
+        })
+
+        const slByPlat = new Map<string, number>()
+        for (const g of slAggByPlat as any[]) {
+          const plat = String(g.kendaraanPlat || '').trim()
+          if (!plat) continue
+          slByPlat.set(plat, Number(g._sum.cost || 0))
+        }
+
+        const rdAggByPlat = await prisma.riwayatDokumen.groupBy({
+          by: ['kendaraanPlat'],
+          where: {
+            tanggalBayar: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            kendaraanPlat: { not: '' },
+          } as any,
+          _sum: { biaya: true },
+        })
+
+        const rdByPlat = new Map<string, number>()
+        for (const g of rdAggByPlat as any[]) {
+          const plat = String(g.kendaraanPlat || '').trim()
+          if (!plat) continue
+          rdByPlat.set(plat, Number(g._sum.biaya || 0))
+        }
+
+        const ujRowsForKendaraan = await prisma.uangJalan.findMany({
+          where: {
+            deletedAt: null,
+            date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            tipe: { equals: 'PENGELUARAN', mode: 'insensitive' },
+          },
+          select: { amount: true, sesiUangJalan: { select: { kendaraanPlatNomor: true } } } as any,
+        })
+
+        const ujByPlat = new Map<string, number>()
+        for (const u of ujRowsForKendaraan as any[]) {
+          const plat = String(u.sesiUangJalan?.kendaraanPlatNomor || '').trim()
+          if (!plat) continue
+          ujByPlat.set(plat, (ujByPlat.get(plat) || 0) + Number(u.amount || 0))
+        }
+
+        const rows = kendaraans.map(k => {
+          const plat = String(k.platNomor || '').trim()
+          const pemasukanVal = (notaByPlat.get(plat) || 0) + (kasIncomeByPlat.get(plat) || 0)
+          const pengeluaranVal =
+            (kasExpenseByPlat.get(plat) || 0) + (slByPlat.get(plat) || 0) + (rdByPlat.get(plat) || 0) + (ujByPlat.get(plat) || 0)
+          const saldoVal = pemasukanVal - pengeluaranVal
+          const profitMarginVal = pemasukanVal > 0 ? (saldoVal / pemasukanVal) * 100 : 0
+          const costRatioVal = pemasukanVal > 0 ? (pengeluaranVal / pemasukanVal) * 100 : 0
+          return {
+            key: plat,
+            name: k.merk ? `${plat} (${k.merk})` : plat,
+            pemasukan: pemasukanVal,
+            pengeluaran: pengeluaranVal,
+            saldo: saldoVal,
+            profitMargin: profitMarginVal,
+            costRatio: costRatioVal,
+          }
+        })
+
+        rows.sort((a, b) => (b.pengeluaran || 0) - (a.pengeluaran || 0))
+        entityStats = { type: 'kendaraan', rows }
+      }
+    }
+
     return NextResponse.json({
       data: pageData,
       pagination: {
@@ -874,6 +1276,7 @@ export async function GET(request: Request) {
         breakdown,
         incomeBreakdown,
       },
+      entityStats,
     })
   } catch (error) {
     console.error('GET /api/ledger-biaya error:', error)

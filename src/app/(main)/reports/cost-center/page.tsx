@@ -957,7 +957,7 @@ export default function CostCenterPage() {
     }
 
     return (
-        <RoleGate allow={['ADMIN', 'PEMILIK', 'KEUANGAN']}>
+        <RoleGate allow={['ADMIN']}>
             <div className="p-4 md:p-8 space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h1 className="text-2xl font-bold">Laporan Biaya Operasional (Cost Center)</h1>

@@ -69,7 +69,8 @@ const getWibToday = () => {
 export default function LedgerBiayaPage() {
   const [searchDraft, setSearchDraft] = useState('')
   const [search, setSearch] = useState('')
-  const [scope, setScope] = useState('all')
+  const [activeTab, setActiveTab] = useState('list')
+  const [scope, setScope] = useState('kebun')
   const [tipe, setTipe] = useState('all')
   const [kebunId, setKebunId] = useState('all')
   const [karyawanId, setKaryawanId] = useState('all')
@@ -132,6 +133,7 @@ export default function LedgerBiayaPage() {
     const p = new URLSearchParams()
     p.set('page', String(page))
     p.set('limit', String(limit))
+    if (activeTab === 'kpi') p.set('includeEntityStats', '1')
     if (search) p.set('search', search)
     if (scope && scope !== 'all') p.set('scope', scope)
     if (tipe && tipe !== 'all') p.set('tipe', tipe)
@@ -143,23 +145,25 @@ export default function LedgerBiayaPage() {
     if (startDate) p.set('startDate', startDate)
     if (endDate) p.set('endDate', endDate)
     return p.toString()
-  }, [page, limit, search, scope, tipe, kebunId, karyawanId, perusahaanId, kendaraanPlatNomor, includeOperasional, startDate, endDate])
+  }, [page, limit, activeTab, search, scope, tipe, kebunId, karyawanId, perusahaanId, kendaraanPlatNomor, includeOperasional, startDate, endDate])
 
   const { data, error, isLoading, mutate } = useSWR(`/api/ledger-biaya?${qs}`, fetcher)
   const rows = data?.data || []
   const summaryRaw = data?.summary
   const summary = useMemo(() => summaryRaw || { pemasukan: 0, pengeluaran: 0, saldo: 0, notaIncome: 0, breakdown: {}, incomeBreakdown: {} }, [summaryRaw])
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0, limit }
+  const entityStats = data?.entityStats || null
 
   const profitMargin = summary.pemasukan > 0 ? ((summary.saldo / summary.pemasukan) * 100).toFixed(1) : '0'
   const costRatio = summary.pemasukan > 0 ? ((summary.pengeluaran / summary.pemasukan) * 100).toFixed(1) : '0'
 
   const entityName = useMemo(() => {
+    if (scope === 'kebun' && kebunId === 'all') return 'Semua Kebun'
     if (kebunId !== 'all') return kebunList.find(k => String(k.id) === kebunId)?.name || 'Kebun'
     if (perusahaanId !== 'all') return perusahaanList.find(p => String(p.id) === perusahaanId)?.name || 'Perusahaan'
     if (kendaraanPlatNomor !== 'all') return kendaraanPlatNomor
     return 'Semua Entitas'
-  }, [kebunId, perusahaanId, kendaraanPlatNomor, kebunList, perusahaanList])
+  }, [scope, kebunId, perusahaanId, kendaraanPlatNomor, kebunList, perusahaanList])
 
   const sortedBreakdown = useMemo(() => 
     Object.entries(summary.breakdown || {})
@@ -173,8 +177,28 @@ export default function LedgerBiayaPage() {
       .filter(([, v]) => (v as number) > 0)
   , [summary.incomeBreakdown])
 
-  const chartData = useMemo(() => sortedBreakdown.map(([name, value]) => ({ name, value })), [sortedBreakdown])
-  const incomeChartData = useMemo(() => sortedIncomeBreakdown.map(([name, value]) => ({ name, value })), [sortedIncomeBreakdown])
+  const chartData = useMemo(() => {
+    const top3 = sortedBreakdown.slice(0, 3)
+    const others = sortedBreakdown.slice(3)
+    const data = top3.map(([name, value]) => ({ name, value: value as number }))
+    
+    if (others.length > 0) {
+      const othersTotal = others.reduce((acc, [, val]) => acc + (val as number), 0)
+      data.push({ name: 'LAINNYA', value: othersTotal })
+    }
+    return data
+  }, [sortedBreakdown])
+  const incomeChartData = useMemo(() => {
+    const top3 = sortedIncomeBreakdown.slice(0, 3)
+    const others = sortedIncomeBreakdown.slice(3)
+    const data = top3.map(([name, value]) => ({ name, value: value as number }))
+    
+    if (others.length > 0) {
+      const othersTotal = others.reduce((acc, [, val]) => acc + (val as number), 0)
+      data.push({ name: 'LAINNYA', value: othersTotal })
+    }
+    return data
+  }, [sortedIncomeBreakdown])
   
   const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#64748b']
   const INCOME_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#64748b']
@@ -346,7 +370,7 @@ export default function LedgerBiayaPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="list" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-gray-100/80 p-1 rounded-2xl inline-flex">
             <TabsTrigger 
               value="list" 
@@ -402,7 +426,7 @@ export default function LedgerBiayaPage() {
                     }
                   }}
                   placeholder="Cari deskripsi/kategori/kebun/karyawan..."
-                  className="md:col-span-2"
+                  className="md:col-span-2 rounded-xl"
                 />
                 <select 
                   className="h-10 rounded-xl border border-gray-200 px-3 text-sm" 
@@ -426,8 +450,24 @@ export default function LedgerBiayaPage() {
                   <option value="PEMASUKAN">Pemasukan</option>
                   <option value="PENGELUARAN">Pengeluaran</option>
                 </select>
-                <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1) }} />
-                <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1) }} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value)
+                    setPage(1)
+                  }}
+                  className="rounded-xl"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value)
+                    setPage(1)
+                  }}
+                  className="rounded-xl"
+                />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
                 <select 
@@ -599,7 +639,7 @@ export default function LedgerBiayaPage() {
                   <div className="w-2 h-6 bg-emerald-500 rounded-full" />
                   Sumber Pendapatan
                 </h3>
-                <div className="h-[250px]">
+                <div className="h-[280px]">
                   {sortedIncomeBreakdown.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -617,7 +657,17 @@ export default function LedgerBiayaPage() {
                           ))}
                         </Pie>
                         <RechartsTooltip formatter={(v: any) => formatCurrency(v)} />
-                        <Legend verticalAlign="bottom" height={36}/>
+                        <Legend 
+                          verticalAlign="bottom" 
+                          align="center" 
+                          iconSize={10}
+                          wrapperStyle={{ 
+                            fontSize: '11px', 
+                            paddingTop: '10px',
+                            fontWeight: '600',
+                            textTransform: 'uppercase'
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -632,7 +682,7 @@ export default function LedgerBiayaPage() {
                   <div className="w-2 h-6 bg-rose-500 rounded-full" />
                   Proporsi Beban Biaya
                 </h3>
-                <div className="h-[250px]">
+                <div className="h-[280px]">
                   {sortedBreakdown.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -650,7 +700,17 @@ export default function LedgerBiayaPage() {
                           ))}
                         </Pie>
                         <RechartsTooltip formatter={(v: any) => formatCurrency(v)} />
-                        <Legend verticalAlign="bottom" height={36}/>
+                        <Legend 
+                          verticalAlign="bottom" 
+                          align="center" 
+                          iconSize={10}
+                          wrapperStyle={{ 
+                            fontSize: '11px', 
+                            paddingTop: '10px',
+                            fontWeight: '600',
+                            textTransform: 'uppercase'
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -678,6 +738,65 @@ export default function LedgerBiayaPage() {
                 </div>
               </div>
             </div>
+
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-blue-50 border border-emerald-100 grid grid-cols-1 md:grid-cols-2 gap-6 shadow-sm">
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Profitabilitas {entityName}</h4>
+                <p className="text-base text-emerald-900">
+                  {entityName} menghasilkan keuntungan bersih sebesar <span className="font-bold text-emerald-700">{formatCurrency(summary.saldo)}</span> dari total pendapatan <span className="font-bold">{formatCurrency(summary.pemasukan)}</span>.
+                </p>
+                <div className="text-xs text-emerald-600 font-medium">Margin Keuntungan: <span className="text-sm font-bold">{profitMargin}%</span></div>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider">Rasio Efisiensi Operasional</h4>
+                <p className="text-base text-blue-900">
+                  Setiap Rp1.000 pendapatan yang masuk, {entityName} mengeluarkan biaya sebesar <span className="font-bold text-rose-600">Rp{(Number(costRatio) * 10).toFixed(0)}</span> untuk operasional.
+                </p>
+                <div className="text-xs text-blue-600 font-medium">Rasio Biaya: <span className="text-sm font-bold text-rose-600">{costRatio}%</span></div>
+              </div>
+            </div>
+
+            {Array.isArray(entityStats?.rows) && entityStats.rows.length > 0 ? (
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">
+                  {entityStats?.type === 'kebun'
+                    ? 'Ringkasan Per Kebun'
+                    : entityStats?.type === 'perusahaan'
+                      ? 'Ringkasan Per Perusahaan'
+                      : entityStats?.type === 'kendaraan'
+                        ? 'Ringkasan Per Kendaraan'
+                        : 'Ringkasan Per Entitas'}
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50/80">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-bold text-gray-700">Entitas</th>
+                        <th className="px-4 py-3 text-right font-bold text-gray-700">Pendapatan</th>
+                        <th className="px-4 py-3 text-right font-bold text-gray-700">Pengeluaran</th>
+                        <th className="px-4 py-3 text-right font-bold text-gray-700">Profit</th>
+                        <th className="px-4 py-3 text-right font-bold text-gray-700">Margin</th>
+                        <th className="px-4 py-3 text-right font-bold text-gray-700">Rasio</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {entityStats.rows.map((r: any) => (
+                        <tr key={String(r.key || r.id || r.name)}>
+                          <td className="px-4 py-3 font-medium text-gray-900">{r.name || '-'}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-800">{formatCurrency(Number(r.pemasukan || 0))}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-800">{formatCurrency(Number(r.pengeluaran || 0))}</td>
+                          <td className={cn('px-4 py-3 text-right font-bold', Number(r.saldo || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
+                            {formatCurrency(Number(r.saldo || 0))}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-700">{Number(r.profitMargin || 0).toFixed(1)}%</td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-700">{Number(r.costRatio || 0).toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Detailed Income Table */}
@@ -758,23 +877,6 @@ export default function LedgerBiayaPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-
-            <div className="mt-6 p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-blue-50 border border-emerald-100 grid grid-cols-1 md:grid-cols-2 gap-6 shadow-sm">
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Profitabilitas {entityName}</h4>
-                <p className="text-base text-emerald-900">
-                  {entityName} menghasilkan keuntungan bersih sebesar <span className="font-bold text-emerald-700">{formatCurrency(summary.saldo)}</span> dari total pendapatan <span className="font-bold">{formatCurrency(summary.pemasukan)}</span>.
-                </p>
-                <div className="text-xs text-emerald-600 font-medium">Margin Keuntungan: <span className="text-sm font-bold">{profitMargin}%</span></div>
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider">Rasio Efisiensi Operasional</h4>
-                <p className="text-base text-blue-900">
-                  Setiap Rp1.000 pendapatan yang masuk, {entityName} mengeluarkan biaya sebesar <span className="font-bold text-rose-600">Rp{(Number(costRatio) * 10).toFixed(0)}</span> untuk operasional.
-                </p>
-                <div className="text-xs text-blue-600 font-medium">Rasio Biaya: <span className="text-sm font-bold text-rose-600">{costRatio}%</span></div>
               </div>
             </div>
           </TabsContent>

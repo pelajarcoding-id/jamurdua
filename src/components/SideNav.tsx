@@ -49,6 +49,10 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
       return userRole === 'ADMIN';
     }
 
+    if (link.name === 'Laporan Biaya') {
+      return userRole === 'ADMIN'
+    }
+
     if (link.name === 'Hutang Bank') {
       return userRole === 'ADMIN' || userRole === 'PEMILIK';
     }
