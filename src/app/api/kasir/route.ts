@@ -452,17 +452,17 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Transaksi tidak ditemukan atau Anda tidak memiliki akses' }, { status: 404 });
     }
     if (existingTrx.kategori === 'GAJI' && existingTrx.kebunId) {
-      const gajianLocked = await prisma.gajian.findFirst({
-        where: {
-          kebunId: existingTrx.kebunId,
-          status: 'FINALIZED',
-          tanggalMulai: { lte: existingTrx.date },
-          tanggalSelesai: { gte: existingTrx.date },
-        },
-        select: { id: true },
-      })
-      if (gajianLocked) {
-        return NextResponse.json({ error: 'Transaksi gaji tidak bisa dihapus karena sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+      if (existingTrx.gajianId) {
+        const linked = await prisma.gajian.findUnique({
+          where: { id: existingTrx.gajianId },
+          select: { id: true, status: true },
+        })
+        if (linked) {
+          return NextResponse.json(
+            { error: 'Transaksi gaji tidak bisa dihapus karena masih terhubung ke data gajian. Batalkan/ubah dari menu Gajian terlebih dahulu.' },
+            { status: 400 },
+          )
+        }
       }
     }
     if (existingTrx.kategori === 'PENJUALAN_SAWIT') {

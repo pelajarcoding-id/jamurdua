@@ -387,20 +387,20 @@ export default function LedgerBiayaPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-gray-100/80 p-1 rounded-2xl w-full sm:w-auto flex overflow-x-auto whitespace-nowrap">
-            <TabsTrigger 
-              value="list" 
-              className="rounded-xl px-4 sm:px-6 py-2.5 flex items-center gap-2.5 transition-all whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
+          <TabsList className="w-full sm:w-auto flex items-center gap-1 h-12 rounded-2xl bg-gray-50 border border-gray-100 p-1">
+            <TabsTrigger
+              value="list"
+              className="flex-1 min-w-0 rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
-              <ListBulletIcon className="w-5 h-5" />
-              <span className="font-semibold text-sm">Daftar Transaksi</span>
+              <ListBulletIcon className="h-4 w-4 mr-2" />
+              <span className="font-semibold text-xs sm:text-sm truncate">Daftar Transaksi</span>
             </TabsTrigger>
-            <TabsTrigger 
-              value="kpi" 
-              className="rounded-xl px-4 sm:px-6 py-2.5 flex items-center gap-2.5 transition-all whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"
+            <TabsTrigger
+              value="kpi"
+              className="flex-1 min-w-0 rounded-xl px-4 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
-              <ChartBarSquareIcon className="w-5 h-5" />
-              <span className="font-semibold text-sm">KPI & Analisis Visual</span>
+              <ChartBarSquareIcon className="h-4 w-4 mr-2" />
+              <span className="font-semibold text-xs sm:text-sm truncate">KPI & Analisis Visual</span>
             </TabsTrigger>
           </TabsList>
 
