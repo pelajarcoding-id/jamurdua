@@ -144,6 +144,15 @@ export async function GET(request: Request) {
       })
     }
 
+    whereKas.AND.push({
+      NOT: {
+        kategori: {
+          equals: 'GAJI',
+          mode: 'insensitive',
+        },
+      },
+    })
+
     if (kategori) whereKas.AND.push({ kategori })
     if (Number.isFinite(kebunId) && kebunId > 0) whereKas.AND.push({ kebunId })
     if (Number.isFinite(karyawanId) && karyawanId > 0) whereKas.AND.push({ karyawanId })
@@ -382,8 +391,7 @@ export async function GET(request: Request) {
     }
     if (wherePk.AND.length === 0) delete wherePk.AND
 
-    // For summary: EXCLUDE details that are already paid (have gajianId) to avoid double counting with the Salary Payment
-    const wherePkSummary = { ...wherePk, gajianId: null }
+    const wherePkSummary = { ...wherePk }
 
     if (includeBorongan) {
       tasks.push(
@@ -914,7 +922,7 @@ export async function GET(request: Request) {
       Number(pkAgg?._sum?.biaya || 0) +
       Number(slAgg?._sum?.cost || 0) +
       Number(rdAgg?._sum?.biaya || 0) +
-      normalizedAb.reduce((sum: number, r: any) => sum + (r.isPaid ? 0 : Number(r?.jumlah || 0)), 0)
+      normalizedAb.reduce((sum: number, r: any) => sum + Number(r?.jumlah || 0), 0)
 
     const pemasukan = incomeOnly ? pemasukanRaw : expenseOnly ? 0 : pemasukanRaw
     const pengeluaran = expenseOnly ? pengeluaranRaw : incomeOnly ? 0 : pengeluaranRaw
@@ -922,7 +930,7 @@ export async function GET(request: Request) {
     // Breakdown calculation for KPIs
     const breakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : {
       GAJI: 0,
-      ABSENSI: normalizedAb.reduce((sum: number, r: any) => sum + (r.isPaid ? 0 : Number(r?.jumlah || 0)), 0),
+      ABSENSI: normalizedAb.reduce((sum: number, r: any) => sum + Number(r?.jumlah || 0), 0),
       UANG_JALAN: Number(ujPengeluaranAgg?._sum?.amount || 0),
       PERUSAHAAN: Number(pbPengeluaranAgg?._sum?.jumlah || 0),
       SERVIS: Number(slAgg?._sum?.cost || 0),
@@ -1053,6 +1061,7 @@ export async function GET(request: Request) {
             tipe: 'PENGELUARAN',
             kebunId: { not: null },
             date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            NOT: { kategori: { equals: 'GAJI', mode: 'insensitive' } },
           },
           _sum: { jumlah: true },
         })
@@ -1071,7 +1080,6 @@ export async function GET(request: Request) {
                 date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
                 upahBorongan: true,
                 biaya: { gt: 0 },
-                gajianId: null,
               } as any,
               _sum: { biaya: true },
             })
@@ -1089,19 +1097,6 @@ export async function GET(request: Request) {
           const start = toDateOnlyUtc(range.startYmd)
           const end = toDateOnlyUtc(range.endYmd)
 
-          const paidKeysRows = await prisma.absensiGajiHarian.findMany({
-            where: {
-              gajianId: { not: null },
-              date: { gte: start, lte: end },
-            },
-            select: { kebunId: true, karyawanId: true, date: true },
-          })
-
-          const paidKeys = new Set<string>()
-          for (const p of paidKeysRows) {
-            paidKeys.add(`${p.kebunId}:${p.karyawanId}:${p.date.toISOString().slice(0, 10)}`)
-          }
-
           const absensiRows = await prisma.absensiHarian.findMany({
             where: {
               date: { gte: start, lte: end },
@@ -1111,8 +1106,6 @@ export async function GET(request: Request) {
           })
 
           for (const a of absensiRows) {
-            const key = `${a.kebunId}:${a.karyawanId}:${a.date.toISOString().slice(0, 10)}`
-            if (paidKeys.has(key)) continue
             absensiByKebun.set(
               a.kebunId,
               (absensiByKebun.get(a.kebunId) || 0) + Number(a.jumlah || 0) + Number(a.uangMakan || 0)
@@ -1301,6 +1294,7 @@ export async function GET(request: Request) {
             tipe: 'PENGELUARAN',
             kendaraanPlatNomor: { not: null },
             date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
+            NOT: { kategori: { equals: 'GAJI', mode: 'insensitive' } },
           },
           _sum: { jumlah: true },
         })
