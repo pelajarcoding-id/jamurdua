@@ -49,6 +49,10 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
       return userRole === 'ADMIN';
     }
 
+    if (link.name === 'Push Notifikasi') {
+      return userRole === 'ADMIN'
+    }
+
     if (link.name === 'Laporan Biaya') {
       return userRole === 'ADMIN'
     }

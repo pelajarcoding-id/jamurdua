@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendPushNotification } from '@/lib/web-push'
+import { sendPushToUsers } from '@/lib/notifications/push-send'
 import { parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
 
 export const dynamic = 'force-dynamic'
@@ -111,24 +111,12 @@ export async function POST(request: Request) {
   if (toCreate.length === 0) return NextResponse.json({ ok: true, sent: 0, created: 0 })
 
   await prisma.notification.createMany({ data: toCreate })
-
-  const subscriptions = await (prisma as any).pushSubscription.findMany({
-    where: { userId: { in: toCreate.map((n) => n.userId) } },
+  const payload = { title: toCreate[0].title, body: toCreate[0].message, url: toCreate[0].link || '/' }
+  const { sent } = await sendPushToUsers({
+    userIds: toCreate.map((n) => Number(n.userId)),
+    eventKey: 'ATTENDANCE_CHECKIN',
+    payload,
   })
 
-  const byUser = new Map<number, { title: string; body: string; url: string }>()
-  for (const n of toCreate) {
-    byUser.set(Number(n.userId), { title: n.title, body: n.message, url: n.link || '/' })
-  }
-
-  const sendResults = await Promise.all(
-    (subscriptions || []).map((sub: any) => {
-      const payload = byUser.get(Number(sub.userId))
-      if (!payload) return Promise.resolve(false)
-      return sendPushNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload)
-    }),
-  )
-
-  return NextResponse.json({ ok: true, created: toCreate.length, sent: sendResults.filter(Boolean).length })
+  return NextResponse.json({ ok: true, created: toCreate.length, sent })
 }
-

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireRole } from '@/lib/route-auth'
 import { ensureKebunAccess } from '@/lib/kebun-access'
-import { sendPushNotification } from '@/lib/web-push'
+import { sendPushToUsers } from '@/lib/notifications/push-send'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,18 +46,11 @@ async function notifyMinStock(params: {
       })),
     })
 
-    const subscriptions = await (prisma as any).pushSubscription.findMany({
-      where: { userId: { in: recipients.map(r => r.id) } },
+    await sendPushToUsers({
+      userIds: recipients.map((r) => r.id),
+      eventKey: 'INVENTORY_KEBUN',
+      payload: { title: 'Stok Minimum Inventory', body: message, url },
     })
-
-    await Promise.all(
-      (subscriptions || []).map((sub: any) =>
-        sendPushNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          { title: 'Stok Minimum Inventory', body: message, url },
-        ),
-      ),
-    )
   } catch (error) {
     console.error('Failed to send inventory min stock notification:', error)
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendPushNotification } from '@/lib/web-push';
+import { sendPushToUsers } from '@/lib/notifications/push-send'
 import { requireRole } from '@/lib/route-auth';
 import { ensureKebunAccess } from '@/lib/kebun-access';
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
@@ -127,19 +127,11 @@ export async function POST(
           }))
         });
 
-        // Send Push Notifications
-        const subscriptions = await (prisma as any).pushSubscription.findMany({
-          where: {
-            userId: { in: recipients.map(r => r.id) }
-          }
-        });
-
-        await Promise.all(subscriptions.map((sub: any) => 
-          sendPushNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            { title: 'Permintaan Baru', body: message, url }
-          )
-        ));
+        await sendPushToUsers({
+          userIds: recipients.map((r) => r.id),
+          eventKey: 'KEBUN_PERMINTAAN',
+          payload: { title: 'Permintaan Baru', body: message, url },
+        })
       }
     } catch (notifError) {
       console.error('Failed to send notifications:', notifError);

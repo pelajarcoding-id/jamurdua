@@ -17,7 +17,8 @@ import {
   BuildingOfficeIcon,
   ArchiveBoxXMarkIcon,
   CameraIcon,
-  MapPinIcon
+  MapPinIcon,
+  BellAlertIcon
 } from '@heroicons/react/24/outline';
 
 export interface SubLink {
@@ -154,5 +155,10 @@ export const links: NavLink[] = [
         name: 'Akun Pengguna',
         href: '/users',
         icon: UsersIcon,
+    },
+    {
+        name: 'Push Notifikasi',
+        href: '/push-notifikasi',
+        icon: BellAlertIcon,
     },
 ];

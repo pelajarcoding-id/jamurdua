@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 import { auth } from '@/auth';
-import { sendPushNotification } from '@/lib/web-push';
+import { sendPushToUsers } from '@/lib/notifications/push-send'
 
 export const dynamic = 'force-dynamic'
 
@@ -240,17 +240,11 @@ export async function POST(request: Request) {
           })),
         })
 
-        const subscriptions = await (prisma as any).pushSubscription.findMany({
-          where: { userId: { in: recipients.map((r) => r.id) } },
+        await sendPushToUsers({
+          userIds: recipients.map((r) => r.id),
+          eventKey: 'GAJIAN',
+          payload: { title: 'Pengajuan Gajian Kebun', body: message, url: link },
         })
-        await Promise.all(
-          (subscriptions || []).map((sub: any) =>
-            sendPushNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              { title: 'Pengajuan Gajian Kebun', body: message, url: link },
-            ),
-          ),
-        )
       }
     } catch (notifError) {
       console.error('Failed to send gajian notifications:', notifError)
