@@ -61,6 +61,23 @@ function detectScopePekerjaan(row: any) {
   return 'KEBUN'
 }
 
+function normalizeBoronganLabel(raw: any) {
+  return String(raw || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .trim()
+}
+
+function resolveBoronganCategory(row: any) {
+  const rawCat = String(row?.kategoriBorongan || '').trim()
+  const rawJenis = String(row?.jenisPekerjaan || '').trim()
+  const normalizedCat = normalizeBoronganLabel(rawCat)
+  if (!normalizedCat) return normalizeBoronganLabel(rawJenis) || 'BORONGAN_LAIN'
+  if (normalizedCat === 'GAJI_MANUAL') return normalizeBoronganLabel(rawJenis) || 'BORONGAN_LAIN'
+  return normalizeBoronganLabel(rawCat) || normalizeBoronganLabel(rawJenis) || 'BORONGAN_LAIN'
+}
+
 function decimalToNumber(v: any) {
   if (v == null) return 0
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
@@ -414,12 +431,6 @@ export async function GET(request: Request) {
     if (range) wherePk.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
     wherePk.AND.push({ upahBorongan: true })
     wherePk.AND.push({ biaya: { gt: 0 } })
-    wherePk.AND.push({
-      NOT: [
-        { kategoriBorongan: { contains: 'GAJI MANUAL', mode: 'insensitive' } },
-        { jenisPekerjaan: { contains: 'GAJI MANUAL', mode: 'insensitive' } },
-      ],
-    })
     if (Number.isFinite(kebunId) && kebunId > 0) wherePk.AND.push({ kebunId })
     if (Number.isFinite(karyawanId) && karyawanId > 0) wherePk.AND.push({ userId: karyawanId })
     if (kendaraanPlatNomor) wherePk.AND.push({ kendaraanPlatNomor: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
@@ -821,6 +832,7 @@ export async function GET(request: Request) {
 
     const normalizedPk = (pkRows as any[]).map((r: any) => {
       const total = Number(r.biaya || 0)
+      const cat = resolveBoronganCategory(r)
       return {
         key: `BORONGAN:${r.id}`,
         source: 'BORONGAN',
@@ -828,7 +840,7 @@ export async function GET(request: Request) {
         date: r.date,
         tipe: 'PENGELUARAN',
         kategori: 'BORONGAN',
-        deskripsi: String(r.kategoriBorongan || r.jenisPekerjaan || 'Borongan'),
+        deskripsi: cat ? cat.replace(/_/g, ' ') : String(r.kategoriBorongan || r.jenisPekerjaan || 'Borongan'),
         keterangan: r.keterangan || null,
         jumlah: Number.isFinite(total) ? total : 0,
         gambarUrl: r.imageUrl || null,
@@ -1024,7 +1036,7 @@ export async function GET(request: Request) {
       })
 
       boronganRows.forEach((b: any) => {
-        const catName = (b.kategoriBorongan || b.jenisPekerjaan || 'BORONGAN_LAIN').toUpperCase()
+        const catName = resolveBoronganCategory(b)
         const key = `BORONGAN: ${catName}`
         if (breakdown[key] === undefined) breakdown[key] = 0
         breakdown[key] += Number(b.biaya || 0)
