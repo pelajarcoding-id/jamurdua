@@ -108,7 +108,7 @@ export async function GET(request: Request) {
     const includeKas = scope === 'ALL' || scope === 'KAS' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN' || scope === 'UANG_JALAN'
     const includeUangJalan = scope === 'ALL' || scope === 'UANG_JALAN' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN'
     const includePerusahaanBiaya = scope === 'ALL' || scope === 'PERUSAHAAN'
-    const includeGajian = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN')
+    const includeGajian = false
     const includeBorongan = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'KENDARAAN')
     const includeAbsensi = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN')
     const includeServiceLog = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
@@ -414,6 +414,12 @@ export async function GET(request: Request) {
     if (range) wherePk.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
     wherePk.AND.push({ upahBorongan: true })
     wherePk.AND.push({ biaya: { gt: 0 } })
+    wherePk.AND.push({
+      NOT: [
+        { kategoriBorongan: { contains: 'GAJI MANUAL', mode: 'insensitive' } },
+        { jenisPekerjaan: { contains: 'GAJI MANUAL', mode: 'insensitive' } },
+      ],
+    })
     if (Number.isFinite(kebunId) && kebunId > 0) wherePk.AND.push({ kebunId })
     if (Number.isFinite(karyawanId) && karyawanId > 0) wherePk.AND.push({ userId: karyawanId })
     if (kendaraanPlatNomor) wherePk.AND.push({ kendaraanPlatNomor: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
