@@ -7,6 +7,8 @@ import { requireRole } from '@/lib/route-auth';
 import { scheduleFileDeletion } from '@/lib/file-retention';
 import { getWibRangeUtcFromParams, parseWibYmd, wibEndUtcInclusive, wibStartUtc } from '@/lib/wib';
 import { validateKasKategoriOrThrow } from '@/lib/kasir/kasKategori'
+import { auth } from '@/auth'
+import { sendPushToUsers } from '@/lib/notifications/push-send'
 
 export const dynamic = 'force-dynamic'
 
@@ -341,6 +343,45 @@ export async function POST(request: Request) {
       deskripsi,
       jumlah,
     });
+
+    try {
+      const session = await auth()
+      const creatorName =
+        session?.user?.name ||
+        (await prisma.user.findUnique({ where: { id: currentUserId }, select: { name: true } }))?.name ||
+        'User'
+
+      const recipients = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'PEMILIK'] } },
+        select: { id: true },
+      })
+
+      const fmt = new Intl.NumberFormat('id-ID')
+      const tipeLabel = tipe === 'PEMASUKAN' ? 'Pemasukan' : 'Pengeluaran'
+      const message = `${creatorName} mencatat ${tipeLabel.toLowerCase()}: ${deskripsi} (Rp ${fmt.format(Number(jumlah || 0))})`
+      const url = '/kasir'
+
+      if (recipients.length > 0) {
+        await prisma.notification.createMany({
+          data: recipients.map((r) => ({
+            userId: r.id,
+            type: 'KASIR',
+            title: `Kasir: ${tipeLabel}`,
+            message,
+            link: url,
+            isRead: false,
+          })),
+        })
+
+        await sendPushToUsers({
+          userIds: recipients.map((r) => r.id),
+          eventKey: 'KASIR',
+          payload: { title: `Kasir: ${tipeLabel}`, body: message, url },
+        })
+      }
+    } catch (notifErr) {
+      console.error('Failed to create kasir notification:', notifErr)
+    }
 
     return NextResponse.json(newTransaction, { status: 201 });
   } catch (error: any) {

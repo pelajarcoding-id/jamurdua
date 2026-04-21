@@ -208,6 +208,20 @@ export async function POST(request: Request) {
     const tanggalMulaiUtc = wibStartUtc(startYmd)
     const tanggalSelesaiUtc = wibEndUtcInclusive(endYmd)
 
+    const periodeHuman = (() => {
+      const start = new Date(Date.UTC(startYmd.y, startYmd.m - 1, startYmd.d, 0, 0, 0))
+      const end = new Date(Date.UTC(endYmd.y, endYmd.m - 1, endYmd.d, 0, 0, 0))
+      const fmtDay = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' })
+      const fmtMonthYear = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric' })
+      const fmtFull = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' })
+      const startMy = fmtMonthYear.format(start)
+      const endMy = fmtMonthYear.format(end)
+      if (startMy === endMy) {
+        return `${fmtDay.format(start)} s.d ${fmtDay.format(end)} ${endMy}`
+      }
+      return `${fmtFull.format(start)} s.d ${fmtFull.format(end)}`
+    })()
+
     const GAJIAN_MANUAL_BIAYA_MARKER = '[GAJIAN_BIAYA_MANUAL]'
 
     const gajianData = {
@@ -724,7 +738,7 @@ export async function POST(request: Request) {
               date: tanggalSelesaiUtc,
               jenisPekerjaan: b.deskripsi,
               kategoriBorongan: b.kategori ? b.kategori : 'GAJI_MANUAL',
-              keterangan: `${GAJIAN_MANUAL_BIAYA_MARKER}${b.keterangan ? ` ${b.keterangan}` : ''}`,
+              keterangan: `${GAJIAN_MANUAL_BIAYA_MARKER} Periode ${periodeHuman}${b.keterangan ? ` ${b.keterangan}` : ''}`,
               biaya: Number.isFinite(b.total) ? b.total : 0,
               imageUrl: null,
               gajianId: upsertedGajian.id,

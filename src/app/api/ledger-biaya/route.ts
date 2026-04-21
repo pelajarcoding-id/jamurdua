@@ -108,6 +108,7 @@ export async function GET(request: Request) {
     const includeKas = scope === 'ALL' || scope === 'KAS' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN' || scope === 'UANG_JALAN'
     const includeUangJalan = scope === 'ALL' || scope === 'UANG_JALAN' || scope === 'KENDARAAN' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'PERUSAHAAN'
     const includePerusahaanBiaya = scope === 'ALL' || scope === 'PERUSAHAAN'
+    const includeGajian = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN')
     const includeBorongan = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'KENDARAAN')
     const includeAbsensi = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN')
     const includeServiceLog = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
@@ -146,10 +147,20 @@ export async function GET(request: Request) {
 
     whereKas.AND.push({
       NOT: {
-        kategori: {
-          equals: 'GAJI',
-          mode: 'insensitive',
-        },
+        OR: [
+          {
+            kategori: {
+              equals: 'GAJI',
+              mode: 'insensitive',
+            },
+          },
+          {
+            AND: [
+              { gajianId: { not: null } },
+              { kategori: { contains: 'GAJI', mode: 'insensitive' } },
+            ],
+          },
+        ],
       },
     })
 
@@ -297,6 +308,20 @@ export async function GET(request: Request) {
     }
     if (wherePb.AND.length === 0) delete wherePb.AND
 
+    const whereGajian: Prisma.GajianWhereInput = { AND: [] }
+    if (range) (whereGajian.AND as Prisma.GajianWhereInput[]).push({ tanggalSelesai: { gte: range.startUtc, lt: range.endExclusiveUtc } })
+    ;(whereGajian.AND as Prisma.GajianWhereInput[]).push({ status: 'FINALIZED' })
+    if (Number.isFinite(kebunId) && kebunId > 0) (whereGajian.AND as Prisma.GajianWhereInput[]).push({ kebunId })
+    if (search) {
+      ;(whereGajian.AND as Prisma.GajianWhereInput[]).push({
+        OR: [
+          { keterangan: { contains: search, mode: 'insensitive' } },
+          { kebun: { name: { contains: search, mode: 'insensitive' } } },
+        ],
+      })
+    }
+    if ((whereGajian.AND as any[]).length === 0) delete (whereGajian as any).AND
+
     const tasks: any[] = []
     if (includeKas) {
       tasks.push(
@@ -368,6 +393,21 @@ export async function GET(request: Request) {
       )
     } else {
       tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { jumlah: 0 } }), Promise.resolve({ _sum: { jumlah: 0 } }))
+    }
+
+    if (includeGajian) {
+      tasks.push(
+        prisma.gajian.findMany({
+          where: whereGajian,
+          include: { kebun: { select: { id: true, name: true } } },
+          orderBy: [{ tanggalSelesai: 'desc' }, { id: 'desc' }],
+          take: takeN,
+        }),
+        prisma.gajian.count({ where: whereGajian }),
+        prisma.gajian.aggregate({ where: whereGajian, _sum: { totalBiayaLain: true } }),
+      )
+    } else {
+      tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { totalBiayaLain: 0 } }))
     }
 
     const wherePk: any = { AND: [] as any[] }
@@ -576,6 +616,9 @@ export async function GET(request: Request) {
       pbCount,
       pbPengeluaranAgg,
       pbPemasukanAgg,
+      gajianRows,
+      gajianCount,
+      gajianAgg,
       pkRows,
       pkCount,
       pkAgg,
@@ -748,6 +791,28 @@ export async function GET(request: Request) {
       }
     })
 
+    const normalizedGajian = (gajianRows as any[]).map((g: any) => {
+      const totalBiaya = Number(g?.totalBiayaLain || 0)
+      return {
+        key: `GAJIAN:${g.id}`,
+        source: 'GAJIAN',
+        id: g.id,
+        date: g.tanggalSelesai,
+        tipe: 'PENGELUARAN',
+        kategori: 'GAJI',
+        deskripsi: `Total Gaji (Gajian #${g.id})`,
+        keterangan: g.keterangan || null,
+        jumlah: Number.isFinite(totalBiaya) ? totalBiaya : 0,
+        gambarUrl: null,
+        scope: 'KEBUN',
+        kebun: g.kebun ? { id: g.kebun.id, name: g.kebun.name } : null,
+        karyawan: null,
+        kendaraan: null,
+        perusahaan: null,
+        isPaid: true,
+      }
+    })
+
     const normalizedPk = (pkRows as any[]).map((r: any) => {
       const total = Number(r.biaya || 0)
       return {
@@ -879,6 +944,7 @@ export async function GET(request: Request) {
       ...normalizedKas,
       ...normalizedUj,
       ...normalizedPb,
+      ...normalizedGajian,
       ...normalizedPk,
       ...normalizedAb,
       ...normalizedSl,
@@ -898,6 +964,7 @@ export async function GET(request: Request) {
       Number(kasCount || 0) +
       Number(ujCount || 0) +
       Number(pbCount || 0) +
+      Number(gajianCount || 0) +
       Number(pkCount || 0) +
       Number(abCount || 0) +
       Number(slCount || 0) +
@@ -919,6 +986,7 @@ export async function GET(request: Request) {
       Number(kasPengeluaranAgg?._sum?.jumlah || 0) +
       Number(ujPengeluaranAgg?._sum?.amount || 0) +
       Number(pbPengeluaranAgg?._sum?.jumlah || 0) +
+      Number(gajianAgg?._sum?.totalBiayaLain || 0) +
       Number(pkAgg?._sum?.biaya || 0) +
       Number(slAgg?._sum?.cost || 0) +
       Number(rdAgg?._sum?.biaya || 0) +
@@ -929,7 +997,7 @@ export async function GET(request: Request) {
 
     // Breakdown calculation for KPIs
     const breakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : {
-      GAJI: 0,
+      GAJI: Number(gajianAgg?._sum?.totalBiayaLain || 0),
       ABSENSI: normalizedAb.reduce((sum: number, r: any) => sum + Number(r?.jumlah || 0), 0),
       UANG_JALAN: Number(ujPengeluaranAgg?._sum?.amount || 0),
       PERUSAHAAN: Number(pbPengeluaranAgg?._sum?.jumlah || 0),
@@ -967,10 +1035,10 @@ export async function GET(request: Request) {
       where: {
         ...whereKas,
         NOT: {
-          kategori: {
-            equals: 'GAJI',
-            mode: 'insensitive',
-          },
+          OR: [
+            { kategori: { equals: 'GAJI', mode: 'insensitive' } },
+            { AND: [{ gajianId: { not: null } }, { kategori: { contains: 'GAJI', mode: 'insensitive' } }] },
+          ],
         },
       },
       select: {
@@ -1061,7 +1129,12 @@ export async function GET(request: Request) {
             tipe: 'PENGELUARAN',
             kebunId: { not: null },
             date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
-            NOT: { kategori: { equals: 'GAJI', mode: 'insensitive' } },
+            NOT: {
+              OR: [
+                { kategori: { equals: 'GAJI', mode: 'insensitive' } },
+                { AND: [{ gajianId: { not: null } }, { kategori: { contains: 'GAJI', mode: 'insensitive' } }] },
+              ],
+            },
           },
           _sum: { jumlah: true },
         })
@@ -1294,7 +1367,12 @@ export async function GET(request: Request) {
             tipe: 'PENGELUARAN',
             kendaraanPlatNomor: { not: null },
             date: range ? { gte: range.startUtc, lt: range.endExclusiveUtc } : undefined,
-            NOT: { kategori: { equals: 'GAJI', mode: 'insensitive' } },
+            NOT: {
+              OR: [
+                { kategori: { equals: 'GAJI', mode: 'insensitive' } },
+                { AND: [{ gajianId: { not: null } }, { kategori: { contains: 'GAJI', mode: 'insensitive' } }] },
+              ],
+            },
           },
           _sum: { jumlah: true },
         })

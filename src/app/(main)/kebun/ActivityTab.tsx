@@ -67,6 +67,18 @@ const parseMonthToWibDate = (ym: string) => {
   return new Date(`${m[1]}-${m[2]}-01T00:00:00+07:00`)
 }
 
+const GAJIAN_MANUAL_BIAYA_MARKER = '[GAJIAN_BIAYA_MANUAL]'
+
+const stripGajianManualMarker = (value: any) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const upper = raw.toUpperCase()
+  if (upper.startsWith(GAJIAN_MANUAL_BIAYA_MARKER)) {
+    return raw.slice(GAJIAN_MANUAL_BIAYA_MARKER.length).trim()
+  }
+  return raw
+}
+
 const formatNumber = (value: number | string, maxFractionDigits = 0) => {
   const numeric = typeof value === 'string' ? parseNumber(value) : value;
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(numeric || 0);
@@ -641,6 +653,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         rows.push(['Biaya', formatCurrency(biayaTotal)])
       }
       rows.push(['Keterangan', selectedActivity.keterangan || '-'])
+      const displayKet = stripGajianManualMarker(selectedActivity.keterangan)
+      rows[rows.length - 1] = ['Keterangan', displayKet || '-']
 
       const drawChrome = (pageNumber: number, totalPages: number) => {
         doc.setFillColor(headerBg[0], headerBg[1], headerBg[2])
@@ -1805,7 +1819,12 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         ) : null}
                         <td className="px-4 py-3">
                           <div className="font-semibold text-gray-900">{item.jenisPekerjaan}</div>
-                          {item.keterangan && <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{item.keterangan}</div>}
+                          {(() => {
+                            const ketRaw = typeof item.keterangan === 'string' ? item.keterangan.trim() : ''
+                            if (!ketRaw) return null
+                            if (ketRaw.toUpperCase().startsWith(GAJIAN_MANUAL_BIAYA_MARKER)) return null
+                            return <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{ketRaw}</div>
+                          })()}
                         </td>
                         {mode === 'borongan' ? (
                           <>
@@ -2063,7 +2082,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <div className="min-w-0 w-full">
                   <div className="text-xs font-black tracking-wider text-gray-400 uppercase">Keterangan</div>
                   <div className="mt-1 text-sm text-gray-800 break-words">
-                    {selectedActivity?.keterangan || '-'}
+                    {stripGajianManualMarker(selectedActivity?.keterangan) || '-'}
                   </div>
                 </div>
               </div>
