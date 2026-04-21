@@ -31,7 +31,7 @@ const seedDefaults = async () => {
     { code: 'KEBUN', label: 'Kebun', tipe: 'BOTH' },
     { code: 'KENDARAAN', label: 'Kendaraan', tipe: 'BOTH' },
     { code: 'KARYAWAN', label: 'Karyawan', tipe: 'BOTH' },
-    { code: 'GAJI', label: 'Gaji', tipe: 'PENGELUARAN' },
+    { code: 'GAJI', label: 'Gaji Kebun', tipe: 'PENGELUARAN' },
     { code: 'HUTANG_KARYAWAN', label: 'Hutang Karyawan', tipe: 'PENGELUARAN' },
     { code: 'PEMBAYARAN_HUTANG', label: 'Pembayaran Hutang', tipe: 'PEMASUKAN' },
     { code: 'PENJUALAN_SAWIT', label: 'Penjualan Sawit', tipe: 'PEMASUKAN' },

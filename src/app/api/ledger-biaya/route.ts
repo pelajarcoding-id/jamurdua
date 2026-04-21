@@ -388,7 +388,7 @@ export async function GET(request: Request) {
     if (includeBorongan) {
       tasks.push(
         prisma.pekerjaanKebun.findMany({
-          where: wherePk,
+          where: wherePkSummary,
           include: {
             kebun: { select: { id: true, name: true } },
             user: { select: { id: true, name: true } },
@@ -397,7 +397,7 @@ export async function GET(request: Request) {
           orderBy: [{ date: 'desc' }, { id: 'desc' }],
           take: takeN,
         }),
-        prisma.pekerjaanKebun.count({ where: wherePk }),
+        prisma.pekerjaanKebun.count({ where: wherePkSummary }),
         prisma.pekerjaanKebun.aggregate({ where: wherePkSummary, _sum: { biaya: true } }),
       )
     } else {
@@ -933,7 +933,7 @@ export async function GET(request: Request) {
     // 1. Process detailed Borongan breakdown by category
     if (!(expenseOnly || incomeOnly)) {
       const boronganRows = await prisma.pekerjaanKebun.findMany({
-        where: wherePk,
+        where: wherePkSummary,
         select: {
           biaya: true,
           jenisPekerjaan: true,
@@ -956,12 +956,20 @@ export async function GET(request: Request) {
 
     // Process KasTransaksi categories for breakdown
     const kasRowsAgg = await prisma.kasTransaksi.findMany({
-      where: { ...whereKas },
+      where: {
+        ...whereKas,
+        NOT: {
+          kategori: {
+            equals: 'GAJI',
+            mode: 'insensitive',
+          },
+        },
+      },
       select: {
         kategori: true,
         tipe: true,
-        jumlah: true
-      }
+        jumlah: true,
+      },
     })
 
     if (!(expenseOnly || incomeOnly)) kasRowsAgg.forEach(b => {
