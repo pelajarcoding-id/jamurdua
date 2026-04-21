@@ -16,6 +16,8 @@ export default function PushNotifikasiPage() {
   const [defs, setDefs] = useState<Def[]>([])
   const [settings, setSettings] = useState<Record<string, boolean>>({})
   const [subscriptionCount, setSubscriptionCount] = useState(0)
+  const [cronSecretConfigured, setCronSecretConfigured] = useState(false)
+  const [lastTimes, setLastTimes] = useState<Record<string, string | null>>({})
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -26,6 +28,8 @@ export default function PushNotifikasiPage() {
       setDefs(Array.isArray(json?.defs) ? json.defs : [])
       setSettings(json?.settings || {})
       setSubscriptionCount(Number(json?.subscriptionCount || 0))
+      setCronSecretConfigured(!!json?.cronSecretConfigured)
+      setLastTimes(json?.lastTimes || {})
     } catch (e: any) {
       toast.error(e?.message || 'Gagal memuat')
     } finally {
@@ -159,6 +163,14 @@ export default function PushNotifikasiPage() {
   }, [fetchData])
 
   const items = useMemo(() => defs.filter((d) => d.key !== 'ALL'), [defs])
+  const formatTimeWib = useCallback((iso: string) => {
+    try {
+      const dt = new Date(iso)
+      return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }).format(dt)
+    } catch {
+      return '-'
+    }
+  }, [])
 
   return (
     <RoleGate allow={['ADMIN']}>
@@ -182,6 +194,9 @@ export default function PushNotifikasiPage() {
                 <div className="text-base font-semibold text-gray-900">Status Push</div>
               </div>
               <div className="text-sm text-gray-500">Subscription terdaftar: {subscriptionCount}</div>
+              {!cronSecretConfigured ? (
+                <div className="text-xs text-amber-600">Cron belum aktif (CRON_SECRET belum diset).</div>
+              ) : null}
             </div>
             <Button onClick={subscribeUser} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
               Aktifkan Push
@@ -206,6 +221,9 @@ export default function PushNotifikasiPage() {
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900">{d.label}</div>
                   <div className="text-xs text-gray-500 mt-1">{d.description}</div>
+                  <div className="text-[11px] text-gray-400 mt-1">
+                    Jam muncul: {lastTimes?.[d.key] ? formatTimeWib(String(lastTimes[d.key])) : '-'}
+                  </div>
                 </div>
                 <Switch
                   checked={settings[d.key] !== false}
@@ -220,4 +238,3 @@ export default function PushNotifikasiPage() {
     </RoleGate>
   )
 }
-
