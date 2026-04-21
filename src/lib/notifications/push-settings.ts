@@ -12,6 +12,8 @@ export type PushEventKey =
   | 'VEHICLE_EXPIRY'
   | 'ATTENDANCE_CHECKIN'
 
+export type PushScheduleKey = 'ATTENDANCE_CHECKIN'
+
 export const PUSH_EVENT_DEFS: Array<{ key: PushEventKey; label: string; description: string }> = [
   { key: 'ALL', label: 'Push Notifikasi', description: 'Aktif/nonaktifkan seluruh push notifikasi.' },
   { key: 'NOTA_SAWIT_NEW', label: 'Nota Sawit Baru', description: 'Notifikasi saat nota sawit baru dibuat.' },
@@ -25,6 +27,7 @@ export const PUSH_EVENT_DEFS: Array<{ key: PushEventKey; label: string; descript
 ]
 
 let initPromise: Promise<void> | null = null
+let scheduleInitPromise: Promise<void> | null = null
 
 export async function ensurePushSettingsTable() {
   if (!initPromise) {
@@ -46,6 +49,48 @@ export async function ensurePushSettingsTable() {
     })()
   }
   await initPromise
+}
+
+export async function ensurePushScheduleTable() {
+  if (!scheduleInitPromise) {
+    scheduleInitPromise = (async () => {
+      await prisma.$executeRaw`
+        CREATE TABLE IF NOT EXISTS "PushNotificationSchedule" (
+          "key" TEXT PRIMARY KEY,
+          "hour" INTEGER NOT NULL DEFAULT 8,
+          "minute" INTEGER NOT NULL DEFAULT 0,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `
+    })()
+  }
+  await scheduleInitPromise
+}
+
+export async function getPushSchedule(key: PushScheduleKey) {
+  await ensurePushScheduleTable()
+  const rows = await prisma.$queryRaw<Array<{ hour: number; minute: number }>>(
+    Prisma.sql`SELECT "hour","minute" FROM "PushNotificationSchedule" WHERE "key" = ${key} LIMIT 1`,
+  )
+  const hour = Math.max(0, Math.min(23, Number(rows?.[0]?.hour ?? 8)))
+  const minute = Math.max(0, Math.min(59, Number(rows?.[0]?.minute ?? 0)))
+  return { hour, minute }
+}
+
+export async function setPushSchedule(key: PushScheduleKey, hour: number, minute: number) {
+  await ensurePushScheduleTable()
+  const h = Math.max(0, Math.min(23, Math.floor(Number(hour))))
+  const m = Math.max(0, Math.min(59, Math.floor(Number(minute))))
+  await prisma.$executeRaw(
+    Prisma.sql`
+      INSERT INTO "PushNotificationSchedule" ("key","hour","minute","updatedAt")
+      VALUES (${key}, ${h}, ${m}, CURRENT_TIMESTAMP)
+      ON CONFLICT ("key") DO UPDATE SET
+        "hour" = EXCLUDED."hour",
+        "minute" = EXCLUDED."minute",
+        "updatedAt" = CURRENT_TIMESTAMP;
+    `,
+  )
 }
 
 export async function getPushSettingsForUser(userId: number) {
@@ -93,4 +138,3 @@ export async function resolvePushEligibleUserIds(userIds: number[], eventKey: Pu
   const disabled = new Set<number>(rows.map((r) => Number(r.userId)))
   return userIds.filter((id) => !disabled.has(Number(id)))
 }
-

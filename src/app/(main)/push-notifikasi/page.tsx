@@ -17,7 +17,7 @@ export default function PushNotifikasiPage() {
   const [settings, setSettings] = useState<Record<string, boolean>>({})
   const [subscriptionCount, setSubscriptionCount] = useState(0)
   const [cronSecretConfigured, setCronSecretConfigured] = useState(false)
-  const [lastTimes, setLastTimes] = useState<Record<string, string | null>>({})
+  const [schedule, setSchedule] = useState<Record<string, string>>({})
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -29,7 +29,7 @@ export default function PushNotifikasiPage() {
       setSettings(json?.settings || {})
       setSubscriptionCount(Number(json?.subscriptionCount || 0))
       setCronSecretConfigured(!!json?.cronSecretConfigured)
-      setLastTimes(json?.lastTimes || {})
+      setSchedule(json?.schedule || {})
     } catch (e: any) {
       toast.error(e?.message || 'Gagal memuat')
     } finally {
@@ -163,14 +163,6 @@ export default function PushNotifikasiPage() {
   }, [fetchData])
 
   const items = useMemo(() => defs.filter((d) => d.key !== 'ALL'), [defs])
-  const formatTimeWib = useCallback((iso: string) => {
-    try {
-      const dt = new Date(iso)
-      return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }).format(dt)
-    } catch {
-      return '-'
-    }
-  }, [])
 
   return (
     <RoleGate allow={['ADMIN']}>
@@ -221,9 +213,45 @@ export default function PushNotifikasiPage() {
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900">{d.label}</div>
                   <div className="text-xs text-gray-500 mt-1">{d.description}</div>
-                  <div className="text-[11px] text-gray-400 mt-1">
-                    Jam muncul: {lastTimes?.[d.key] ? formatTimeWib(String(lastTimes[d.key])) : '-'}
-                  </div>
+                  {d.key === 'ATTENDANCE_CHECKIN' ? (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Label className="text-[11px] text-gray-500">Jam pengingat</Label>
+                      <input
+                        type="time"
+                        value={schedule?.ATTENDANCE_CHECKIN || '08:00'}
+                        onChange={(e) => setSchedule((prev) => ({ ...prev, ATTENDANCE_CHECKIN: e.target.value }))}
+                        className="h-8 rounded-xl border border-gray-200 px-2 text-xs bg-white"
+                        disabled={loading || savingKey === 'ATTENDANCE_CHECKIN'}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-xl text-xs"
+                        disabled={loading || savingKey === 'ATTENDANCE_CHECKIN'}
+                        onClick={async () => {
+                          const next = String(schedule?.ATTENDANCE_CHECKIN || '08:00')
+                          setSavingKey('ATTENDANCE_CHECKIN')
+                          try {
+                            const res = await fetch('/api/notifications/settings', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ key: 'ATTENDANCE_CHECKIN', scheduleTime: next }),
+                            })
+                            const json = await res.json()
+                            if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan')
+                            setSchedule(json?.schedule || {})
+                            toast.success('Tersimpan')
+                          } catch (e: any) {
+                            toast.error(e?.message || 'Gagal menyimpan')
+                          } finally {
+                            setSavingKey(null)
+                          }
+                        }}
+                      >
+                        Simpan
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
                 <Switch
                   checked={settings[d.key] !== false}

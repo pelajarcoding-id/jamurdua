@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPushToUsers } from '@/lib/notifications/push-send'
+import { getPushSchedule } from '@/lib/notifications/push-settings'
 import { parseWibYmd, wibEndExclusiveUtc, wibStartUtc } from '@/lib/wib'
 
 export const dynamic = 'force-dynamic'
@@ -57,6 +58,23 @@ export async function POST(request: Request) {
   }
 
   await ensureAttendanceSelfieTable()
+
+  const schedule = await getPushSchedule('ATTENDANCE_CHECKIN')
+  const nowWib = new Date()
+  const nowParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(nowWib)
+  const hh = Number(nowParts.find((p) => p.type === 'hour')?.value || 0)
+  const mm = Number(nowParts.find((p) => p.type === 'minute')?.value || 0)
+  const nowMin = hh * 60 + mm
+  const schedMin = Number(schedule.hour) * 60 + Number(schedule.minute)
+  if (nowMin < schedMin) {
+    const pad2 = (n: number) => String(n).padStart(2, '0')
+    return NextResponse.json({ ok: true, skipped: true, scheduleTime: `${pad2(schedule.hour)}:${pad2(schedule.minute)}` })
+  }
 
   const todayYmd = getWibTodayYmd()
   const todayParsed = parseWibYmd(todayYmd)
