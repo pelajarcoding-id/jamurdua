@@ -20,6 +20,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const GAJIAN_MANUAL_BIAYA_MARKER = '[GAJIAN_BIAYA_MANUAL]'
       const gajian = await tx.gajian.findUnique({
         where: { id: gajianId },
         include: {
@@ -82,6 +83,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
       // 4. Delete AbsensiGajiHarian
       await tx.$executeRawUnsafe(`DELETE FROM "AbsensiGajiHarian" WHERE "gajianId" = ${gajianId}`);
+
+      await tx.pekerjaanKebun.deleteMany({
+        where: {
+          gajianId: gajianId,
+          upahBorongan: true,
+          keterangan: { startsWith: GAJIAN_MANUAL_BIAYA_MARKER },
+        } as any,
+      })
 
       // 5. Unlink PekerjaanKebun
       await tx.pekerjaanKebun.updateMany({

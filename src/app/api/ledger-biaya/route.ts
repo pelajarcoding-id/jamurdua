@@ -110,7 +110,6 @@ export async function GET(request: Request) {
     const includePerusahaanBiaya = scope === 'ALL' || scope === 'PERUSAHAAN'
     const includeBorongan = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN' || scope === 'KENDARAAN')
     const includeAbsensi = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN' || scope === 'KARYAWAN')
-    const includeGajiManual = includeOperasional && !incomeOnly && (scope === 'ALL' || scope === 'KEBUN')
     const includeServiceLog = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
     const includeRiwayatDokumen = !incomeOnly && (scope === 'ALL' || scope === 'KENDARAAN')
     const includeNotaSawitIncome =
@@ -434,29 +433,6 @@ export async function GET(request: Request) {
 
     const whereAbFinal = whereAbRaw
 
-    const whereGajiManual: any = { AND: [] as any[] }
-    if (range) {
-      whereGajiManual.AND.push({
-        gajian: {
-          tanggalMulai: { lt: range.endExclusiveUtc },
-          tanggalSelesai: { gte: range.startUtc },
-        },
-      })
-    }
-    if (Number.isFinite(kebunId) && kebunId > 0) whereGajiManual.AND.push({ gajian: { kebunId } })
-    if (Number.isFinite(karyawanId) && karyawanId > 0) whereGajiManual.AND.push({ id: -1 })
-    if (kategori && kategori.toUpperCase() !== 'GAJI_MANUAL') whereGajiManual.AND.push({ id: -1 })
-    if (search) {
-      whereGajiManual.AND.push({
-        OR: [
-          { deskripsi: { contains: search, mode: 'insensitive' } },
-          { keterangan: { contains: search, mode: 'insensitive' } },
-          { gajian: { keterangan: { contains: search, mode: 'insensitive' } } },
-        ],
-      })
-    }
-    if (whereGajiManual.AND.length === 0) delete whereGajiManual.AND
-
     const whereSl: any = { AND: [] as any[] }
     if (range) whereSl.AND.push({ date: { gte: range.startUtc, lt: range.endExclusiveUtc } })
     if (kendaraanPlatNomor) whereSl.AND.push({ kendaraanPlat: { equals: kendaraanPlatNomor, mode: 'insensitive' } })
@@ -500,21 +476,6 @@ export async function GET(request: Request) {
       )
     } else {
       tasks.push(Promise.resolve([]), Promise.resolve(0))
-    }
-
-    if (includeGajiManual) {
-      tasks.push(
-        prisma.biayaLainGajian.findMany({
-          where: whereGajiManual,
-          include: { gajian: { select: { id: true, tanggalMulai: true, tanggalSelesai: true, kebun: { select: { id: true, name: true } } } } },
-          orderBy: [{ gajian: { tanggalSelesai: 'desc' } }, { id: 'desc' }],
-          take: takeN,
-        }),
-        prisma.biayaLainGajian.count({ where: whereGajiManual }),
-        prisma.biayaLainGajian.aggregate({ where: whereGajiManual, _sum: { total: true } }),
-      )
-    } else {
-      tasks.push(Promise.resolve([]), Promise.resolve(0), Promise.resolve({ _sum: { total: 0 } }))
     }
 
     if (includeServiceLog) {
@@ -620,9 +581,6 @@ export async function GET(request: Request) {
       pkAgg,
       abRows,
       abCount,
-      gmRows,
-      gmCount,
-      gmAgg,
       slRows,
       slCount,
       slAgg,
@@ -848,37 +806,6 @@ export async function GET(request: Request) {
         }
       })
 
-    const normalizedGm = (gmRows as any[]).map((r: any) => {
-      const g = r?.gajian || null
-      const kebunObj = g?.kebun ? { id: Number(g.kebun.id), name: String(g.kebun.name || '-') } : null
-      const periodeMulai = g?.tanggalMulai ? new Date(g.tanggalMulai) : null
-      const periodeSelesai = g?.tanggalSelesai ? new Date(g.tanggalSelesai) : null
-      const date = periodeSelesai || r.createdAt || new Date()
-      const periodeText =
-        periodeMulai && periodeSelesai
-          ? `${periodeMulai.toLocaleDateString('id-ID')} - ${periodeSelesai.toLocaleDateString('id-ID')}`
-          : null
-
-      return {
-        key: `GAJI_MANUAL:${r.id}`,
-        source: 'GAJI_MANUAL',
-        id: r.id,
-        date,
-        tipe: 'PENGELUARAN',
-        kategori: 'GAJI_MANUAL',
-        deskripsi: String(r.deskripsi || 'Biaya Manual Gajian'),
-        keterangan: periodeText ? `Gajian #${g?.id ?? '-'} • Periode ${periodeText}` : g?.id ? `Gajian #${g.id}` : null,
-        jumlah: Number(r.total || 0),
-        gambarUrl: null,
-        scope: 'KEBUN',
-        kebun: kebunObj,
-        karyawan: null,
-        kendaraan: null,
-        perusahaan: null,
-        isPaid: g?.id != null,
-      }
-    })
-
     const normalizedSl = (slRows as any[]).map((r: any) => ({
       key: `SERVIS:${r.id}`,
       source: 'SERVIS',
@@ -954,7 +881,6 @@ export async function GET(request: Request) {
       ...normalizedPb,
       ...normalizedPk,
       ...normalizedAb,
-      ...normalizedGm,
       ...normalizedSl,
       ...normalizedRd,
       ...normalizedNota,
@@ -974,7 +900,6 @@ export async function GET(request: Request) {
       Number(pbCount || 0) +
       Number(pkCount || 0) +
       Number(abCount || 0) +
-      Number(gmCount || 0) +
       Number(slCount || 0) +
       Number(rdCount || 0) +
       Number((notaSawitRows as any[])?.length || 0)
@@ -995,7 +920,6 @@ export async function GET(request: Request) {
       Number(ujPengeluaranAgg?._sum?.amount || 0) +
       Number(pbPengeluaranAgg?._sum?.jumlah || 0) +
       Number(pkAgg?._sum?.biaya || 0) +
-      Number(gmAgg?._sum?.total || 0) +
       Number(slAgg?._sum?.cost || 0) +
       Number(rdAgg?._sum?.biaya || 0) +
       normalizedAb.reduce((sum: number, r: any) => sum + Number(r?.jumlah || 0), 0)
@@ -1031,11 +955,6 @@ export async function GET(request: Request) {
         if (breakdown[key] === undefined) breakdown[key] = 0
         breakdown[key] += Number(b.biaya || 0)
       })
-    }
-
-    if (!(expenseOnly || incomeOnly)) {
-      const gajiManualTotal = Number(gmAgg?._sum?.total || 0)
-      if (gajiManualTotal > 0) breakdown['GAJI: BIAYA_MANUAL'] = gajiManualTotal
     }
 
     const incomeBreakdown: Record<string, number> = expenseOnly || incomeOnly ? {} : {
@@ -1194,30 +1113,10 @@ export async function GET(request: Request) {
           }
         }
 
-        const gajiManualByKebun = new Map<number, number>()
-        if (includeGajiManual && range) {
-          const gajiManualRows = await prisma.$queryRaw<Array<{ kebunId: number; total: number }>>(Prisma.sql`
-            SELECT g."kebunId" as "kebunId", COALESCE(SUM(b."total"), 0) as "total"
-            FROM "BiayaLainGajian" b
-            JOIN "Gajian" g ON g.id = b."gajianId"
-            WHERE g."tanggalMulai" < ${range.endExclusiveUtc}
-              AND g."tanggalSelesai" >= ${range.startUtc}
-            GROUP BY g."kebunId"
-          `)
-          for (const r of gajiManualRows) {
-            const kid = Number(r.kebunId || 0)
-            if (!Number.isFinite(kid) || kid <= 0) continue
-            gajiManualByKebun.set(kid, Number(r.total || 0))
-          }
-        }
-
         const rows = kebuns.map(k => {
           const pemasukanVal = (notaByKebun.get(k.id) || 0) + (kasIncomeByKebun.get(k.id) || 0)
           const pengeluaranVal =
-            (kasExpenseByKebun.get(k.id) || 0) +
-            (boronganByKebun.get(k.id) || 0) +
-            (absensiByKebun.get(k.id) || 0) +
-            (gajiManualByKebun.get(k.id) || 0)
+            (kasExpenseByKebun.get(k.id) || 0) + (boronganByKebun.get(k.id) || 0) + (absensiByKebun.get(k.id) || 0)
           const saldoVal = pemasukanVal - pengeluaranVal
           const profitMarginVal = pemasukanVal > 0 ? (saldoVal / pemasukanVal) * 100 : 0
           const costRatioVal = pemasukanVal > 0 ? (pengeluaranVal / pemasukanVal) * 100 : 0

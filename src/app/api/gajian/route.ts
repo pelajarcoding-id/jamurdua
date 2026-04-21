@@ -208,6 +208,8 @@ export async function POST(request: Request) {
     const tanggalMulaiUtc = wibStartUtc(startYmd)
     const tanggalSelesaiUtc = wibEndUtcInclusive(endYmd)
 
+    const GAJIAN_MANUAL_BIAYA_MARKER = '[GAJIAN_BIAYA_MANUAL]'
+
     const gajianData = {
       kebunId: parsedKebunId,
       tanggalMulai: tanggalMulaiUtc,
@@ -257,6 +259,13 @@ export async function POST(request: Request) {
         await tx.potonganGajian.deleteMany({ where: { gajianId: gajianId } });
         await tx.detailGajianKaryawan.deleteMany({ where: { gajianId: gajianId } });
         await tx.absensiGajiHarian.deleteMany({ where: { gajianId: gajianId } as any });
+        await tx.pekerjaanKebun.deleteMany({
+          where: {
+            gajianId: gajianId,
+            upahBorongan: true,
+            keterangan: { startsWith: GAJIAN_MANUAL_BIAYA_MARKER },
+          } as any,
+        })
         await tx.pekerjaanKebun.updateMany({ where: { gajianId: gajianId } as any, data: { gajianId: null } as any });
 
       } else {
@@ -636,6 +645,13 @@ export async function POST(request: Request) {
       const parsedPekerjaanBoronganIds = Array.isArray(pekerjaanBoronganIds)
         ? pekerjaanBoronganIds.map((v: any) => Number(v)).filter((n: any) => Number.isFinite(n) && n > 0)
         : []
+      await tx.pekerjaanKebun.deleteMany({
+        where: {
+          gajianId: upsertedGajian.id,
+          upahBorongan: true,
+          keterangan: { startsWith: GAJIAN_MANUAL_BIAYA_MARKER },
+        } as any,
+      })
       await tx.pekerjaanKebun.updateMany({ where: { gajianId: upsertedGajian.id } as any, data: { gajianId: null } as any })
       if (parsedPekerjaanBoronganIds.length > 0) {
         await tx.pekerjaanKebun.updateMany({
@@ -647,6 +663,49 @@ export async function POST(request: Request) {
           } as any,
           data: { gajianId: upsertedGajian.id } as any,
         })
+      }
+
+      if (status === 'FINALIZED') {
+        const manualBiayaForBorongan = Array.isArray(biayaLain)
+          ? biayaLain
+              .filter((b: any) => {
+                const clientId = typeof b?.clientId === 'string' ? b.clientId.trim() : ''
+                if (!clientId) return false
+                if (clientId.startsWith('auto-')) return false
+                const deskripsi = String(b?.deskripsi || '').trim()
+                const total = Number.parseFloat(String(b?.total ?? '0'))
+                return !!deskripsi && Number.isFinite(total) && total > 0
+              })
+              .map((b: any) => ({
+                deskripsi: String(b?.deskripsi || '').trim(),
+                jumlah: Number.parseFloat(String(b?.jumlah ?? '')),
+                satuan: typeof b?.satuan === 'string' ? b.satuan.trim() : null,
+                hargaSatuan: Number.parseFloat(String(b?.hargaSatuan ?? '')),
+                total: Number.parseFloat(String(b?.total ?? '0')),
+                keterangan: typeof b?.keterangan === 'string' ? b.keterangan.trim() : '',
+              }))
+          : []
+
+        if (manualBiayaForBorongan.length > 0) {
+          await tx.pekerjaanKebun.createMany({
+            data: manualBiayaForBorongan.map((b: any) => ({
+              kebunId: parsedKebunId,
+              userId: null,
+              kendaraanPlatNomor: null,
+              date: tanggalSelesaiUtc,
+              jenisPekerjaan: b.deskripsi,
+              kategoriBorongan: 'GAJI_MANUAL',
+              keterangan: `${GAJIAN_MANUAL_BIAYA_MARKER}${b.keterangan ? ` ${b.keterangan}` : ''}`,
+              biaya: Number.isFinite(b.total) ? b.total : 0,
+              imageUrl: null,
+              gajianId: upsertedGajian.id,
+              upahBorongan: true,
+              jumlah: Number.isFinite(b.jumlah) && b.jumlah > 0 ? b.jumlah : null,
+              satuan: b.satuan || null,
+              hargaSatuan: Number.isFinite(b.hargaSatuan) && b.hargaSatuan > 0 ? b.hargaSatuan : null,
+            })) as any,
+          })
+        }
       }
 
       return upsertedGajian;

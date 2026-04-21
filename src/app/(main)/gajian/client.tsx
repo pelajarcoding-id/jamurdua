@@ -1331,6 +1331,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         ...(status === 'FINALIZED' && approval ? { dibuatOlehName: approval.dibuatOlehName, disetujuiOlehName: approval.disetujuiOlehName } : {}),
         notas: notasToProcess.map(n => ({ id: n.id, harianKerja: n.harianKerja, keterangan: n.keterangan })),
         biayaLain: savedBiaya.map(b => ({
+          clientId: b.id,
           deskripsi: b.deskripsi,
           jumlah: b.jumlah,
           satuan: b.satuan,
