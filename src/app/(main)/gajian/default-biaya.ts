@@ -1,6 +1,7 @@
 export type GajianBiayaLain = {
   id: string
   deskripsi: string
+  kategori?: string | null
   jumlah: number
   satuan: string
   hargaSatuan: number
@@ -15,6 +16,7 @@ export type KebunDefaultBiayaRow = {
   satuan?: string | null
   hargaSatuan?: number | null
   isAutoKg?: boolean | null
+  kategori?: string | null
 }
 
 const normalize = (v: any) => String(v || '').trim().toLowerCase()
@@ -33,6 +35,7 @@ export function upsertDefaultBiaya(params: {
     const dbSatuan = String(db?.satuan || 'Kg').trim() || 'Kg'
     const dbHarga = Number(db?.hargaSatuan || 0)
     const isAutoKg = !!db?.isAutoKg
+    const dbKategori = typeof db?.kategori === 'string' ? db.kategori.trim() : ''
     if (!dbDesc) continue
 
     const stableId = `default-${params.kebunId}-${dbId || normalize(dbDesc)}`
@@ -51,12 +54,19 @@ export function upsertDefaultBiaya(params: {
         next.push({
           id: stableId,
           deskripsi: dbDesc,
+          kategori: dbKategori || null,
           jumlah: 0,
           satuan: dbSatuan,
           hargaSatuan: dbHarga,
           total: 0,
           isAutoKg: false,
         })
+      } else {
+        const existing: any = next[existingIdx]
+        next[existingIdx] = {
+          ...existing,
+          kategori: dbKategori || existing?.kategori || null,
+        }
       }
       continue
     }
@@ -68,6 +78,7 @@ export function upsertDefaultBiaya(params: {
       next.push({
         id: stableId,
         deskripsi: dbDesc,
+        kategori: dbKategori || null,
         jumlah: desiredJumlah,
         satuan: dbSatuan,
         hargaSatuan: dbHarga,
@@ -83,6 +94,7 @@ export function upsertDefaultBiaya(params: {
       ...existing,
       id: stableId,
       deskripsi: dbDesc,
+      kategori: dbKategori || existing?.kategori || null,
       satuan: dbSatuan,
       hargaSatuan: dbHarga,
       jumlah: desiredJumlah,
@@ -93,4 +105,3 @@ export function upsertDefaultBiaya(params: {
 
   return next
 }
-

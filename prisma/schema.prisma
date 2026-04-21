@@ -472,6 +472,7 @@ model KebunDefaultBiaya {
   hargaSatuan  Float    @default(0)
   satuan       String   @default("Kg")
   isAutoKg     Boolean  @default(false)
+  kategori     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -773,6 +774,7 @@ model BiayaLainGajian {
   id          Int      @id @default(autoincrement())
   gajianId    Int
   deskripsi   String
+  kategori    String?
   jumlah      Float?
   satuan      String?
   hargaSatuan Float?

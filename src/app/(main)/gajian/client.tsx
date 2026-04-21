@@ -70,6 +70,7 @@ type GajianWithDetails = Gajian & {
 interface BiayaLain {
   id: string;
   deskripsi: string;
+  kategori?: string | null;
   jumlah: number;
   satuan: string;
   hargaSatuan: number;
@@ -93,6 +94,7 @@ const cleanBiayaKeterangan = (value: any) => {
   const s = String(value || '').trim()
   if (!s) return ''
   if (/^tanggal\s*:/i.test(s)) return ''
+  if (/^\[AUTO_BORONGAN:/i.test(s)) return ''
   return s
 }
 
@@ -523,6 +525,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             id: 0,
             gajianId: 0,
             deskripsi: b.deskripsi,
+            kategori: b.kategori || null,
             jumlah: b.jumlah,
             satuan: b.satuan,
             hargaSatuan: b.hargaSatuan,
@@ -673,10 +676,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
       setSavedBiaya(draftData.biayaLain.map((b: BiayaLainGajian) => ({ 
         id: String(b.id), 
         deskripsi: b.deskripsi, 
+        kategori: (b as any).kategori || null,
         jumlah: b.jumlah || 0, 
         satuan: b.satuan || '', 
         hargaSatuan: b.hargaSatuan || 0,
-        total: b.total || (b.jumlah && b.hargaSatuan ? b.jumlah * b.hargaSatuan : 0)
+        total: b.total || (b.jumlah && b.hargaSatuan ? b.jumlah * b.hargaSatuan : 0),
+        keterangan: (b as any).keterangan || ''
       })));
       setBiayaLain([]);
       setSavedPotongan(draftData.potongan.map((p: PotonganGajian) => ({ id: String(p.id), deskripsi: p.deskripsi, total: p.total, keterangan: p.keterangan ?? undefined })));
@@ -1136,7 +1141,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
             satuan,
             hargaSatuan: Math.round(normalizedHarga),
             total: Math.round(biaya),
-            keterangan: '',
+            keterangan: `[AUTO_BORONGAN:${id}]`,
           } as any
         })
         .filter(Boolean) as any[]
@@ -1333,6 +1338,7 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
         biayaLain: savedBiaya.map(b => ({
           clientId: b.id,
           deskripsi: b.deskripsi,
+          kategori: b.kategori || null,
           jumlah: b.jumlah,
           satuan: b.satuan,
           hargaSatuan: b.hargaSatuan,

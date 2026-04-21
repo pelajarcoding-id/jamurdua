@@ -415,9 +415,10 @@ export async function POST(request: Request) {
 
       if (biayaLain && biayaLain.length > 0) {
         await tx.biayaLainGajian.createMany({
-          data: biayaLain.map((item: { deskripsi: string; jumlah: string; satuan: string; hargaSatuan: string; total: string; keterangan?: string }) => ({
+          data: biayaLain.map((item: { deskripsi: string; kategori?: string | null; jumlah: string; satuan: string; hargaSatuan: string; total: string; keterangan?: string }) => ({
             gajianId: upsertedGajian.id,
             deskripsi: item.deskripsi,
+            kategori: typeof item.kategori === 'string' ? item.kategori.trim() : null,
             jumlah: parseFloat(item.jumlah) || null,
             satuan: item.satuan || null,
             hargaSatuan: parseFloat(item.hargaSatuan) || null,
@@ -666,18 +667,46 @@ export async function POST(request: Request) {
       }
 
       if (status === 'FINALIZED') {
+        const pekerjaanSigSet = new Set<string>()
+        if (parsedPekerjaanBoronganIds.length > 0) {
+          const pekerjaanRows = await tx.pekerjaanKebun.findMany({
+            where: { id: { in: parsedPekerjaanBoronganIds }, kebunId: parsedKebunId, upahBorongan: true } as any,
+            select: { jenisPekerjaan: true, biaya: true, jumlah: true, satuan: true, hargaSatuan: true },
+          } as any)
+          for (const p of pekerjaanRows as any[]) {
+            const desc = String(p?.jenisPekerjaan || '').trim().toLowerCase()
+            const biaya = Math.round(Number(p?.biaya || 0))
+            const jumlah = Math.round(Number(p?.jumlah || 0) * 1000)
+            const satuan = String(p?.satuan || '').trim().toLowerCase()
+            const harga = Math.round(Number(p?.hargaSatuan || 0))
+            pekerjaanSigSet.add(`${desc}|${biaya}|${jumlah}|${satuan}|${harga}`)
+          }
+        }
+
         const manualBiayaForBorongan = Array.isArray(biayaLain)
           ? biayaLain
               .filter((b: any) => {
                 const clientId = typeof b?.clientId === 'string' ? b.clientId.trim() : ''
                 if (!clientId) return false
                 if (clientId.startsWith('auto-')) return false
+                const ketRaw = typeof b?.keterangan === 'string' ? b.keterangan.trim() : ''
+                if (/^\[AUTO_BORONGAN:/i.test(ketRaw)) return false
                 const deskripsi = String(b?.deskripsi || '').trim()
                 const total = Number.parseFloat(String(b?.total ?? '0'))
+                if (pekerjaanSigSet.size > 0) {
+                  const desc = deskripsi.toLowerCase()
+                  const biaya = Math.round(total)
+                  const jumlah = Math.round(Number.parseFloat(String(b?.jumlah ?? 0)) * 1000)
+                  const satuan = String(b?.satuan || '').trim().toLowerCase()
+                  const harga = Math.round(Number.parseFloat(String(b?.hargaSatuan ?? 0)))
+                  const sig = `${desc}|${biaya}|${jumlah}|${satuan}|${harga}`
+                  if (pekerjaanSigSet.has(sig)) return false
+                }
                 return !!deskripsi && Number.isFinite(total) && total > 0
               })
               .map((b: any) => ({
                 deskripsi: String(b?.deskripsi || '').trim(),
+                kategori: typeof b?.kategori === 'string' ? b.kategori.trim() : '',
                 jumlah: Number.parseFloat(String(b?.jumlah ?? '')),
                 satuan: typeof b?.satuan === 'string' ? b.satuan.trim() : null,
                 hargaSatuan: Number.parseFloat(String(b?.hargaSatuan ?? '')),
@@ -694,7 +723,7 @@ export async function POST(request: Request) {
               kendaraanPlatNomor: null,
               date: tanggalSelesaiUtc,
               jenisPekerjaan: b.deskripsi,
-              kategoriBorongan: 'GAJI_MANUAL',
+              kategoriBorongan: b.kategori ? b.kategori : 'GAJI_MANUAL',
               keterangan: `${GAJIAN_MANUAL_BIAYA_MARKER}${b.keterangan ? ` ${b.keterangan}` : ''}`,
               biaya: Number.isFinite(b.total) ? b.total : 0,
               imageUrl: null,

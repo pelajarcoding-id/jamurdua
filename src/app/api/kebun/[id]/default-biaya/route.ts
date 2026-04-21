@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   try {
     const body = await request.json()
-    const { deskripsi, hargaSatuan, satuan, isAutoKg } = body
+    const { deskripsi, hargaSatuan, satuan, isAutoKg, kategori } = body
 
     if (!deskripsi) return NextResponse.json({ error: 'Deskripsi wajib diisi' }, { status: 400 })
 
@@ -52,6 +52,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         hargaSatuan: Number(hargaSatuan) || 0,
         satuan: satuan || 'Kg',
         isAutoKg: !!isAutoKg,
+        kategori: kategori || null,
       },
     })
 

@@ -14,6 +14,7 @@ interface KebunDefaultBiaya {
   id: number
   kebunId: number
   deskripsi: string
+  kategori?: string | null
   hargaSatuan: number
   satuan: string
   isAutoKg: boolean
@@ -33,6 +34,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
   
   const [form, setForm] = useState({
     deskripsi: '',
+    kategori: '',
     hargaSatuan: 0,
     satuan: 'Kg',
     isAutoKg: false,
@@ -105,7 +107,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
   }
 
   const resetForm = () => {
-    setForm({ deskripsi: '', hargaSatuan: 0, satuan: 'Kg', isAutoKg: false })
+    setForm({ deskripsi: '', kategori: '', hargaSatuan: 0, satuan: 'Kg', isAutoKg: false })
     setIsEditing(false)
     setSelectedItem(null)
     setIsFormOpen(false)
@@ -115,6 +117,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
     setSelectedItem(item)
     setForm({
       deskripsi: item.deskripsi,
+      kategori: item.kategori || '',
       hargaSatuan: item.hargaSatuan,
       satuan: item.satuan,
       isAutoKg: item.isAutoKg,
@@ -147,7 +150,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
               onClick={() => {
                 setIsEditing(false)
                 setSelectedItem(null)
-                setForm({ deskripsi: '', hargaSatuan: 0, satuan: 'Kg', isAutoKg: false })
+                setForm({ deskripsi: '', kategori: '', hargaSatuan: 0, satuan: 'Kg', isAutoKg: false })
                 setIsFormOpen(true)
               }}
             >
@@ -156,7 +159,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200 mb-8">
+          <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200 mb-8">
             <div className="space-y-1.5 lg:col-span-2">
               <Label className="text-xs font-semibold uppercase text-gray-500">Deskripsi Biaya</Label>
               <Input 
@@ -165,6 +168,15 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
                 onChange={e => setForm({...form, deskripsi: e.target.value})}
                 className="rounded-xl h-10 bg-white"
                 required
+              />
+            </div>
+            <div className="space-y-1.5 lg:col-span-2">
+              <Label className="text-xs font-semibold uppercase text-gray-500">Kategori Borongan</Label>
+              <Input
+                placeholder="Contoh: PANEN, PUPUK, DLL"
+                value={form.kategori}
+                onChange={e => setForm({ ...form, kategori: e.target.value })}
+                className="rounded-xl h-10 bg-white"
               />
             </div>
             <div className="space-y-1.5">
@@ -188,7 +200,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
                 required
               />
             </div>
-            <div className="space-y-1.5 lg:col-span-5">
+            <div className="space-y-1.5 lg:col-span-6">
               <div className="flex items-center gap-2 h-10">
                 <Checkbox 
                   id="isAutoKg" 
@@ -201,7 +213,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
                 Jika dicentang akan menggunakan berat akhir nota.
               </div>
             </div>
-            <div className="flex gap-2 lg:col-span-5 justify-end mt-2">
+            <div className="flex gap-2 lg:col-span-6 justify-end mt-2">
               <Button type="button" variant="outline" onClick={resetForm} className="rounded-full">Batal</Button>
               <Button type="submit" className="rounded-full bg-emerald-600 hover:bg-emerald-700 px-8">
                 {isEditing ? 'Simpan Perubahan' : 'Simpan'}
@@ -215,6 +227,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
             <thead>
               <tr className="border-b border-gray-100 text-left">
                 <th className="px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Deskripsi</th>
+                <th className="px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Kategori</th>
                 <th className="px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Harga</th>
                 <th className="px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Satuan</th>
                 <th className="px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Auto-KG</th>
@@ -224,14 +237,15 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 Array.from({length: 3}).map((_, i) => (
-                  <tr key={i}><td colSpan={5} className="px-4 py-4"><Skeleton className="h-10 w-full rounded-xl" /></td></tr>
+                  <tr key={i}><td colSpan={6} className="px-4 py-4"><Skeleton className="h-10 w-full rounded-xl" /></td></tr>
                 ))
               ) : data.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Belum ada biaya default yang diatur.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Belum ada biaya default yang diatur.</td></tr>
               ) : (
                 data.map((item) => (
                   <tr key={item.id} className="group hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-4 font-medium text-gray-900">{item.deskripsi}</td>
+                    <td className="px-4 py-4 text-gray-500">{item.kategori ? item.kategori : <span className="text-gray-300">-</span>}</td>
                     <td className="px-4 py-4 text-gray-700 font-semibold">{formatCurrency(item.hargaSatuan)}</td>
                     <td className="px-4 py-4 text-gray-500">{item.satuan}</td>
                     <td className="px-4 py-4">

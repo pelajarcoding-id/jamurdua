@@ -22,7 +22,7 @@ export async function PUT(
 
   try {
     const body = await request.json()
-    const { deskripsi, hargaSatuan, satuan, isAutoKg } = body
+    const { deskripsi, hargaSatuan, satuan, isAutoKg, kategori } = body
 
     const updated = await (prisma as any).kebunDefaultBiaya.update({
       where: { id: biayaId, kebunId },
@@ -31,6 +31,7 @@ export async function PUT(
         hargaSatuan: typeof hargaSatuan !== 'undefined' ? Number(hargaSatuan) : undefined,
         satuan,
         isAutoKg: typeof isAutoKg !== 'undefined' ? !!isAutoKg : undefined,
+        kategori: typeof kategori !== 'undefined' ? kategori : undefined,
       },
     })
 
