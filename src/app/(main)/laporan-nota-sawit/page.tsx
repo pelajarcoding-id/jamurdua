@@ -87,14 +87,8 @@ function SearchableFilter({
   searchPlaceholder: string
 }) {
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
   const selectedLabel = value ? (options.find((o) => o.value === value)?.label || value) : allLabel
-  const filteredOptions = useMemo(() => {
-    const q = String(query || '').trim().toLowerCase()
-    if (!q) return options
-    return options.filter((o) => String(o.label || '').toLowerCase().includes(q))
-  }, [options, query])
 
   return (
     <Popover
@@ -102,7 +96,6 @@ function SearchableFilter({
       onOpenChange={(next) => {
         setOpen(next)
         if (next) {
-          setQuery('')
           requestAnimationFrame(() => inputRef.current?.focus())
         }
       }}
@@ -119,21 +112,19 @@ function SearchableFilter({
           <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100]" align="start">
-        <Command shouldFilter={false}>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[9999]" align="start">
+        <Command>
           <CommandInput
             ref={inputRef as any}
             placeholder={searchPlaceholder}
-            value={query}
-            onValueChange={setQuery}
             autoFocus
             onKeyDown={(e) => e.stopPropagation()}
           />
-          <CommandList>
+          <CommandList className="max-h-64 overflow-y-auto no-scrollbar">
             <CommandEmpty>Tidak ada data.</CommandEmpty>
             <CommandGroup>
               <CommandItem
-                value="__ALL__"
+                value={allLabel}
                 className="cursor-pointer"
                 onSelect={() => {
                   onChange('')
@@ -143,10 +134,10 @@ function SearchableFilter({
                 <CheckIcon className={cn('mr-2 h-4 w-4', !value ? 'opacity-100' : 'opacity-0')} />
                 {allLabel}
               </CommandItem>
-              {filteredOptions.map((opt) => (
+              {options.map((opt) => (
                 <CommandItem
                   key={opt.value}
-                  value={`${opt.value}::${opt.label}`}
+                  value={opt.label}
                   className="cursor-pointer"
                   onSelect={() => {
                     onChange(opt.value)
@@ -472,6 +463,9 @@ export default function LaporanNotaSawitPage() {
     const refDate = startDate || new Date();
     const year = refDate.getFullYear();
     const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+    const now = new Date()
+    const nowYear = now.getFullYear()
+    const nowMonthIdx = now.getMonth()
 
     const rows: KebunProduksiTahunanRow[] = (yearlyKebunMonthly || []).map((g) => {
       const map = new Map<string, number>();
@@ -482,7 +476,15 @@ export default function LaporanNotaSawitPage() {
       const months = monthKeys.map((k, idx) => {
         const kg = map.get(k) || 0;
         const prevKg = idx > 0 ? (map.get(monthKeys[idx - 1]) || 0) : 0;
-        const pct = idx === 0 || prevKg <= 0 ? null : ((kg - prevKg) / prevKg) * 100;
+        const isFutureMonth = year > nowYear || (year === nowYear && idx > nowMonthIdx)
+        const pct =
+          idx === 0
+            ? null
+            : isFutureMonth && kg <= 0
+              ? 0
+              : prevKg <= 0
+                ? null
+                : ((kg - prevKg) / prevKg) * 100;
         return { kg, pct };
       });
 
@@ -954,6 +956,14 @@ export default function LaporanNotaSawitPage() {
         return [row.kebunName, ...monthCells, Math.round(Number(row.totalKg) || 0).toLocaleString('id-ID')]
       })
 
+      const produksiFoot = [
+        [
+          { content: 'Jumlah', styles: { fontStyle: 'bold', halign: 'left' } },
+          ...produksiKebunFooter.monthTotals.map((v) => ({ content: Math.round(Number(v) || 0).toLocaleString('id-ID'), styles: { fontStyle: 'bold' } })),
+          { content: Math.round(Number(produksiKebunFooter.grandTotal) || 0).toLocaleString('id-ID'), styles: { fontStyle: 'bold' } },
+        ],
+      ]
+
       const pertumbuhanBody = kebunProduksiTahunan.map((row) => {
         const pctCells = row.months.map((m, idx) => {
           if (idx === 0 || m.pct == null) return '-'
@@ -978,9 +988,11 @@ export default function LaporanNotaSawitPage() {
       autoTable(doc, {
         head,
         body: produksiBody,
+        foot: produksiFoot as any,
         startY: 22,
         styles: { fontSize: 7, cellPadding: 1.2, overflow: 'hidden', halign: 'right', valign: 'middle' },
         headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        footStyles: { fillColor: [209, 250, 229], textColor: 0, fontStyle: 'bold' },
         columnStyles,
         margin: tableMargin,
       })
@@ -1046,6 +1058,10 @@ export default function LaporanNotaSawitPage() {
         return [row.kebunName, ...cells, Math.round(Number(row.totalKg) || 0)].map(escapeCsv).join(',')
       })
 
+      const produksiFooterRow = ['Jumlah', ...produksiKebunFooter.monthTotals.map((v) => Math.round(Number(v) || 0)), Math.round(Number(produksiKebunFooter.grandTotal) || 0)]
+        .map(escapeCsv)
+        .join(',')
+
       const pertumbuhanRows = kebunProduksiTahunan.map((row) => {
         const pctCells = row.months.map((m, idx) => {
           if (idx === 0 || m.pct == null) return ''
@@ -1060,6 +1076,7 @@ export default function LaporanNotaSawitPage() {
         'Produksi (kg)',
         header.map(escapeCsv).join(','),
         ...produksiRows,
+        produksiFooterRow,
         '',
         'Kenaikan / Penurunan (%)',
         header.map(escapeCsv).join(','),
@@ -1141,6 +1158,13 @@ export default function LaporanNotaSawitPage() {
           .join('') +
         '</tbody>'
 
+      const tfootKg =
+        '<tfoot><tr>' +
+        `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml('Jumlah')}</td>` +
+        produksiKebunFooter.monthTotals.map((v) => `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml(Math.round(Number(v) || 0))}</td>`).join('') +
+        `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml(Math.round(Number(produksiKebunFooter.grandTotal) || 0))}</td>` +
+        '</tr></tfoot>'
+
       const tbodyPct =
         '<tbody>' +
         kebunProduksiTahunan
@@ -1166,6 +1190,7 @@ export default function LaporanNotaSawitPage() {
         `<table border="1">` +
         theadKg +
         tbodyKg +
+        tfootKg +
         `</table>` +
         `<div style="font-weight:bold;white-space:nowrap;margin:10px 0 6px;">Kenaikan / Penurunan (%)</div>` +
         `<table border="1">` +
@@ -1860,7 +1885,7 @@ export default function LaporanNotaSawitPage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl p-0 overflow-hidden [&>button.absolute]:hidden">
+        <DialogContent className="max-w-3xl p-0 overflow-hidden [&>button.absolute]:hidden max-h-[90vh] flex flex-col">
           <div className="w-full flex items-center justify-between gap-3 px-6 py-4 border-b bg-gradient-to-r from-emerald-600 to-emerald-500 text-white pr-16">
             <div className="min-w-0 flex items-center gap-2">
               <DocumentTextIcon className="h-5 w-5 text-white" />
@@ -1880,12 +1905,12 @@ export default function LaporanNotaSawitPage() {
               </button>
             </div>
           </div>
-          <div className="bg-black/5 p-4 flex items-center justify-center">
+          <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar bg-black/5 p-4 flex items-center justify-center">
             {notaImageUrl ? (
-              <img src={notaImageUrl} alt="Gambar Nota" className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl" />
+              <img src={notaImageUrl} alt="Gambar Nota" className="w-auto max-w-full object-contain rounded-xl" />
             ) : null}
           </div>
-          <div className="px-6 py-4 border-t bg-white flex items-center justify-end">
+          <div className="shrink-0 px-6 py-4 border-t bg-white flex items-center justify-end">
             <button
               type="button"
               onClick={handleDownloadNotaImage}
