@@ -134,6 +134,10 @@ function SearchableFilter({
               <CommandItem
                 value="__ALL__"
                 className="cursor-pointer"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
                 onSelect={() => {
                   onChange('')
                   setOpen(false)
@@ -147,6 +151,10 @@ function SearchableFilter({
                   key={opt.value}
                   value={`${opt.value}::${opt.label}`}
                   className="cursor-pointer"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
                   onSelect={() => {
                     onChange(opt.value)
                     setOpen(false)
@@ -500,6 +508,12 @@ export default function LaporanNotaSawitPage() {
         throw new Error('Format data ekspor tidak valid');
       }
 
+      const resolveNetto = (item: any) => {
+        const netTimb = Number(item?.timbangan?.netKg ?? 0) || 0
+        const netNota = Number(item?.netto ?? 0) || 0
+        return netTimb > 0 ? netTimb : netNota > 0 ? netNota : (netTimb || netNota || 0)
+      }
+
       const resolveTanggalDibayar = (item: any) => {
         const dt = item?.pembayaranBatchItems?.[0]?.batch?.tanggal || item?.kasTransaksi?.[0]?.date || null
         return dt ? new Date(dt).toLocaleDateString('id-ID') : ''
@@ -508,7 +522,7 @@ export default function LaporanNotaSawitPage() {
       const totals = dataToExport.reduce((acc, item) => {
         acc.grossKg += Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0;
         acc.tareKg += Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0;
-        acc.netKg += Number(item.timbangan?.netKg ?? item.netto ?? 0) || 0;
+        acc.netKg += resolveNetto(item);
         acc.potongan += Number(item.potongan ?? 0) || 0;
         acc.beratAkhir += Number(item.beratAkhir ?? 0) || 0;
         acc.hargaPerKg += Number(item.hargaPerKg ?? 0) || 0;
@@ -562,7 +576,7 @@ export default function LaporanNotaSawitPage() {
         escapeCsv(item.timbangan?.kebun?.name ?? item.kebun?.name ?? '-'),
         escapeCsv(Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0),
         escapeCsv(Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0),
-        escapeCsv(Number(item.timbangan?.netKg ?? item.netto ?? 0) || 0),
+        escapeCsv(resolveNetto(item)),
         escapeCsv(Number(item.potongan ?? 0) || 0),
         escapeCsv(Number(item.beratAkhir ?? 0) || 0),
         escapeCsv(Number(item.hargaPerKg ?? 0) || 0),
@@ -757,6 +771,12 @@ export default function LaporanNotaSawitPage() {
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       doc.text(`Periode: ${startDate ? format(startDate, 'dd MMM yyyy', { locale: idLocale }) : ''} - ${endDate ? format(endDate, 'dd MMM yyyy', { locale: idLocale }) : ''}`, 14, 22);
+      const resolveNetto = (item: any) => {
+        const netTimb = Number(item?.timbangan?.netKg ?? 0) || 0
+        const netNota = Number(item?.netto ?? 0) || 0
+        return netTimb > 0 ? netTimb : netNota > 0 ? netNota : (netTimb || netNota || 0)
+      }
+
       const resolveTanggalDibayar = (item: any) => {
         const dt = item?.pembayaranBatchItems?.[0]?.batch?.tanggal || item?.kasTransaksi?.[0]?.date || null
         return dt ? new Date(dt).toLocaleDateString('id-ID') : '-'
@@ -766,13 +786,14 @@ export default function LaporanNotaSawitPage() {
       const totals = dataToExport.reduce((acc, item) => {
         acc.grossKg += Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0;
         acc.tareKg += Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0;
-        acc.netKg += Number(item.timbangan?.netKg ?? item.netto ?? 0) || 0;
+        acc.netKg += resolveNetto(item);
         acc.potongan += Number(item.potongan ?? 0) || 0;
         acc.beratAkhir += Number(item.beratAkhir ?? 0) || 0;
         acc.hargaPerKg += Number(item.hargaPerKg ?? 0) || 0;
         acc.totalPembayaran += Number(item.totalPembayaran ?? 0) || 0;
         acc.pph += Number(item.pph ?? 0) || 0;
         acc.pembayaranAktual += Number(item.pembayaranAktual ?? 0) || 0;
+        return acc;
       }, { grossKg: 0, tareKg: 0, netKg: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0 });
 
       const avgHargaPerKg = dataToExport.length > 0 ? totals.hargaPerKg / dataToExport.length : 0;
@@ -794,7 +815,7 @@ export default function LaporanNotaSawitPage() {
         item.timbangan?.kebun?.name ?? item.kebun?.name ?? '-',
         (Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0).toLocaleString('id-ID'),
         (Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0).toLocaleString('id-ID'),
-        (Number(item.timbangan?.netKg ?? item.netto ?? 0) || 0).toLocaleString('id-ID'),
+        resolveNetto(item).toLocaleString('id-ID'),
         (Number(item.potongan ?? 0) || 0).toLocaleString('id-ID'),
         (Number(item.beratAkhir ?? 0) || 0).toLocaleString('id-ID'),
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(item.hargaPerKg ?? 0) || 0),
@@ -895,25 +916,20 @@ export default function LaporanNotaSawitPage() {
       doc.text(`Produksi Kebun per Bulan (Jan–Des) - ${year}`, 14, 15)
       doc.setTextColor(0, 0, 0)
 
-      const head = [
-        ['Kebun', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des', 'Total'],
-      ]
+      const head = [['Kebun', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des', 'Total']]
 
-      const body = kebunProduksiTahunan.map((row) => {
-        const monthCells = row.months.map((m) => {
-          const kg = Math.round(Number(m.kg) || 0).toLocaleString('id-ID')
-          const pct =
-            m.pct == null
-              ? '-'
-              : `${m.pct >= 0 ? '+' : ''}${(Number(m.pct) || 0).toFixed(2)}%`
-          if (pct === '-') return `${kg}kg`
-          return `${kg}kg (${pct})`
+      const produksiBody = kebunProduksiTahunan.map((row) => {
+        const monthCells = row.months.map((m) => Math.round(Number(m.kg) || 0).toLocaleString('id-ID'))
+        return [row.kebunName, ...monthCells, Math.round(Number(row.totalKg) || 0).toLocaleString('id-ID')]
+      })
+
+      const pertumbuhanBody = kebunProduksiTahunan.map((row) => {
+        const pctCells = row.months.map((m, idx) => {
+          if (idx === 0 || m.pct == null) return '-'
+          const pct = Number(m.pct) || 0
+          return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
         })
-        return [
-          row.kebunName,
-          ...monthCells,
-          `${Math.round(Number(row.totalKg) || 0).toLocaleString('id-ID')}kg`,
-        ]
+        return [row.kebunName, ...pctCells, '-']
       })
 
       const columnStyles: Record<number, any> = {
@@ -924,12 +940,32 @@ export default function LaporanNotaSawitPage() {
         columnStyles[i] = { cellWidth: 18, halign: 'right' }
       }
 
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Produksi (kg)', 14, 20)
+
       autoTable(doc, {
         head,
-        body,
-        startY: 20,
+        body: produksiBody,
+        startY: 22,
         styles: { fontSize: 7, cellPadding: 1.2, overflow: 'hidden', halign: 'right', valign: 'middle' },
-        headStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center' },
+        headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        columnStyles,
+        margin: { left: 10, right: 10 },
+      })
+
+      const afterProduksiY = (doc as any).lastAutoTable?.finalY ? Number((doc as any).lastAutoTable.finalY) : 22
+      const nextY = Math.min(190, afterProduksiY + 10)
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Kenaikan / Penurunan (%)', 14, nextY)
+
+      autoTable(doc, {
+        head,
+        body: pertumbuhanBody,
+        startY: nextY + 2,
+        styles: { fontSize: 7, cellPadding: 1.2, overflow: 'hidden', halign: 'right', valign: 'middle' },
+        headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold', halign: 'center' },
         columnStyles,
         margin: { left: 10, right: 10 },
       })
@@ -948,6 +984,70 @@ export default function LaporanNotaSawitPage() {
     } catch (e: any) {
       console.error('Error exporting produksi PDF:', e)
       toast.error(e?.message || 'Gagal mengekspor PDF', { id: 'export-produksi-kebun' })
+    } finally {
+      setIsProduksiExporting(false)
+    }
+  }
+
+  const handleExportProduksiCsv = async () => {
+    const year = startDate ? startDate.getFullYear() : new Date().getFullYear()
+    try {
+      if (!kebunProduksiTahunan || kebunProduksiTahunan.length === 0) {
+        toast.error('Tidak ada data produksi kebun')
+        return
+      }
+      setIsProduksiExporting(true)
+      toast.loading('Mempersiapkan CSV...', { id: 'export-produksi-kebun-csv' })
+
+      const escapeCsv = (str: any) => {
+        const string = String(str ?? '')
+        if (string.includes(',') || string.includes('\n') || string.includes('"')) {
+          return `"${string.replace(/"/g, '""')}"`
+        }
+        return string
+      }
+
+      const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+      const header = ['Kebun', ...monthLabels, 'Total']
+
+      const produksiRows = kebunProduksiTahunan.map((row) => {
+        const cells = row.months.map((m) => Math.round(Number(m.kg) || 0))
+        return [row.kebunName, ...cells, Math.round(Number(row.totalKg) || 0)].map(escapeCsv).join(',')
+      })
+
+      const pertumbuhanRows = kebunProduksiTahunan.map((row) => {
+        const pctCells = row.months.map((m, idx) => {
+          if (idx === 0 || m.pct == null) return ''
+          const pct = Number(m.pct) || 0
+          return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+        })
+        return [row.kebunName, ...pctCells, ''].map(escapeCsv).join(',')
+      })
+
+      const csv = [
+        `Produksi Kebun per Bulan (Jan–Des) - Tahun ${year}`,
+        'Produksi (kg)',
+        header.map(escapeCsv).join(','),
+        ...produksiRows,
+        '',
+        'Kenaikan / Penurunan (%)',
+        header.map(escapeCsv).join(','),
+        ...pertumbuhanRows,
+      ].join('\n')
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `produksi-kebun-per-bulan-${year}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('CSV berhasil diunduh', { id: 'export-produksi-kebun-csv' })
+    } catch (e: any) {
+      console.error('Error exporting produksi CSV:', e)
+      toast.error(e?.message || 'Gagal mengekspor CSV', { id: 'export-produksi-kebun-csv' })
     } finally {
       setIsProduksiExporting(false)
     }
@@ -986,28 +1086,43 @@ export default function LaporanNotaSawitPage() {
         'Des',
       ]
 
-      const thead =
+      const theadKg =
         '<thead><tr>' +
-        '<th style="white-space:nowrap">Kebun</th>' +
-        monthLabels.map((m) => `<th style="white-space:nowrap">${m}Kg</th><th style="white-space:nowrap">${m}%</th>`).join('') +
-        '<th style="white-space:nowrap">TotalKg</th>' +
+        '<th style="white-space:nowrap;background:#059669;color:#fff;">Kebun</th>' +
+        monthLabels.map((m) => `<th style="white-space:nowrap;background:#059669;color:#fff;">${m}Kg</th>`).join('') +
+        '<th style="white-space:nowrap;background:#059669;color:#fff;">TotalKg</th>' +
         '</tr></thead>'
 
-      const tbody =
+      const theadPct =
+        '<thead><tr>' +
+        '<th style="white-space:nowrap;background:#059669;color:#fff;">Kebun</th>' +
+        monthLabels.map((m) => `<th style="white-space:nowrap;background:#059669;color:#fff;">${m}%</th>`).join('') +
+        '<th style="white-space:nowrap;background:#059669;color:#fff;">Total%</th>' +
+        '</tr></thead>'
+
+      const tbodyKg =
+        '<tbody>' +
+        kebunProduksiTahunan
+          .map((row) => {
+            const monthTds = row.months.map((m) => `<td>${escapeHtml(Math.round(Number(m.kg) || 0))}</td>`).join('')
+            return `<tr><td>${escapeHtml(row.kebunName)}</td>${monthTds}<td>${escapeHtml(Math.round(Number(row.totalKg) || 0))}</td></tr>`
+          })
+          .join('') +
+        '</tbody>'
+
+      const tbodyPct =
         '<tbody>' +
         kebunProduksiTahunan
           .map((row) => {
             const monthTds = row.months
-              .map((m) => {
-                const kg = Math.round(Number(m.kg) || 0)
-                const pctNumber = m.pct == null ? null : Number(m.pct) || 0
-                const pctText = pctNumber == null ? '' : `${pctNumber >= 0 ? '+' : ''}${pctNumber.toFixed(2)}`
-                return `<td>${escapeHtml(kg)}</td><td>${escapeHtml(pctText)}</td>`
+              .map((m, idx) => {
+                if (idx === 0 || m.pct == null) return `<td></td>`
+                const pct = Number(m.pct) || 0
+                const pctText = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+                return `<td>${escapeHtml(pctText)}</td>`
               })
               .join('')
-            return `<tr><td>${escapeHtml(row.kebunName)}</td>${monthTds}<td>${escapeHtml(
-              Math.round(Number(row.totalKg) || 0),
-            )}</td></tr>`
+            return `<tr><td>${escapeHtml(row.kebunName)}</td>${monthTds}<td></td></tr>`
           })
           .join('') +
         '</tbody>'
@@ -1015,10 +1130,16 @@ export default function LaporanNotaSawitPage() {
       const html =
         '\ufeff' +
         `<html><head><meta charset="utf-8" /><style>th,td{white-space:nowrap;}</style></head><body>` +
+        `<div style="font-weight:bold;white-space:nowrap;margin-bottom:6px;">Produksi Kebun per Bulan (Jan–Des) - Tahun ${escapeHtml(year)}</div>` +
+        `<div style="font-weight:bold;white-space:nowrap;margin:6px 0;">Produksi (kg)</div>` +
         `<table border="1">` +
-        `<caption style="white-space:nowrap;font-weight:bold;">Produksi Kebun per Bulan (Jan–Des) - Tahun ${escapeHtml(year)}</caption>` +
-        thead +
-        tbody +
+        theadKg +
+        tbodyKg +
+        `</table>` +
+        `<div style="font-weight:bold;white-space:nowrap;margin:10px 0 6px;">Kenaikan / Penurunan (%)</div>` +
+        `<table border="1">` +
+        theadPct +
+        tbodyPct +
         `</table>` +
         `</body></html>`
 
@@ -1381,10 +1502,10 @@ export default function LaporanNotaSawitPage() {
             {!isStatsLoading && monthlyData.length > 0 && (
               <div className="mt-6 overflow-x-auto">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-gray-600">Analisa Pertumbuhan Produksi</h3>
+                  <h3 className="text-sm font-semibold text-gray-600 whitespace-nowrap">Analisa Pertumbuhan Produksi</h3>
                   <div className="flex items-center gap-2">
                     <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
-                      <SelectTrigger className="w-[190px] h-8 text-sm">
+                      <SelectTrigger className="w-[190px] h-8 text-sm rounded-full">
                         <SelectValue placeholder="Group By" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1394,7 +1515,7 @@ export default function LaporanNotaSawitPage() {
                       </SelectContent>
                     </Select>
                     <Select value={selectedGrowthGroup} onValueChange={setSelectedGrowthGroup}>
-                      <SelectTrigger className="w-[220px] h-8 text-sm">
+                      <SelectTrigger className="w-[220px] h-8 text-sm rounded-full">
                         <SelectValue placeholder="Pilih" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1489,6 +1610,13 @@ export default function LaporanNotaSawitPage() {
             <div className="flex items-center gap-2">
               <div className="text-xs text-gray-500">Tahun {startDate ? startDate.getFullYear() : new Date().getFullYear()}</div>
               <button
+                onClick={handleExportProduksiCsv}
+                disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
+                className="px-3 py-2 text-xs font-medium text-white bg-emerald-600 border border-transparent rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Ekspor CSV
+              </button>
+              <button
                 onClick={handleExportProduksiExcel}
                 disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
                 className="px-3 py-2 text-xs font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
@@ -1581,7 +1709,9 @@ export default function LaporanNotaSawitPage() {
                 items.map((item, index) => {
                   const dateValue = item.timbangan?.date || item.tanggalBongkar || item.createdAt;
                   const kebunName = item.timbangan?.kebun?.name ?? item.kebun?.name ?? '-';
-                  const netto = item.timbangan?.netKg ?? item.netto;
+                  const netTimb = Number(item.timbangan?.netKg ?? 0) || 0
+                  const netNota = Number((item as any)?.netto ?? 0) || 0
+                  const netto = netTimb > 0 ? netTimb : netNota > 0 ? netNota : (netTimb || netNota || 0)
                   return (
                     <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3">
                       <button

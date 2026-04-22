@@ -2,6 +2,7 @@
 
 import type { ColumnDef } from '@tanstack/react-table'
 import type { NotaSawit, Timbangan, Kebun, User, Kendaraan, Perusahaan, PabrikSawit } from '@prisma/client'
+import { EyeIcon } from '@heroicons/react/24/outline'
 
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
@@ -54,8 +55,10 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
     accessorKey: 'timbangan.netKg',
     header: () => <div className="text-right">Netto (Kg)</div>,
     cell: ({ row }) => {
-      const netto = row.original.timbangan?.netKg ?? row.original.netto;
-      return <div className="text-right">{typeof netto === 'number' ? formatNumber(netto) : '-'}</div>;
+      const netTimb = Number((row.original as any)?.timbangan?.netKg ?? 0) || 0
+      const netNota = Number((row.original as any)?.netto ?? 0) || 0
+      const netto = netTimb > 0 ? netTimb : netNota > 0 ? netNota : (netTimb || netNota || 0)
+      return <div className="text-right">{formatNumber(netto)}</div>;
     },
     footer: ({ table }) => {
       const kpi = (table.options.meta as any)?.kpi;
@@ -145,7 +148,22 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
     header: 'Gambar Nota',
     cell: ({ row }) => {
       const url = row.original.gambarNotaUrl;
-      return url ? <img src={url} alt="Nota" className="w-16 h-16 object-cover rounded" /> : '-';
+      if (!url) return '-'
+      return (
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            window.open(url, '_blank', 'noopener,noreferrer')
+          }}
+          aria-label="Lihat gambar nota"
+          title="Lihat gambar nota"
+        >
+          <EyeIcon className="h-4 w-4" />
+        </button>
+      )
     },
   },
   {
