@@ -9,11 +9,12 @@ import autoTable from 'jspdf-autotable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { CalendarIcon, ChartBarIcon, CheckIcon, ChevronUpDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, CalendarIcon, ChartBarIcon, CheckIcon, ChevronUpDownIcon, DocumentTextIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -134,10 +135,6 @@ function SearchableFilter({
               <CommandItem
                 value="__ALL__"
                 className="cursor-pointer"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }}
                 onSelect={() => {
                   onChange('')
                   setOpen(false)
@@ -151,10 +148,6 @@ function SearchableFilter({
                   key={opt.value}
                   value={`${opt.value}::${opt.label}`}
                   className="cursor-pointer"
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
                   onSelect={() => {
                     onChange(opt.value)
                     setOpen(false)
@@ -225,6 +218,9 @@ export default function LaporanNotaSawitPage() {
   const [isTableLoading, setIsTableLoading] = useState(true);
   const [detailNota, setDetailNota] = useState<NotaSawitData | null>(null);
   const [isProduksiExporting, setIsProduksiExporting] = useState(false);
+  const [notaImageOpen, setNotaImageOpen] = useState(false)
+  const [notaImageUrl, setNotaImageUrl] = useState<string | null>(null)
+  const [notaImageDownloading, setNotaImageDownloading] = useState(false)
 
   const handleOpenDetailNota = useCallback((nota: any) => {
     setDetailNota(nota as any);
@@ -233,6 +229,40 @@ export default function LaporanNotaSawitPage() {
   const handleCloseDetailNota = useCallback(() => {
     setDetailNota(null);
   }, []);
+
+  const handleOpenNotaImage = useCallback((url: string) => {
+    setNotaImageUrl(url)
+    setNotaImageOpen(true)
+  }, [])
+
+  const handleDownloadNotaImage = useCallback(async () => {
+    if (!notaImageUrl || notaImageDownloading) return
+    try {
+      setNotaImageDownloading(true)
+      const res = await fetch(notaImageUrl)
+      if (!res.ok) throw new Error('Gagal mengunduh gambar')
+      const blob = await res.blob()
+      const contentType = res.headers.get('content-type') || ''
+      const extFromType = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : ''
+      const extFromUrl = (() => {
+        const clean = String(notaImageUrl).split('?')[0]
+        const m = clean.match(/\.([a-zA-Z0-9]+)$/)
+        return m ? m[1].toLowerCase() : ''
+      })()
+      const ext = extFromType || extFromUrl || 'jpg'
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `nota-sawit-${Date.now()}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(a.href)
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal mengunduh gambar')
+    } finally {
+      setNotaImageDownloading(false)
+    }
+  }, [notaImageUrl, notaImageDownloading])
 
   const dateDisplay = useMemo(() => {
     if (quickRange && quickRange !== 'custom') {
@@ -910,10 +940,11 @@ export default function LaporanNotaSawitPage() {
         unit: 'mm',
         format: 'a4',
       })
+      const tableMargin = { left: 10, right: 10 }
 
       doc.setFontSize(14)
       doc.setTextColor(5, 150, 105)
-      doc.text(`Produksi Kebun per Bulan (Jan–Des) - ${year}`, 14, 15)
+      doc.text(`Produksi Kebun per Bulan (Jan–Des) - ${year}`, tableMargin.left, 15)
       doc.setTextColor(0, 0, 0)
 
       const head = [['Kebun', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des', 'Total']]
@@ -942,7 +973,7 @@ export default function LaporanNotaSawitPage() {
 
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text('Produksi (kg)', 14, 20)
+      doc.text('Produksi (kg)', tableMargin.left, 20)
 
       autoTable(doc, {
         head,
@@ -951,14 +982,14 @@ export default function LaporanNotaSawitPage() {
         styles: { fontSize: 7, cellPadding: 1.2, overflow: 'hidden', halign: 'right', valign: 'middle' },
         headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold', halign: 'center' },
         columnStyles,
-        margin: { left: 10, right: 10 },
+        margin: tableMargin,
       })
 
       const afterProduksiY = (doc as any).lastAutoTable?.finalY ? Number((doc as any).lastAutoTable.finalY) : 22
       const nextY = Math.min(190, afterProduksiY + 10)
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text('Kenaikan / Penurunan (%)', 14, nextY)
+      doc.text('Kenaikan / Penurunan (%)', tableMargin.left, nextY)
 
       autoTable(doc, {
         head,
@@ -967,7 +998,7 @@ export default function LaporanNotaSawitPage() {
         styles: { fontSize: 7, cellPadding: 1.2, overflow: 'hidden', halign: 'right', valign: 'middle' },
         headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold', halign: 'center' },
         columnStyles,
-        margin: { left: 10, right: 10 },
+        margin: tableMargin,
       })
 
       const fileName = `produksi-kebun-per-bulan-${year}.pdf`
@@ -1160,6 +1191,18 @@ export default function LaporanNotaSawitPage() {
       setIsProduksiExporting(false)
     }
   }
+
+  const produksiKebunFooter = useMemo(() => {
+    const monthTotals = Array.from({ length: 12 }, () => 0)
+    let grandTotal = 0
+    for (const row of kebunProduksiTahunan || []) {
+      grandTotal += Number(row.totalKg) || 0
+      for (let i = 0; i < 12; i += 1) {
+        monthTotals[i] += Number(row.months?.[i]?.kg) || 0
+      }
+    }
+    return { monthTotals, grandTotal }
+  }, [kebunProduksiTahunan])
 
   return (
     <main className="p-4 md:p-8">
@@ -1500,10 +1543,10 @@ export default function LaporanNotaSawitPage() {
             )}
 
             {!isStatsLoading && monthlyData.length > 0 && (
-              <div className="mt-6 overflow-x-auto">
-                <div className="flex items-center justify-between mb-4">
+              <div className="mt-6">
+                <div className="mb-4">
                   <h3 className="text-sm font-semibold text-gray-600 whitespace-nowrap">Analisa Pertumbuhan Produksi</h3>
-                  <div className="flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
                       <SelectTrigger className="w-[190px] h-8 text-sm rounded-full">
                         <SelectValue placeholder="Group By" />
@@ -1528,6 +1571,7 @@ export default function LaporanNotaSawitPage() {
                   </div>
                 </div>
 
+                <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50">
@@ -1566,6 +1610,7 @@ export default function LaporanNotaSawitPage() {
                     )})}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </div>
@@ -1605,28 +1650,30 @@ export default function LaporanNotaSawitPage() {
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="text-xl font-semibold">Produksi Kebun per Bulan (Jan–Des)</h2>
-            <div className="flex items-center gap-2">
-              <div className="text-xs text-gray-500">Tahun {startDate ? startDate.getFullYear() : new Date().getFullYear()}</div>
+          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold whitespace-nowrap overflow-hidden text-ellipsis">Produksi Kebun per Bulan (Jan–Des)</h2>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="text-xs text-gray-500 whitespace-nowrap shrink-0">Tahun {startDate ? startDate.getFullYear() : new Date().getFullYear()}</div>
               <button
                 onClick={handleExportProduksiCsv}
                 disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
-                className="px-3 py-2 text-xs font-medium text-white bg-emerald-600 border border-transparent rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+                className="px-3 py-2 text-xs font-medium text-white bg-emerald-600 border border-transparent rounded-xl hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 Ekspor CSV
               </button>
               <button
                 onClick={handleExportProduksiExcel}
                 disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
-                className="px-3 py-2 text-xs font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
+                className="px-3 py-2 text-xs font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 Ekspor Excel
               </button>
               <button
                 onClick={handleExportProduksiPdf}
                 disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
-                className="px-3 py-2 text-xs font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700 disabled:opacity-50"
+                className="px-3 py-2 text-xs font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700 disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 Ekspor PDF
               </button>
@@ -1667,6 +1714,19 @@ export default function LaporanNotaSawitPage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t bg-emerald-50/60">
+                    <td className="py-2 px-3 font-semibold text-gray-900 sticky left-0 bg-emerald-50/60">Jumlah</td>
+                    {produksiKebunFooter.monthTotals.map((v, idx) => (
+                      <td key={idx} className="py-2 px-3 text-right font-semibold text-gray-900">
+                        {Math.round(Number(v) || 0).toLocaleString('id-ID')} kg
+                      </td>
+                    ))}
+                    <td className="py-2 px-3 text-right font-bold text-gray-900">
+                      {Math.round(Number(produksiKebunFooter.grandTotal) || 0).toLocaleString('id-ID')} kg
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
@@ -1759,7 +1819,7 @@ export default function LaporanNotaSawitPage() {
                 columns={columns}
                 data={items}
                 isLoading={isTableLoading}
-                meta={{ kpi, page, limit, onRowClick: handleOpenDetailNota }}
+                meta={{ kpi, page, limit, onRowClick: handleOpenDetailNota, onOpenImage: handleOpenNotaImage }}
               />
             </div>
             <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-4">
@@ -1791,6 +1851,54 @@ export default function LaporanNotaSawitPage() {
           </div>
         </div>
       </div>
+      <Dialog
+        open={notaImageOpen}
+        onOpenChange={(v) => {
+          setNotaImageOpen(v)
+          if (!v) {
+            setNotaImageUrl(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl p-0 overflow-hidden [&>button.absolute]:hidden">
+          <div className="w-full flex items-center justify-between gap-3 px-6 py-4 border-b bg-gradient-to-r from-emerald-600 to-emerald-500 text-white pr-16">
+            <div className="min-w-0 flex items-center gap-2">
+              <DocumentTextIcon className="h-5 w-5 text-white" />
+              <div className="min-w-0">
+                <div className="text-white text-base font-semibold">Gambar Nota Sawit</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setNotaImageOpen(false)}
+                className="h-10 w-10 rounded-full border border-white/30 text-white hover:bg-white/10 inline-flex items-center justify-center"
+                aria-label="Tutup"
+                title="Tutup"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div className="bg-black/5 p-4 flex items-center justify-center">
+            {notaImageUrl ? (
+              <img src={notaImageUrl} alt="Gambar Nota" className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl" />
+            ) : null}
+          </div>
+          <div className="px-6 py-4 border-t bg-white flex items-center justify-end">
+            <button
+              type="button"
+              onClick={handleDownloadNotaImage}
+              disabled={!notaImageUrl || notaImageDownloading}
+              className="h-10 w-10 rounded-full border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 hover:border-emerald-700 disabled:opacity-50 inline-flex items-center justify-center"
+              aria-label="Download"
+              title={notaImageDownloading ? 'Downloading...' : 'Download'}
+            >
+              <ArrowDownTrayIcon className="h-5 w-5" />
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <ModalDetailNota nota={detailNota} onClose={handleCloseDetailNota} readonly />
     </main>
   );

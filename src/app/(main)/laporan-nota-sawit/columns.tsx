@@ -146,9 +146,10 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
   {
     accessorKey: 'gambarNotaUrl',
     header: 'Gambar Nota',
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const url = row.original.gambarNotaUrl;
       if (!url) return '-'
+      const onOpenImage = (table.options.meta as any)?.onOpenImage as undefined | ((url: string) => void)
       return (
         <button
           type="button"
@@ -156,6 +157,10 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
+            if (onOpenImage) {
+              onOpenImage(url)
+              return
+            }
             window.open(url, '_blank', 'noopener,noreferrer')
           }}
           aria-label="Lihat gambar nota"
