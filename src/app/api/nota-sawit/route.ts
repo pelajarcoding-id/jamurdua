@@ -197,6 +197,12 @@ export async function GET(request: Request) {
           kendaraan: true,
           pabrikSawit: true,
           perusahaan: true,
+          kasTransaksi: {
+            where: { deletedAt: null },
+            select: { date: true },
+            orderBy: { date: 'desc' },
+            take: 1,
+          },
           pembayaranBatchItems: {
             include: { batch: { select: { id: true, tanggal: true } } },
             orderBy: { id: 'desc' },
@@ -232,6 +238,12 @@ export async function GET(request: Request) {
           kendaraan: true,
           pabrikSawit: true,
           perusahaan: true,
+          kasTransaksi: {
+            where: { deletedAt: null },
+            select: { date: true },
+            orderBy: { date: 'desc' },
+            take: 1,
+          },
           pembayaranBatchItems: {
             include: { batch: { select: { id: true, tanggal: true } } },
             orderBy: { id: 'desc' },
@@ -265,6 +277,12 @@ export async function GET(request: Request) {
           kendaraan: true,
           pabrikSawit: true,
           perusahaan: true,
+          kasTransaksi: {
+            where: { deletedAt: null },
+            select: { date: true },
+            orderBy: { date: 'desc' },
+            take: 1,
+          },
           pembayaranBatchItems: {
             include: { batch: { select: { id: true, tanggal: true } } },
             orderBy: { id: 'desc' },

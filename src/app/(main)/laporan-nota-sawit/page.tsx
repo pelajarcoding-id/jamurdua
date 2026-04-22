@@ -43,6 +43,12 @@ interface TopKebunData {
   totalBerat: number;
 }
 
+type KebunProduksiTahunanRow = {
+  kebunName: string;
+  months: Array<{ kg: number; pct: number | null }>;
+  totalKg: number;
+};
+
 interface KpiData {
   totalTonase: number;
   totalPotongan: number;
@@ -80,10 +86,26 @@ function SearchableFilter({
   searchPlaceholder: string
 }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const selectedLabel = value ? (options.find((o) => o.value === value)?.label || value) : allLabel
+  const filteredOptions = useMemo(() => {
+    const q = String(query || '').trim().toLowerCase()
+    if (!q) return options
+    return options.filter((o) => String(o.label || '').toLowerCase().includes(q))
+  }, [options, query])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setQuery('')
+          requestAnimationFrame(() => inputRef.current?.focus())
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -97,8 +119,15 @@ function SearchableFilter({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100]" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+        <Command shouldFilter={false}>
+          <CommandInput
+            ref={inputRef as any}
+            placeholder={searchPlaceholder}
+            value={query}
+            onValueChange={setQuery}
+            autoFocus
+            onKeyDown={(e) => e.stopPropagation()}
+          />
           <CommandList>
             <CommandEmpty>Tidak ada data.</CommandEmpty>
             <CommandGroup>
@@ -113,7 +142,7 @@ function SearchableFilter({
                 <CheckIcon className={cn('mr-2 h-4 w-4', !value ? 'opacity-100' : 'opacity-0')} />
                 {allLabel}
               </CommandItem>
-              {options.map((opt) => (
+              {filteredOptions.map((opt) => (
                 <CommandItem
                   key={opt.value}
                   value={`${opt.value}::${opt.label}`}
@@ -168,6 +197,8 @@ export default function LaporanNotaSawitPage() {
   const [groupBy, setGroupBy] = useState<'kebun' | 'perusahaan' | 'pabrik'>('kebun')
 
   const [topGroups, setTopGroups] = useState<TopKebunData[]>([]);
+  const [yearlyKebunMonthly, setYearlyKebunMonthly] = useState<MonthlyDataPerGroup[]>([]);
+  const [isYearlyKebunLoading, setIsYearlyKebunLoading] = useState(true);
   const [kpi, setKpi] = useState<KpiData | null>(null);
   const [kebunList, setKebunList] = useState<Kebun[]>([]);
   const [supirList, setSupirList] = useState<User[]>([]);
@@ -185,6 +216,7 @@ export default function LaporanNotaSawitPage() {
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(true);
   const [detailNota, setDetailNota] = useState<NotaSawitData | null>(null);
+  const [isProduksiExporting, setIsProduksiExporting] = useState(false);
 
   const handleOpenDetailNota = useCallback((nota: any) => {
     setDetailNota(nota as any);
@@ -349,9 +381,81 @@ export default function LaporanNotaSawitPage() {
     fetchStats();
   }, [startDate, endDate, searchQuery, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, groupBy, toYmd]);
 
+  useEffect(() => {
+    async function fetchYearlyKebun() {
+      const refDate = startDate || new Date();
+      const year = refDate.getFullYear();
+      const startOfYear = new Date(year, 0, 1);
+      const endOfYear = new Date(year, 11, 31);
+      const startDateString = toYmd(startOfYear);
+      const endDateString = toYmd(endOfYear);
+
+      if (!startDateString || !endDateString) {
+        setYearlyKebunMonthly([]);
+        setIsYearlyKebunLoading(false);
+        return;
+      }
+
+      setIsYearlyKebunLoading(true);
+      try {
+        const params = new URLSearchParams({
+          startDate: startDateString,
+          endDate: endDateString,
+          groupBy: 'kebun',
+        });
+        if (selectedKebun) params.append('kebunId', selectedKebun);
+        if (selectedSupir) params.append('supirId', selectedSupir);
+        if (selectedPabrik) params.append('pabrikId', selectedPabrik);
+        if (selectedKendaraan) params.append('kendaraanPlatNomor', selectedKendaraan);
+        if (selectedPerusahaan) params.append('perusahaanId', selectedPerusahaan);
+        if (selectedStatusPembayaran) params.append('statusPembayaran', selectedStatusPembayaran);
+        if (searchQuery) params.append('search', searchQuery);
+
+        const res = await fetch(`/api/laporan-nota-sawit/statistik?${params.toString()}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Gagal mengambil data produksi kebun tahunan');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setYearlyKebunMonthly(data.monthlyDataPerGroup || []);
+      } catch (e: any) {
+        console.error('Error fetching yearly kebun stats:', e);
+        setYearlyKebunMonthly([]);
+      } finally {
+        setIsYearlyKebunLoading(false);
+      }
+    }
+    fetchYearlyKebun();
+  }, [startDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, searchQuery, toYmd]);
+
   const growthKebunOptions = useMemo(() => {
     return Array.from(new Set((monthlyDataPerGroup || []).map((k) => k.groupName))).sort((a, b) => a.localeCompare(b))
   }, [monthlyDataPerGroup])
+
+  const kebunProduksiTahunan = useMemo(() => {
+    const refDate = startDate || new Date();
+    const year = refDate.getFullYear();
+    const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+
+    const rows: KebunProduksiTahunanRow[] = (yearlyKebunMonthly || []).map((g) => {
+      const map = new Map<string, number>();
+      for (const d of g.data || []) {
+        map.set(String(d.month), Number(d.totalBerat || 0) || 0);
+      }
+
+      const months = monthKeys.map((k, idx) => {
+        const kg = map.get(k) || 0;
+        const prevKg = idx > 0 ? (map.get(monthKeys[idx - 1]) || 0) : 0;
+        const pct = idx === 0 || prevKg <= 0 ? null : ((kg - prevKg) / prevKg) * 100;
+        return { kg, pct };
+      });
+
+      const totalKg = months.reduce((acc, m) => acc + (Number(m.kg) || 0), 0);
+      return { kebunName: g.groupName, months, totalKg };
+    });
+
+    return rows
+      .filter((r) => r.kebunName && r.kebunName !== 'Tidak diketahui')
+      .sort((a, b) => (b.totalKg || 0) - (a.totalKg || 0));
+  }, [startDate, yearlyKebunMonthly]);
 
   useEffect(() => {
     if (selectedGrowthGroup !== 'total' && !growthKebunOptions.includes(selectedGrowthGroup)) {
@@ -396,6 +500,11 @@ export default function LaporanNotaSawitPage() {
         throw new Error('Format data ekspor tidak valid');
       }
 
+      const resolveTanggalDibayar = (item: any) => {
+        const dt = item?.pembayaranBatchItems?.[0]?.batch?.tanggal || item?.kasTransaksi?.[0]?.date || null
+        return dt ? new Date(dt).toLocaleDateString('id-ID') : ''
+      }
+
       const totals = dataToExport.reduce((acc, item) => {
         acc.grossKg += Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0;
         acc.tareKg += Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0;
@@ -406,9 +515,8 @@ export default function LaporanNotaSawitPage() {
         acc.totalPembayaran += Number(item.totalPembayaran ?? 0) || 0;
         acc.pph += Number(item.pph ?? 0) || 0;
         acc.pembayaranSetelahPph += Number(item.pembayaranSetelahPph ?? 0) || 0;
-        acc.pembayaranAktual += Number(item.pembayaranAktual ?? 0) || 0;
         return acc;
-      }, { grossKg: 0, tareKg: 0, netKg: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0, pembayaranAktual: 0 });
+      }, { grossKg: 0, tareKg: 0, netKg: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0 });
 
       const avgHargaPerKg = dataToExport.length > 0 ? totals.hargaPerKg / dataToExport.length : 0;
 
@@ -432,8 +540,9 @@ export default function LaporanNotaSawitPage() {
         'Total Pembayaran (Rp)',
         'PPh 25 (Rp)',
         'Total Bayar Net (Rp)',
-        'Total Pembayaran Nota Sawit (Rp)',
+        'Tanggal Dibayar',
         'Status Pembayaran',
+        'Perusahaan',
       ];
 
       const escapeCsv = (str: any) => {
@@ -460,8 +569,9 @@ export default function LaporanNotaSawitPage() {
         escapeCsv(Number(item.totalPembayaran ?? 0) || 0),
         escapeCsv(Number(item.pph ?? 0) || 0),
         escapeCsv(Number(item.pembayaranSetelahPph ?? 0) || 0),
-        escapeCsv(Number(item.pembayaranAktual ?? 0) || 0),
+        escapeCsv(resolveTanggalDibayar(item) || '-'),
         escapeCsv(item.statusPembayaran ?? ''),
+        escapeCsv(item.perusahaan?.name ?? '-'),
       ].join(','));
 
       const summaryRow = [
@@ -475,7 +585,8 @@ export default function LaporanNotaSawitPage() {
         totals.totalPembayaran,
         totals.pph,
         totals.pembayaranSetelahPph,
-        totals.pembayaranAktual,
+        '',
+        '',
         ''
       ].join(',');
 
@@ -646,6 +757,11 @@ export default function LaporanNotaSawitPage() {
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       doc.text(`Periode: ${startDate ? format(startDate, 'dd MMM yyyy', { locale: idLocale }) : ''} - ${endDate ? format(endDate, 'dd MMM yyyy', { locale: idLocale }) : ''}`, 14, 22);
+      const resolveTanggalDibayar = (item: any) => {
+        const dt = item?.pembayaranBatchItems?.[0]?.batch?.tanggal || item?.kasTransaksi?.[0]?.date || null
+        return dt ? new Date(dt).toLocaleDateString('id-ID') : '-'
+      }
+
 
       const totals = dataToExport.reduce((acc, item) => {
         acc.grossKg += Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0;
@@ -656,10 +772,8 @@ export default function LaporanNotaSawitPage() {
         acc.hargaPerKg += Number(item.hargaPerKg ?? 0) || 0;
         acc.totalPembayaran += Number(item.totalPembayaran ?? 0) || 0;
         acc.pph += Number(item.pph ?? 0) || 0;
-        acc.pembayaranSetelahPph += Number(item.pembayaranSetelahPph ?? 0) || 0;
         acc.pembayaranAktual += Number(item.pembayaranAktual ?? 0) || 0;
-        return acc;
-      }, { grossKg: 0, tareKg: 0, netKg: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0, pembayaranAktual: 0 });
+      }, { grossKg: 0, tareKg: 0, netKg: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0 });
 
       const avgHargaPerKg = dataToExport.length > 0 ? totals.hargaPerKg / dataToExport.length : 0;
       const jumlahNota = dataToExport.length;
@@ -668,7 +782,7 @@ export default function LaporanNotaSawitPage() {
 
       const tableColumn = [
         'No', 'Tgl Bongkar', 'Pabrik', 'Supir', 'Plat No', 'Kebun', 
-        'Bruto', 'Tara', 'Netto', 'Potongan', 'Berat Akhir', 'Harga/kg', 'Total', 'PPh 25', 'Net', 'Aktual', 'Status'
+        'Bruto', 'Tara', 'Netto', 'Potongan', 'Berat Akhir', 'Harga/kg', 'Total', 'PPh 25', 'Net', 'Tgl Dibayar', 'Status', 'Perusahaan'
       ];
       
       const tableRows = dataToExport.map((item, index) => [
@@ -687,8 +801,9 @@ export default function LaporanNotaSawitPage() {
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(item.totalPembayaran ?? 0) || 0),
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(item.pph ?? 0) || 0),
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(item.pembayaranSetelahPph ?? 0) || 0),
-        (Number(item.pembayaranAktual ?? 0) || 0) ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(item.pembayaranAktual ?? 0) || 0) : '-',
+        resolveTanggalDibayar(item),
         (item.statusPembayaran || '').replace('BELUM_LUNAS', 'B.LUNAS'),
+        item.perusahaan?.name ?? '-',
       ]);
 
       const footerRow = [
@@ -706,7 +821,8 @@ export default function LaporanNotaSawitPage() {
         { content: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(totals.totalPembayaran)), styles: { fontStyle: 'bold' as 'bold' } },
         { content: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(totals.pph)), styles: { fontStyle: 'bold' as 'bold' } },
         { content: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(totals.pembayaranSetelahPph)), styles: { fontStyle: 'bold' as 'bold' } },
-        { content: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(totals.pembayaranAktual)), styles: { fontStyle: 'bold' as 'bold' } },
+        { content: '', styles: { fontStyle: 'bold' as 'bold' } },
+        { content: '', styles: { fontStyle: 'bold' as 'bold' } },
         { content: '', styles: { fontStyle: 'bold' as 'bold' } },
       ];
 
@@ -757,6 +873,172 @@ export default function LaporanNotaSawitPage() {
       toast.error(e?.message || 'Gagal mengekspor PDF', { id: 'export-nota-sawit' })
     }
   };
+
+  const handleExportProduksiPdf = async () => {
+    const year = startDate ? startDate.getFullYear() : new Date().getFullYear()
+    try {
+      if (!kebunProduksiTahunan || kebunProduksiTahunan.length === 0) {
+        toast.error('Tidak ada data produksi kebun')
+        return
+      }
+      setIsProduksiExporting(true)
+      toast.loading('Mempersiapkan PDF...', { id: 'export-produksi-kebun' })
+
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      doc.setFontSize(14)
+      doc.setTextColor(5, 150, 105)
+      doc.text(`Produksi Kebun per Bulan (Jan–Des) - ${year}`, 14, 15)
+      doc.setTextColor(0, 0, 0)
+
+      const head = [
+        ['Kebun', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des', 'Total'],
+      ]
+
+      const body = kebunProduksiTahunan.map((row) => {
+        const monthCells = row.months.map((m) => {
+          const kg = Math.round(Number(m.kg) || 0).toLocaleString('id-ID')
+          const pct =
+            m.pct == null
+              ? '-'
+              : `${m.pct >= 0 ? '+' : ''}${(Number(m.pct) || 0).toFixed(2)}%`
+          if (pct === '-') return `${kg}kg`
+          return `${kg}kg (${pct})`
+        })
+        return [
+          row.kebunName,
+          ...monthCells,
+          `${Math.round(Number(row.totalKg) || 0).toLocaleString('id-ID')}kg`,
+        ]
+      })
+
+      const columnStyles: Record<number, any> = {
+        0: { cellWidth: 42, halign: 'left' },
+        13: { cellWidth: 22, halign: 'right' },
+      }
+      for (let i = 1; i <= 12; i += 1) {
+        columnStyles[i] = { cellWidth: 18, halign: 'right' }
+      }
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 20,
+        styles: { fontSize: 7, cellPadding: 1.2, overflow: 'hidden', halign: 'right', valign: 'middle' },
+        headStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center' },
+        columnStyles,
+        margin: { left: 10, right: 10 },
+      })
+
+      const fileName = `produksi-kebun-per-bulan-${year}.pdf`
+      const pdfBlob = doc.output('blob')
+      const url = URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', fileName)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('PDF berhasil diunduh', { id: 'export-produksi-kebun' })
+    } catch (e: any) {
+      console.error('Error exporting produksi PDF:', e)
+      toast.error(e?.message || 'Gagal mengekspor PDF', { id: 'export-produksi-kebun' })
+    } finally {
+      setIsProduksiExporting(false)
+    }
+  }
+
+  const handleExportProduksiExcel = async () => {
+    const year = startDate ? startDate.getFullYear() : new Date().getFullYear()
+    try {
+      if (!kebunProduksiTahunan || kebunProduksiTahunan.length === 0) {
+        toast.error('Tidak ada data produksi kebun')
+        return
+      }
+      setIsProduksiExporting(true)
+      toast.loading('Mempersiapkan Excel...', { id: 'export-produksi-kebun-excel' })
+
+      const escapeHtml = (v: any) =>
+        String(v ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;')
+
+      const monthLabels = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'Mei',
+        'Jun',
+        'Jul',
+        'Agu',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Des',
+      ]
+
+      const thead =
+        '<thead><tr>' +
+        '<th style="white-space:nowrap">Kebun</th>' +
+        monthLabels.map((m) => `<th style="white-space:nowrap">${m}Kg</th><th style="white-space:nowrap">${m}%</th>`).join('') +
+        '<th style="white-space:nowrap">TotalKg</th>' +
+        '</tr></thead>'
+
+      const tbody =
+        '<tbody>' +
+        kebunProduksiTahunan
+          .map((row) => {
+            const monthTds = row.months
+              .map((m) => {
+                const kg = Math.round(Number(m.kg) || 0)
+                const pctNumber = m.pct == null ? null : Number(m.pct) || 0
+                const pctText = pctNumber == null ? '' : `${pctNumber >= 0 ? '+' : ''}${pctNumber.toFixed(2)}`
+                return `<td>${escapeHtml(kg)}</td><td>${escapeHtml(pctText)}</td>`
+              })
+              .join('')
+            return `<tr><td>${escapeHtml(row.kebunName)}</td>${monthTds}<td>${escapeHtml(
+              Math.round(Number(row.totalKg) || 0),
+            )}</td></tr>`
+          })
+          .join('') +
+        '</tbody>'
+
+      const html =
+        '\ufeff' +
+        `<html><head><meta charset="utf-8" /><style>th,td{white-space:nowrap;}</style></head><body>` +
+        `<table border="1">` +
+        `<caption style="white-space:nowrap;font-weight:bold;">Produksi Kebun per Bulan (Jan–Des) - Tahun ${escapeHtml(year)}</caption>` +
+        thead +
+        tbody +
+        `</table>` +
+        `</body></html>`
+
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `produksi-kebun-per-bulan-${year}.xls`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('Excel berhasil diunduh', { id: 'export-produksi-kebun-excel' })
+    } catch (e: any) {
+      console.error('Error exporting produksi Excel:', e)
+      toast.error(e?.message || 'Gagal mengekspor Excel', { id: 'export-produksi-kebun-excel' })
+    } finally {
+      setIsProduksiExporting(false)
+    }
+  }
 
   return (
     <main className="p-4 md:p-8">
@@ -1199,6 +1481,67 @@ export default function LaporanNotaSawitPage() {
               </table>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-semibold">Produksi Kebun per Bulan (Jan–Des)</h2>
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-gray-500">Tahun {startDate ? startDate.getFullYear() : new Date().getFullYear()}</div>
+              <button
+                onClick={handleExportProduksiExcel}
+                disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
+                className="px-3 py-2 text-xs font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
+              >
+                Ekspor Excel
+              </button>
+              <button
+                onClick={handleExportProduksiPdf}
+                disabled={isYearlyKebunLoading || isProduksiExporting || kebunProduksiTahunan.length === 0}
+                className="px-3 py-2 text-xs font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700 disabled:opacity-50"
+              >
+                Ekspor PDF
+              </button>
+            </div>
+          </div>
+
+          {isYearlyKebunLoading ? (
+            <Skeleton className="h-[260px] w-full" />
+          ) : kebunProduksiTahunan.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center text-sm text-gray-500">
+              Tidak ada data produksi kebun
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-[1100px] w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="py-2 px-3 text-left sticky left-0 bg-gray-50">Kebun</th>
+                    {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map((m) => (
+                      <th key={m} className="py-2 px-3 text-right">{m}</th>
+                    ))}
+                    <th className="py-2 px-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kebunProduksiTahunan.map((row) => (
+                    <tr key={row.kebunName} className="border-t">
+                      <td className="py-2 px-3 font-medium text-gray-900 sticky left-0 bg-white">{row.kebunName}</td>
+                      {row.months.map((m, idx) => (
+                        <td key={idx} className="py-2 px-3 text-right">
+                          <div className="text-gray-900">{(Number(m.kg) || 0).toLocaleString('id-ID')} kg</div>
+                          <div className={cn('text-[11px]', m.pct == null ? 'text-gray-400' : m.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+                            {m.pct == null ? '-' : `${m.pct >= 0 ? '+' : ''}${m.pct.toFixed(2)}%`}
+                          </div>
+                        </td>
+                      ))}
+                      <td className="py-2 px-3 text-right font-semibold text-gray-900">{(Number(row.totalKg) || 0).toLocaleString('id-ID')} kg</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-md">

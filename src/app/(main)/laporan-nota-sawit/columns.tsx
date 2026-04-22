@@ -1,7 +1,7 @@
 'use client'
 
 import type { ColumnDef } from '@tanstack/react-table'
-import type { NotaSawit, Timbangan, Kebun, User, Kendaraan } from '@prisma/client'
+import type { NotaSawit, Timbangan, Kebun, User, Kendaraan, Perusahaan, PabrikSawit } from '@prisma/client'
 
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
 const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
@@ -11,7 +11,10 @@ export type NotaSawitLaporanData = NotaSawit & {
   timbangan: (Timbangan & { kebun: Kebun }) | null;
   kendaraan: Kendaraan | null;
   kebun?: Kebun | null;
-  pembayaranAktual?: number | null;
+  perusahaan?: Perusahaan | null;
+  pabrikSawit?: PabrikSawit | null;
+  pembayaranBatchItems?: Array<{ batch?: { tanggal?: Date | null } | null }> | null;
+  kasTransaksi?: Array<{ date?: Date | null } | null> | null;
 };
 
 export const columns: ColumnDef<NotaSawitLaporanData>[] = [
@@ -114,12 +117,14 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
     },
   },
   {
-    accessorKey: 'pembayaranAktual',
-    header: () => <div className="text-right">Pembayaran Aktual</div>,
-    cell: ({ row }) => <div className="text-right font-bold text-blue-600">{row.original.pembayaranAktual ? formatCurrency(row.original.pembayaranAktual) : '-'}</div>,
-    footer: ({ table }) => {
-      const kpi = (table.options.meta as any)?.kpi;
-      return <div className="text-right font-bold text-blue-600">{formatCurrency(kpi?.totalAktual || 0)}</div>;
+    accessorKey: 'tanggalDibayar',
+    header: 'Tanggal Dibayar',
+    cell: ({ row }) => {
+      const dt =
+        (row.original as any)?.pembayaranBatchItems?.[0]?.batch?.tanggal ||
+        (row.original as any)?.kasTransaksi?.[0]?.date ||
+        null
+      return dt ? new Date(dt).toLocaleDateString('id-ID') : '-'
     },
   },
   {
@@ -142,5 +147,10 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
       const url = row.original.gambarNotaUrl;
       return url ? <img src={url} alt="Nota" className="w-16 h-16 object-cover rounded" /> : '-';
     },
+  },
+  {
+    accessorKey: 'perusahaan.name',
+    header: 'Perusahaan',
+    cell: ({ row }) => (row.original as any)?.perusahaan?.name ?? '-',
   },
 ]

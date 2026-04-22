@@ -119,9 +119,6 @@ export async function GET(request: Request) {
       where: notaSawitWhere,
     });
 
-    console.log('KPI Aggregate Result:', JSON.stringify(kpiData, null, 2));
-    console.log('Jumlah Nota:', jumlahNota);
-
     const totalTonase = kpiData._sum?.beratAkhir || 0;
     const totalPotongan = kpiData._sum?.potongan || 0;
     const totalNetto = totalTonase + totalPotongan;
