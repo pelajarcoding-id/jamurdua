@@ -487,6 +487,12 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         const totalPotong = computedHutangList.reduce((sum: number, h: any) => sum + (Number(h?.potong) || 0), 0)
         const totalSisaAfter = computedHutangList.reduce((sum: number, h: any) => sum + (Number(h?.sisaAfter) || 0), 0)
         const hasSaldoData = computedHutangList.length > 0
+        const hutangTableMargin = { top: topContentY, left: 20, right: 20, bottom: footerHeight + 14 }
+        const fixedWidths = { no: 36, nama: 170, saldo: 86, hutang: 86, potong: 86, sisa: 86 }
+        const fixedSum =
+          fixedWidths.no + fixedWidths.nama + fixedWidths.saldo + fixedWidths.hutang + fixedWidths.potong + fixedWidths.sisa
+        const availableWidth = pageWidth - hutangTableMargin.left - hutangTableMargin.right
+        const keteranganWidth = Math.max(80, availableWidth - fixedSum)
 
         autoTable(doc, {
           startY: topContentY + 16,
@@ -494,11 +500,11 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
           body: hutangRowsPdf as any,
           foot: [[
             { content: 'TOTAL', colSpan: 2, styles: { halign: 'center', fontStyle: 'bold' } },
-            { content: hasSaldoData ? formatNumber(totalSaldoBefore) : '-', styles: { fontStyle: 'bold' } },
-            { content: totalHutangBaru > 0 ? formatNumber(totalHutangBaru) : '-', styles: { fontStyle: 'bold' } },
-            { content: formatNumber(totalPotong), styles: { fontStyle: 'bold' } },
-            { content: hasSaldoData ? formatNumber(totalSisaAfter) : '-', styles: { fontStyle: 'bold' } },
-            { content: '', styles: { fontStyle: 'bold' } },
+            { content: hasSaldoData ? formatNumber(totalSaldoBefore) : '-', styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: totalHutangBaru > 0 ? formatNumber(totalHutangBaru) : '-', styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: formatNumber(totalPotong), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: hasSaldoData ? formatNumber(totalSisaAfter) : '-', styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: '' },
           ]] as any,
           theme: 'grid',
           styles: {
@@ -523,15 +529,15 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
             lineWidth: 0.5,
           },
           columnStyles: {
-            0: { cellWidth: 36, halign: 'center' },
-            1: { cellWidth: 170 },
-            2: { cellWidth: 86, halign: 'right' },
-            3: { cellWidth: 86, halign: 'right' },
-            4: { cellWidth: 86, halign: 'right' },
-            5: { cellWidth: 86, halign: 'right' },
-            6: { cellWidth: 'auto' },
+            0: { cellWidth: fixedWidths.no, halign: 'center' },
+            1: { cellWidth: fixedWidths.nama, halign: 'left' },
+            2: { cellWidth: fixedWidths.saldo, halign: 'right' },
+            3: { cellWidth: fixedWidths.hutang, halign: 'right' },
+            4: { cellWidth: fixedWidths.potong, halign: 'right' },
+            5: { cellWidth: fixedWidths.sisa, halign: 'right' },
+            6: { cellWidth: keteranganWidth, halign: 'left' },
           },
-          margin: { top: topContentY, left: 20, right: 20, bottom: footerHeight + 14 },
+          margin: hutangTableMargin,
         } as any)
 
         if (showApprovalFields) {
