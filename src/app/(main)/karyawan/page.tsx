@@ -276,6 +276,10 @@ export default function KaryawanKebunPage() {
   const [openAbsenSection, setOpenAbsenSection] = useState(false)
   const [isDeletingAbsen, setIsDeletingAbsen] = useState(false)
   const [isCancellingGaji, setIsCancellingGaji] = useState(false)
+  const [biayaKaryawanOpen, setBiayaKaryawanOpen] = useState(true)
+  const [biayaKaryawanLoading, setBiayaKaryawanLoading] = useState(false)
+  const [biayaKaryawanRows, setBiayaKaryawanRows] = useState<any[]>([])
+  const [biayaKaryawanTotal, setBiayaKaryawanTotal] = useState<number>(0)
 
   useEffect(() => {
     try {
@@ -508,6 +512,38 @@ export default function KaryawanKebunPage() {
     
     loadServerData()
   }, [selectedKebunId, absenUserId, absenMonth, formatDateKey])
+
+  useEffect(() => {
+    const loadBiayaKaryawan = async () => {
+      if (!selectedUser?.id) {
+        setBiayaKaryawanRows([])
+        setBiayaKaryawanTotal(0)
+        return
+      }
+      setBiayaKaryawanLoading(true)
+      try {
+        const start = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
+        const end = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
+        const sp = new URLSearchParams()
+        sp.set('tagScope', 'karyawan')
+        sp.set('karyawanId', String(selectedUser.id))
+        sp.set('startDate', formatDateKey(start))
+        sp.set('endDate', formatDateKey(end))
+        sp.set('page', '1')
+        sp.set('pageSize', '50')
+        const res = await fetch(`/api/reports/cost-center/kas-transaksi?${sp.toString()}`, { cache: 'no-store' })
+        const json = await res.json()
+        setBiayaKaryawanRows(Array.isArray(json?.data) ? json.data : [])
+        setBiayaKaryawanTotal(Number(json?.meta?.totalJumlah || 0))
+      } catch {
+        setBiayaKaryawanRows([])
+        setBiayaKaryawanTotal(0)
+      } finally {
+        setBiayaKaryawanLoading(false)
+      }
+    }
+    loadBiayaKaryawan()
+  }, [absenMonth, formatDateKey, selectedUser?.id])
 
   // Load attendance from localStorage (fallback/initial)
   useEffect(() => {
@@ -2486,7 +2522,7 @@ export default function KaryawanKebunPage() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
                 <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Hari Kerja</p>
                 <p className="text-2xl font-bold text-emerald-900">{absenSummary.hariKerja} <span className="text-sm font-normal text-emerald-600">Hari</span></p>
@@ -2499,6 +2535,58 @@ export default function KaryawanKebunPage() {
                 <p className="text-xs font-medium text-red-600 uppercase tracking-wider mb-1">Saldo Hutang</p>
                 <p className="text-2xl font-bold text-red-900">Rp {absenSummary.hutang.toLocaleString('id-ID')}</p>
               </div>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
+                <p className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-1">Biaya (Tag)</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {biayaKaryawanLoading ? '...' : `Rp ${biayaKaryawanTotal.toLocaleString('id-ID')}`}
+                </p>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div className="text-sm font-semibold text-gray-900">Biaya (Tag Karyawan)</div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full text-gray-600 hover:text-gray-900"
+                  onClick={() => setBiayaKaryawanOpen(v => !v)}
+                >
+                  {biayaKaryawanOpen ? 'Sembunyikan' : 'Tampilkan'}
+                </Button>
+              </div>
+              {biayaKaryawanOpen ? (
+                biayaKaryawanLoading ? (
+                  <div className="px-4 py-4 text-sm text-gray-500">Memuat...</div>
+                ) : biayaKaryawanRows.length === 0 ? (
+                  <div className="px-4 py-4 text-sm text-gray-500">Tidak ada biaya pada periode ini.</div>
+                ) : (
+                  <div className="w-full overflow-x-auto">
+                    <table className="min-w-[720px] w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {biayaKaryawanRows.slice(0, 20).map((r: any) => (
+                          <tr key={`${r.source || 'KAS'}-${r.id}`} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-700">{format(new Date(r.date), 'dd-MMM-yy', { locale: idLocale })}</td>
+                            <td className="px-4 py-3 text-gray-900">{r.deskripsi || '-'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-700">{r.kategori || '-'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-700">{String(r.source || 'KAS')}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900">Rp {Number(r.jumlah || 0).toLocaleString('id-ID')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
             </div>
             {openAbsenSection && (
               <>

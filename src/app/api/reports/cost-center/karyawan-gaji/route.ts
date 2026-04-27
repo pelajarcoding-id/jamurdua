@@ -38,8 +38,8 @@ const dateToWibKey = (d: Date) => {
  
 export async function GET(request: Request) {
   try {
-    await ensureTable()
     const { searchParams } = new URL(request.url)
+    const mode = (searchParams.get('mode') || '').trim().toLowerCase()
  
     const range = getWibRangeUtcFromParams(searchParams)
     const monthRange = range ? null : getWibMonthRangeUtc(searchParams.get('month') || defaultMonthKey())
@@ -69,6 +69,109 @@ export async function GET(request: Request) {
  
     const startUtcFinal = startYmd ? wibStartUtc(startYmd) : startUtc
     const endUtcFinal = endYmd ? wibEndUtcInclusive(endYmd) : new Date(endExclusiveUtc.getTime() - 1)
+
+    if (mode === 'tag_biaya' || mode === 'tag') {
+      const kasAgg = await prisma.kasTransaksi.groupBy({
+        by: ['karyawanId'],
+        where: {
+          deletedAt: null,
+          tipe: 'PENGELUARAN',
+          karyawanId: { not: null },
+          ...(kebunId ? { kebunId } : {}),
+          date: { gte: startUtcFinal, lte: endUtcFinal },
+          AND: [
+            {
+              OR: [{ kategori: { not: 'GAJI' } }, { kategori: null }],
+            },
+          ],
+        } as any,
+        _sum: { jumlah: true },
+      } as any)
+
+      const uangJalanAgg = await prisma.$queryRaw<
+        Array<{ karyawanId: number; total: any }>
+      >(
+        Prisma.sql`
+          SELECT (regexp_match(uj."description", '\\[KARYAWAN:(\\d+)\\]'))[1]::INT AS "karyawanId",
+                 COALESCE(SUM(uj."amount"),0) AS total
+          FROM "UangJalan" uj
+          JOIN "SesiUangJalan" sj
+            ON sj."id" = uj."sesiUangJalanId"
+           AND sj."deletedAt" IS NULL
+          WHERE uj."deletedAt" IS NULL
+            AND uj."tipe" = 'PENGELUARAN'
+            AND uj."date" >= ${startUtcFinal}
+            AND uj."date" <= ${endUtcFinal}
+            AND uj."description" ~ '\\[KARYAWAN:(\\d+)\\]'
+            ${kebunId ? Prisma.sql`AND uj."description" LIKE ${`%[KEBUN:${kebunId}]%`}` : Prisma.empty}
+          GROUP BY 1
+        `
+      )
+
+      const kasMap = new Map<number, number>(
+        (kasAgg as any[]).map((r: any) => [Number(r.karyawanId), Number(r._sum?.jumlah) || 0])
+      )
+      const uangJalanMap = new Map<number, number>(
+        (uangJalanAgg || []).map((r) => [Number(r.karyawanId), Number(r.total) || 0])
+      )
+
+      const karyawanIds = Array.from(new Set<number>([...kasMap.keys(), ...uangJalanMap.keys()]))
+      const users = karyawanIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: karyawanIds } },
+            select: { id: true, name: true },
+          })
+        : []
+      const nameMap = new Map(users.map((u) => [u.id, u.name]))
+
+      const allRows = karyawanIds
+        .map((idNum) => {
+          const kasTotal = kasMap.get(idNum) || 0
+          const uangJalanTotal = uangJalanMap.get(idNum) || 0
+          return {
+            karyawanId: idNum,
+            karyawanName: nameMap.get(idNum) || `Karyawan #${idNum}`,
+            kasTotal,
+            uangJalanTotal,
+            total: kasTotal + uangJalanTotal,
+          }
+        })
+        .sort((a, b) => a.karyawanName.localeCompare(b.karyawanName))
+
+      const filteredRows = searchLower
+        ? allRows.filter((r) => {
+            if (String(r.karyawanId) === searchLower) return true
+            return String(r.karyawanName || '').toLowerCase().includes(searchLower)
+          })
+        : allRows
+
+      const totalItems = filteredRows.length
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+      const startIdx = (page - 1) * pageSize
+      const paged = filteredRows.slice(startIdx, startIdx + pageSize)
+
+      const sumKas = filteredRows.reduce((acc, r) => acc + (Number(r.kasTotal) || 0), 0)
+      const sumUangJalan = filteredRows.reduce((acc, r) => acc + (Number(r.uangJalanTotal) || 0), 0)
+      const sumTotal = filteredRows.reduce((acc, r) => acc + (Number(r.total) || 0), 0)
+
+      return NextResponse.json({
+        data: paged,
+        meta: {
+          mode: 'tag_biaya',
+          page,
+          pageSize,
+          totalItems,
+          totalPages,
+          startDate: startKey,
+          endDate: endKey,
+          sumKas,
+          sumUangJalan,
+          sumTotal,
+        },
+      })
+    }
+
+    await ensureTable()
  
     const berjalanAgg: Array<{ karyawanId: number; total: any }> = await prisma.$queryRaw(
       Prisma.sql`SELECT "karyawanId",

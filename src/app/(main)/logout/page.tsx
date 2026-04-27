@@ -7,7 +7,25 @@ export default function LogoutPage() {
   useEffect(() => {
     const performLogout = async () => {
       try {
-        await fetch('/api/auth/logout', { method: 'POST' })
+        const endpoints: string[] = []
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          const regs = await navigator.serviceWorker.getRegistrations().catch(() => [])
+          for (const reg of regs) {
+            try {
+              const sub = await reg.pushManager.getSubscription()
+              if (!sub) continue
+              const endpoint = String(sub.endpoint || '').trim()
+              if (endpoint) endpoints.push(endpoint)
+              try { await sub.unsubscribe() } catch {}
+            } catch {}
+          }
+        }
+
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoints }),
+        })
         // Use window.location.href to force a full page reload and clear client state
         window.location.href = '/login'
       } catch (error) {

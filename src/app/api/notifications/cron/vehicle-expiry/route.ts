@@ -18,6 +18,11 @@ const addDaysYmd = (ymd: string, days: number) => {
 const daysLeftFromWibStart = (expiry: Date, wibTodayStartUtc: Date) =>
   Math.ceil((expiry.getTime() - wibTodayStartUtc.getTime()) / (24 * 60 * 60 * 1000))
 
+const formatWibDate = (date: Date) =>
+  new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' }).format(
+    date,
+  )
+
 export async function POST(request: Request) {
   const url = new URL(request.url)
   const secret = request.headers.get('x-cron-secret') || url.searchParams.get('secret') || ''
@@ -72,12 +77,15 @@ export async function POST(request: Request) {
   const existingKey = new Set(existing.map((n) => `${n.userId}|${n.type}|${n.link || ''}`))
 
   const toCreate: Array<{ userId: number; type: string; title: string; message: string; link: string; isRead: boolean }> = []
+  const pushLines: string[] = []
   for (const v of vehicles) {
     const plat = v.platNomor
     const link = `/kendaraan?search=${encodeURIComponent(plat)}`
 
     const stnkLeft = daysLeftFromWibStart(v.tanggalMatiStnk, startUtc)
     if (stnkLeft >= 0 && stnkLeft <= 5) {
+      const jatuhTempo = formatWibDate(v.tanggalMatiStnk)
+      pushLines.push(`${plat} (STNK ${jatuhTempo})`)
       for (const uid of recipientIds) {
         const key = `${uid}|KENDARAAN_STNK|${link}`
         if (existingKey.has(key)) continue
@@ -85,7 +93,7 @@ export async function POST(request: Request) {
           userId: uid,
           type: 'KENDARAAN_STNK',
           title: `STNK Akan Jatuh Tempo (${stnkLeft} hari)`,
-          message: `${v.merk} - ${plat}`,
+          message: `${v.merk} - ${plat} • Jatuh tempo ${jatuhTempo}`,
           link,
           isRead: false,
         })
@@ -95,6 +103,8 @@ export async function POST(request: Request) {
     if (v.tanggalPajakTahunan) {
       const pajakLeft = daysLeftFromWibStart(v.tanggalPajakTahunan, startUtc)
       if (pajakLeft >= 0 && pajakLeft <= 5) {
+        const jatuhTempo = formatWibDate(v.tanggalPajakTahunan)
+        pushLines.push(`${plat} (Pajak ${jatuhTempo})`)
         for (const uid of recipientIds) {
           const key = `${uid}|KENDARAAN_PAJAK|${link}`
           if (existingKey.has(key)) continue
@@ -102,7 +112,7 @@ export async function POST(request: Request) {
             userId: uid,
             type: 'KENDARAAN_PAJAK',
             title: `Pajak Tahunan Akan Jatuh Tempo (${pajakLeft} hari)`,
-            message: `${v.merk} - ${plat}`,
+            message: `${v.merk} - ${plat} • Jatuh tempo ${jatuhTempo}`,
             link,
             isRead: false,
           })
@@ -114,9 +124,12 @@ export async function POST(request: Request) {
   if (toCreate.length === 0) return NextResponse.json({ ok: true, sent: 0, created: 0 })
 
   await prisma.notification.createMany({ data: toCreate })
+  const uniqueLines = Array.from(new Set(pushLines))
+  const shown = uniqueLines.slice(0, 3)
+  const remaining = Math.max(0, uniqueLines.length - shown.length)
   const payload = {
     title: 'Pengingat Kendaraan Jatuh Tempo',
-    body: `Ada ${vehicles.length} kendaraan mendekati jatuh tempo. Buka untuk detail.`,
+    body: shown.length > 0 ? `${shown.join('\n')}${remaining > 0 ? `\n+${remaining} lainnya` : ''}` : 'Ada kendaraan mendekati jatuh tempo. Buka untuk detail.',
     url: '/kendaraan',
   }
   const { sent } = await sendPushToUsers({ userIds: recipientIds, eventKey: 'VEHICLE_EXPIRY', payload })

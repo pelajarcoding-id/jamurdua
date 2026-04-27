@@ -1,14 +1,115 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import RoleGate from '@/components/RoleGate';
-import { ArchiveBoxIcon, BuildingOfficeIcon, TruckIcon, UsersIcon, ArrowDownTrayIcon, ChevronDownIcon, EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, BuildingOfficeIcon, TruckIcon, UsersIcon, ArrowDownTrayIcon, CheckIcon, ChevronDownIcon, ChevronUpDownIcon, EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(res => res.json());
+
+type SearchOption = { value: string; label: string }
+
+function SearchableFilter({
+    label,
+    value,
+    onChange,
+    options,
+    allLabel,
+    allValue,
+    searchPlaceholder,
+    triggerClassName,
+    enableAll = true,
+}: {
+    label: string
+    value: string
+    onChange: (next: string) => void
+    options: SearchOption[]
+    allLabel: string
+    allValue: string
+    searchPlaceholder: string
+    triggerClassName?: string
+    enableAll?: boolean
+}) {
+    const [open, setOpen] = useState(false)
+    const inputRef = useRef<HTMLInputElement | null>(null)
+
+    const selectedLabel = useMemo(() => {
+        if (enableAll && value === allValue) return allLabel
+        return options.find((o) => o.value === value)?.label || value || allLabel
+    }, [allLabel, allValue, enableAll, options, value])
+
+    return (
+        <Popover
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next)
+                if (next) requestAnimationFrame(() => inputRef.current?.focus())
+            }}
+        >
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className={cn('w-full justify-between bg-white border-gray-200', triggerClassName)}
+                >
+                    <span className="truncate">{selectedLabel}</span>
+                    <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[9999]" align="start">
+                <Command>
+                    <CommandInput
+                        ref={inputRef as any}
+                        placeholder={searchPlaceholder}
+                        autoFocus
+                        onKeyDown={(e) => e.stopPropagation()}
+                    />
+                    <CommandList className="max-h-64 overflow-y-auto no-scrollbar">
+                        <CommandEmpty>Tidak ada data.</CommandEmpty>
+                        <CommandGroup heading={label}>
+                            {enableAll ? (
+                                <CommandItem
+                                    value={allLabel}
+                                    className="cursor-pointer"
+                                    onSelect={() => {
+                                        onChange(allValue)
+                                        setOpen(false)
+                                    }}
+                                >
+                                    <CheckIcon className={cn('mr-2 h-4 w-4', value === allValue ? 'opacity-100' : 'opacity-0')} />
+                                    {allLabel}
+                                </CommandItem>
+                            ) : null}
+                            {options.map((opt) => (
+                                <CommandItem
+                                    key={opt.value}
+                                    value={opt.label}
+                                    className="cursor-pointer"
+                                    onSelect={() => {
+                                        onChange(opt.value)
+                                        setOpen(false)
+                                    }}
+                                >
+                                    <CheckIcon className={cn('mr-2 h-4 w-4', value === opt.value ? 'opacity-100' : 'opacity-0')} />
+                                    {opt.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
+}
 
 export default function CostCenterPage() {
     const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -173,6 +274,7 @@ export default function CostCenterPage() {
     const karyawanGajiParams = new URLSearchParams()
     karyawanGajiParams.set('startDate', startDate)
     karyawanGajiParams.set('endDate', endDate)
+    karyawanGajiParams.set('mode', 'tag_biaya')
     if (selectedKebunId !== 'all') karyawanGajiParams.set('kebunId', selectedKebunId)
     if (searchQuery) karyawanGajiParams.set('search', searchQuery)
     karyawanGajiParams.set('page', String(gajianPage))
@@ -702,6 +804,7 @@ export default function CostCenterPage() {
             const p = new URLSearchParams()
             p.set('startDate', startDate)
             p.set('endDate', endDate)
+            p.set('mode', 'tag_biaya')
             if (selectedKebunId !== 'all') p.set('kebunId', selectedKebunId)
             p.set('page', '1')
             p.set('pageSize', '10000')
@@ -709,13 +812,13 @@ export default function CostCenterPage() {
             const json = await res.json()
             const rows = (json?.data || []).map((r: any) => ({
                 Karyawan: r.karyawanName || `Karyawan #${r.karyawanId}`,
-                'Gaji Berjalan': Number(r.gajiBerjalan || 0),
-                'Gaji Dibayar': Number(r.gajiDibayar || 0),
+                Kas: Number(r.kasTotal || 0),
+                'Uang Jalan': Number(r.uangJalanTotal || 0),
                 Total: Number(r.total || 0),
             }))
-            const blob = buildCsv(['Karyawan','Gaji Berjalan','Gaji Dibayar','Total'], rows)
+            const blob = buildCsv(['Karyawan','Kas','Uang Jalan','Total'], rows)
             const suffix = selectedKebunId !== 'all' ? `-kebun-${selectedKebunId}` : ''
-            saveBlob(blob, `biaya-gaji-karyawan${suffix}-${periodKey}.csv`)
+            saveBlob(blob, `biaya-karyawan-tag${suffix}-${periodKey}.csv`)
         } finally {
             setExporting(s => ({...s, gaji: false}))
         }
@@ -728,6 +831,7 @@ export default function CostCenterPage() {
             const p = new URLSearchParams()
             p.set('startDate', startDate)
             p.set('endDate', endDate)
+            p.set('mode', 'tag_biaya')
             if (selectedKebunId !== 'all') p.set('kebunId', selectedKebunId)
             p.set('page', '1')
             p.set('pageSize', '10000')
@@ -735,25 +839,25 @@ export default function CostCenterPage() {
             const json = await res.json()
             const rows = (json?.data || []).map((r: any) => ([
                 r.karyawanName || `Karyawan #${r.karyawanId}`,
-                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(r.gajiBerjalan || 0)),
-                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(r.gajiDibayar || 0)),
+                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(r.kasTotal || 0)),
+                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(r.uangJalanTotal || 0)),
                 new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(r.total || 0)),
             ]))
             const jsPDF = (await import('jspdf')).default
             const autoTable = (await import('jspdf-autotable')).default
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
             doc.setFontSize(12)
-            doc.text(`Biaya Gaji Karyawan - ${periodKey}`, 12, 12)
+            doc.text(`Biaya Karyawan (Tag) - ${periodKey}`, 12, 12)
             autoTable(doc, {
                 startY: 18,
-                head: [['Karyawan','Gaji Berjalan','Gaji Dibayar','Total']],
+                head: [['Karyawan','Kas','Uang Jalan','Total']],
                 body: rows,
                 styles: { fontSize: 9, cellPadding: 2 },
                 headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold' },
                 columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
             })
             const suffix = selectedKebunId !== 'all' ? `-kebun-${selectedKebunId}` : ''
-            doc.save(`biaya-gaji-karyawan${suffix}-${periodKey}.pdf`)
+            doc.save(`biaya-karyawan-tag${suffix}-${periodKey}.pdf`)
         } finally {
             setExporting(s => ({...s, gaji: false}))
         }
@@ -957,24 +1061,30 @@ export default function CostCenterPage() {
     }
 
     return (
-        <RoleGate allow={['ADMIN']}>
+        <RoleGate allow={['ADMIN', 'PEMILIK']}>
             <div className="p-4 md:p-8 space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h1 className="text-2xl font-bold">Laporan Biaya Operasional (Cost Center)</h1>
                     <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-                        <select
+                        <SearchableFilter
+                            label="Periode"
                             value={quickRange}
-                            onChange={(e) => applyQuickRange(e.target.value as any)}
-                            className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none w-full md:w-56"
-                        >
-                            <option value="today">Hari Ini</option>
-                            <option value="yesterday">Kemarin</option>
-                            <option value="last_week">7 Hari Terakhir</option>
-                            <option value="last_30_days">30 Hari Terakhir</option>
-                            <option value="this_month">Bulan Ini</option>
-                            <option value="this_year">Tahun Ini</option>
-                            <option value="custom">Kustom</option>
-                        </select>
+                            onChange={(next) => applyQuickRange(next as any)}
+                            options={[
+                                { value: 'today', label: 'Hari Ini' },
+                                { value: 'yesterday', label: 'Kemarin' },
+                                { value: 'last_week', label: '7 Hari Terakhir' },
+                                { value: 'last_30_days', label: '30 Hari Terakhir' },
+                                { value: 'this_month', label: 'Bulan Ini' },
+                                { value: 'this_year', label: 'Tahun Ini' },
+                                { value: 'custom', label: 'Kustom' },
+                            ]}
+                            allLabel=""
+                            allValue=""
+                            enableAll={false}
+                            searchPlaceholder="Cari periode..."
+                            triggerClassName="h-10 rounded-md px-3 py-2 text-sm focus:outline-none w-full md:w-56"
+                        />
                         {quickRange === 'custom' ? (
                             <>
                                 <Input
@@ -1053,16 +1163,16 @@ export default function CostCenterPage() {
 
                     <TabsContent value="kendaraan" className="mt-0 focus-visible:outline-none">
                         <div className="flex flex-col md:flex-row gap-2 w-full">
-                            <select
+                            <SearchableFilter
+                                label="Kendaraan"
                                 value={selectedKendaraan}
-                                onChange={(e) => setSelectedKendaraan(e.target.value)}
-                                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none w-full md:w-72"
-                            >
-                                <option value="all">Semua Kendaraan</option>
-                                {kendaraanList.map((k) => (
-                                    <option key={k.platNomor} value={k.platNomor}>{k.platNomor} ({k.merk})</option>
-                                ))}
-                            </select>
+                                onChange={(next) => setSelectedKendaraan(next)}
+                                options={kendaraanList.map((k) => ({ value: k.platNomor, label: `${k.platNomor} (${k.merk})` }))}
+                                allLabel="Semua Kendaraan"
+                                allValue="all"
+                                searchPlaceholder="Cari plat/merk..."
+                                triggerClassName="h-10 rounded-md px-3 py-2 text-sm focus:outline-none w-full md:w-72"
+                            />
                         </div>
 
                         <div className="card-style p-0 overflow-hidden mt-6">
@@ -1210,16 +1320,16 @@ export default function CostCenterPage() {
 
                     <TabsContent value="kebun" className="mt-0 focus-visible:outline-none">
                         <div className="flex flex-col md:flex-row gap-2 w-full">
-                            <select
+                            <SearchableFilter
+                                label="Kebun"
                                 value={selectedKebunId}
-                                onChange={(e) => setSelectedKebunId(e.target.value)}
-                                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none w-full md:w-64"
-                            >
-                                <option value="all">Semua Kebun</option>
-                                {kebunList.map((k) => (
-                                    <option key={k.id} value={String(k.id)}>{k.name}</option>
-                                ))}
-                            </select>
+                                onChange={(next) => setSelectedKebunId(next)}
+                                options={kebunList.map((k) => ({ value: String(k.id), label: k.name }))}
+                                allLabel="Semua Kebun"
+                                allValue="all"
+                                searchPlaceholder="Cari kebun..."
+                                triggerClassName="h-10 rounded-md px-3 py-2 text-sm focus:outline-none w-full md:w-64"
+                            />
                         </div>
 
                         <div className="card-style p-0 overflow-hidden mt-6">
@@ -1505,16 +1615,16 @@ export default function CostCenterPage() {
 
                     <TabsContent value="perusahaan" className="mt-0 focus-visible:outline-none">
                         <div className="flex flex-col md:flex-row gap-2 w-full">
-                            <select
+                            <SearchableFilter
+                                label="Perusahaan"
                                 value={selectedPerusahaanId}
-                                onChange={(e) => setSelectedPerusahaanId(e.target.value)}
-                                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none w-full md:w-72"
-                            >
-                                <option value="all">Semua Perusahaan</option>
-                                {perusahaanList.map((p) => (
-                                    <option key={p.id} value={String(p.id)}>{p.name}</option>
-                                ))}
-                            </select>
+                                onChange={(next) => setSelectedPerusahaanId(next)}
+                                options={perusahaanList.map((p) => ({ value: String(p.id), label: p.name }))}
+                                allLabel="Semua Perusahaan"
+                                allValue="all"
+                                searchPlaceholder="Cari perusahaan..."
+                                triggerClassName="h-10 rounded-md px-3 py-2 text-sm focus:outline-none w-full md:w-72"
+                            />
                         </div>
 
                         <div className="card-style p-0 overflow-hidden mt-6">
@@ -1780,23 +1890,23 @@ export default function CostCenterPage() {
 
                     <TabsContent value="gaji" className="mt-0 focus-visible:outline-none">
                         <div className="flex flex-col md:flex-row gap-2 w-full">
-                            <select
+                            <SearchableFilter
+                                label="Kebun"
                                 value={selectedKebunId}
-                                onChange={(e) => setSelectedKebunId(e.target.value)}
-                                className="h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none w-full md:w-64"
-                            >
-                                <option value="all">Semua Kebun</option>
-                                {kebunList.map((k) => (
-                                    <option key={k.id} value={String(k.id)}>{k.name}</option>
-                                ))}
-                            </select>
+                                onChange={(next) => setSelectedKebunId(next)}
+                                options={kebunList.map((k) => ({ value: String(k.id), label: k.name }))}
+                                allLabel="Semua Kebun"
+                                allValue="all"
+                                searchPlaceholder="Cari kebun..."
+                                triggerClassName="h-10 rounded-md px-3 py-2 text-sm focus:outline-none w-full md:w-64"
+                            />
                         </div>
 
                         <div className="card-style p-0 overflow-hidden mt-6">
                             <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
                                 <div>
-                                    <div className="text-sm font-semibold text-gray-900">Biaya Gaji (Karyawan)</div>
-                                    <div className="text-xs text-gray-500">Menampilkan total gaji berjalan + gaji dibayar per karyawan pada periode terpilih.</div>
+                                    <div className="text-sm font-semibold text-gray-900">Biaya Karyawan (Tag)</div>
+                                    <div className="text-xs text-gray-500">Menampilkan total biaya yang ditag ke karyawan (Kas + Uang Jalan) pada periode terpilih.</div>
                                 </div>
                                 <div className="relative">
                                     <button
@@ -1834,8 +1944,8 @@ export default function CostCenterPage() {
                                     <thead className="bg-white">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Karyawan</th>
-                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Gaji Berjalan</th>
-                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Gaji Dibayar</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Kas</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Uang Jalan</th>
                                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
                                         </tr>
                                     </thead>
@@ -1843,17 +1953,17 @@ export default function CostCenterPage() {
                                         {loadingKaryawanGajiRows ? (
                                             <tr><td colSpan={4} className="px-6 py-6 text-sm text-gray-500">Memuat...</td></tr>
                                         ) : (karyawanGajiRows?.data || []).length === 0 ? (
-                                            <tr><td colSpan={4} className="px-6 py-6 text-sm text-gray-500">Tidak ada data biaya gaji.</td></tr>
+                                            <tr><td colSpan={4} className="px-6 py-6 text-sm text-gray-500">Tidak ada data biaya tag karyawan.</td></tr>
                                         ) : (
                                             (karyawanGajiRows?.data || []).map((r: any) => {
-                                                const berjalan = Number(r.gajiBerjalan || 0)
-                                                const dibayar = Number(r.gajiDibayar || 0)
+                                                const kasTotal = Number(r.kasTotal || 0)
+                                                const uangJalanTotal = Number(r.uangJalanTotal || 0)
                                                 const total = Number(r.total || 0)
                                                 return (
                                                     <tr key={r.karyawanId} className="hover:bg-gray-50/50 transition-colors">
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900">{r.karyawanName || `Karyawan #${r.karyawanId}`}</td>
-                                                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(berjalan)}</td>
-                                                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(dibayar)}</td>
+                                                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(kasTotal)}</td>
+                                                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(uangJalanTotal)}</td>
                                                         <td className="px-6 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">{formatCurrency(total)}</td>
                                                     </tr>
                                                 )
@@ -1863,8 +1973,8 @@ export default function CostCenterPage() {
                                     <tfoot className="bg-gray-50">
                                         <tr>
                                             <td className="px-6 py-3 text-right text-xs font-semibold text-gray-600">Total</td>
-                                            <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(Number(karyawanGajiRows?.meta?.sumBerjalan || 0))}</td>
-                                            <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(Number(karyawanGajiRows?.meta?.sumDibayar || 0))}</td>
+                                            <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(Number(karyawanGajiRows?.meta?.sumKas || 0))}</td>
+                                            <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(Number(karyawanGajiRows?.meta?.sumUangJalan || 0))}</td>
                                             <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">{formatCurrency(Number(karyawanGajiRows?.meta?.sumTotal || 0))}</td>
                                         </tr>
                                     </tfoot>
