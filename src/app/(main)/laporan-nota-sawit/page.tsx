@@ -14,10 +14,9 @@ import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { ArrowDownTrayIcon, CalendarIcon, ChartBarIcon, CheckIcon, ChevronUpDownIcon, DocumentTextIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, CalendarIcon, ChartBarIcon, DocumentTextIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import toast from 'react-hot-toast';
 import ModalDetailNota from '@/app/(main)/nota-sawit/detail-modal';
 import type { NotaSawitData } from '@/app/(main)/nota-sawit/columns';
@@ -70,91 +69,6 @@ interface KpiData {
 }
 
 type SearchOption = { value: string; label: string }
-
-function SearchableFilter({
-  label,
-  value,
-  onChange,
-  options,
-  allLabel,
-  searchPlaceholder,
-}: {
-  label: string
-  value: string
-  onChange: (next: string) => void
-  options: SearchOption[]
-  allLabel: string
-  searchPlaceholder: string
-}) {
-  const [open, setOpen] = useState(false)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const selectedLabel = value ? (options.find((o) => o.value === value)?.label || value) : allLabel
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) {
-          requestAnimationFrame(() => inputRef.current?.focus())
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between bg-white border-gray-300 rounded-xl"
-        >
-          <span className="truncate">{selectedLabel}</span>
-          <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[9999]" align="start">
-        <Command>
-          <CommandInput
-            ref={inputRef as any}
-            placeholder={searchPlaceholder}
-            autoFocus
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-          <CommandList className="max-h-64 overflow-y-auto no-scrollbar">
-            <CommandEmpty>Tidak ada data.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value={allLabel}
-                className="cursor-pointer"
-                onSelect={() => {
-                  onChange('')
-                  setOpen(false)
-                }}
-              >
-                <CheckIcon className={cn('mr-2 h-4 w-4', !value ? 'opacity-100' : 'opacity-0')} />
-                {allLabel}
-              </CommandItem>
-              {options.map((opt) => (
-                <CommandItem
-                  key={opt.value}
-                  value={opt.label}
-                  className="cursor-pointer"
-                  onSelect={() => {
-                    onChange(opt.value)
-                    setOpen(false)
-                  }}
-                >
-                  <CheckIcon className={cn('mr-2 h-4 w-4', value === opt.value ? 'opacity-100' : 'opacity-0')} />
-                  {opt.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 export default function LaporanNotaSawitPage() {
   const router = useRouter()
@@ -1345,14 +1259,23 @@ export default function LaporanNotaSawitPage() {
 
             <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Filter per Kebun</Label>
-              <SearchableFilter
-                label="Kebun"
-                value={selectedKebun}
-                onChange={(v) => { setSelectedKebun(v); setPage(1) }}
-                allLabel="Semua Kebun"
-                searchPlaceholder="Cari kebun..."
-                options={kebunList.map((k) => ({ value: String(k.id), label: k.name }))}
-              />
+              <Select
+                value={selectedKebun || 'all'}
+                onValueChange={(v) => {
+                  setSelectedKebun(v === 'all' ? '' : v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                  <SelectValue placeholder="Semua Kebun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kebun</SelectItem>
+                  {kebunList.map((k) => (
+                    <SelectItem key={k.id} value={String(k.id)}>{k.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Status Pembayaran</Label>
@@ -1375,49 +1298,87 @@ export default function LaporanNotaSawitPage() {
             </div>
             <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Filter per Perusahaan</Label>
-              <SearchableFilter
-                label="Perusahaan"
-                value={selectedPerusahaan}
-                onChange={(v) => { setSelectedPerusahaan(v); setPage(1) }}
-                allLabel="Semua Perusahaan"
-                searchPlaceholder="Cari perusahaan..."
-                options={perusahaanList.map((p) => ({ value: String(p.id), label: p.name }))}
-              />
+              <Select
+                value={selectedPerusahaan || 'all'}
+                onValueChange={(v) => {
+                  setSelectedPerusahaan(v === 'all' ? '' : v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                  <SelectValue placeholder="Semua Perusahaan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Perusahaan</SelectItem>
+                  {perusahaanList.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Filter per Supir</Label>
-              <SearchableFilter
-                label="Supir"
-                value={selectedSupir}
-                onChange={(v) => { setSelectedSupir(v); setPage(1) }}
-                allLabel="Semua Supir"
-                searchPlaceholder="Cari supir..."
-                options={supirList.map((s) => ({ value: String(s.id), label: s.name }))}
-              />
+              <Select
+                value={selectedSupir || 'all'}
+                onValueChange={(v) => {
+                  setSelectedSupir(v === 'all' ? '' : v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                  <SelectValue placeholder="Semua Supir" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Supir</SelectItem>
+                  {supirList.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col space-y-2">
               <Label className="text-sm font-medium text-gray-700">Filter per Pabrik</Label>
-              <SearchableFilter
-                label="Pabrik"
-                value={selectedPabrik}
-                onChange={(v) => { setSelectedPabrik(v); setPage(1) }}
-                allLabel="Semua Pabrik"
-                searchPlaceholder="Cari pabrik..."
-                options={pabrikList.map((p) => ({ value: String(p.id), label: p.name }))}
-              />
+              <Select
+                value={selectedPabrik || 'all'}
+                onValueChange={(v) => {
+                  setSelectedPabrik(v === 'all' ? '' : v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                  <SelectValue placeholder="Semua Pabrik" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Pabrik</SelectItem>
+                  {pabrikList.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
                 <div className="flex flex-col space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Filter per Kendaraan</Label>
-                  <SearchableFilter
-                    label="Kendaraan"
-                    value={selectedKendaraan}
-                    onChange={(v) => { setSelectedKendaraan(v); setPage(1) }}
-                    allLabel="Semua Kendaraan"
-                    searchPlaceholder="Cari plat..."
-                    options={kendaraanList
-                      .filter((k) => String((k as any)?.jenis || '').toLowerCase().includes('truk') || String((k as any)?.jenis || '').toLowerCase().includes('truck'))
-                      .map((k) => ({ value: k.platNomor, label: `${k.platNomor}${k.merk ? ` • ${k.merk}` : ''}` }))}
-                  />
+                  <Select
+                    value={selectedKendaraan || 'all'}
+                    onValueChange={(v) => {
+                      setSelectedKendaraan(v === 'all' ? '' : v)
+                      setPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-white border-gray-300 rounded-xl">
+                      <SelectValue placeholder="Semua Kendaraan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Kendaraan</SelectItem>
+                      {kendaraanList
+                        .filter((k) => String((k as any)?.jenis || '').toLowerCase().includes('truk') || String((k as any)?.jenis || '').toLowerCase().includes('truck'))
+                        .map((k) => (
+                          <SelectItem key={k.platNomor} value={k.platNomor}>
+                            {k.platNomor}{k.merk ? ` • ${k.merk}` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
           </div>
         </div>

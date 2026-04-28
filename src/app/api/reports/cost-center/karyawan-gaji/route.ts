@@ -50,6 +50,8 @@ export async function GET(request: Request) {
  
     const kebunIdParam = searchParams.get('kebunId')
     const kebunId = kebunIdParam ? Number(kebunIdParam) : null
+    const karyawanIdParam = searchParams.get('karyawanId')
+    const karyawanId = karyawanIdParam ? Number(karyawanIdParam) : null
     const searchLower = (searchParams.get('search') || '').trim().toLowerCase()
  
     const pageRaw = Number(searchParams.get('page') || 1)
@@ -77,6 +79,7 @@ export async function GET(request: Request) {
           deletedAt: null,
           tipe: 'PENGELUARAN',
           karyawanId: { not: null },
+          ...(karyawanId ? { karyawanId } : {}),
           ...(kebunId ? { kebunId } : {}),
           date: { gte: startUtcFinal, lte: endUtcFinal },
           AND: [
@@ -103,6 +106,7 @@ export async function GET(request: Request) {
             AND uj."date" >= ${startUtcFinal}
             AND uj."date" <= ${endUtcFinal}
             AND uj."description" ~ '\\[KARYAWAN:(\\d+)\\]'
+            ${karyawanId ? Prisma.sql`AND (regexp_match(uj."description", '\\[KARYAWAN:(\\d+)\\]'))[1]::INT = ${karyawanId}` : Prisma.empty}
             ${kebunId ? Prisma.sql`AND uj."description" LIKE ${`%[KEBUN:${kebunId}]%`}` : Prisma.empty}
           GROUP BY 1
         `
@@ -115,7 +119,8 @@ export async function GET(request: Request) {
         (uangJalanAgg || []).map((r) => [Number(r.karyawanId), Number(r.total) || 0])
       )
 
-      const karyawanIds = Array.from(new Set<number>([...kasMap.keys(), ...uangJalanMap.keys()]))
+      const baseIds = Array.from(new Set<number>([...kasMap.keys(), ...uangJalanMap.keys()]))
+      const karyawanIds = (karyawanId && baseIds.length === 0) ? [karyawanId] : baseIds
       const users = karyawanIds.length
         ? await prisma.user.findMany({
             where: { id: { in: karyawanIds } },
@@ -179,6 +184,7 @@ export async function GET(request: Request) {
                  FROM "AbsensiGajiHarian"
                  WHERE "date" >= ${startKey}::DATE
                    AND "date" <= ${endKey}::DATE
+                   ${karyawanId ? Prisma.sql`AND "karyawanId" = ${karyawanId}` : Prisma.empty}
                    ${kebunId ? Prisma.sql`AND "kebunId" = ${kebunId}` : Prisma.empty}
                  GROUP BY "karyawanId"`
     )
@@ -190,6 +196,7 @@ export async function GET(request: Request) {
         tipe: 'PENGELUARAN',
         kategori: 'GAJI',
         karyawanId: { not: null },
+        ...(karyawanId ? { karyawanId } : {}),
         ...(kebunId ? { kebunId } : {}),
         date: { gte: startUtcFinal, lte: endUtcFinal },
       } as any,
@@ -199,7 +206,8 @@ export async function GET(request: Request) {
     const berjalanMap = new Map<number, number>(berjalanAgg.map((r) => [Number(r.karyawanId), Number(r.total) || 0]))
     const dibayarMap = new Map<number, number>((dibayar as any[]).map((r: any) => [Number(r.karyawanId), Number(r._sum?.jumlah) || 0]))
  
-    const karyawanIds = Array.from(new Set<number>([...berjalanMap.keys(), ...dibayarMap.keys()]))
+    const baseIds = Array.from(new Set<number>([...berjalanMap.keys(), ...dibayarMap.keys()]))
+    const karyawanIds = (karyawanId && baseIds.length === 0) ? [karyawanId] : baseIds
     const users = karyawanIds.length
       ? await prisma.user.findMany({
           where: { id: { in: karyawanIds } },

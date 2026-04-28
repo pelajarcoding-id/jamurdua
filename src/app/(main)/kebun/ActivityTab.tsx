@@ -437,12 +437,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       const res = await fetch(baseUrl.toString());
       if (!res.ok) throw new Error('Gagal mengambil data');
       const data = await res.json();
-      const grouped = new Map<string, Pekerjaan>();
-      (Array.isArray(data) ? data : []).forEach((item: Pekerjaan) => {
-        const dateKey = item.date ? formatWibYmd(new Date(item.date)) : '';
-      const key = item.upahBorongan
-        ? `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${item.biaya || 0}|${item.jumlah || 0}|${item.satuan || ''}|${item.hargaSatuan || 0}|${(item as any).imageUrl || ''}`
-        : `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${(item as any).imageUrl || ''}`;
+      const rows = Array.isArray(data) ? data : []
+      if (mode === 'borongan') {
+        setActivity(rows)
+        return
+      }
+
+      const grouped = new Map<string, Pekerjaan>()
+      rows.forEach((item: Pekerjaan) => {
+        const dateKey = item.date ? formatWibYmd(new Date(item.date)) : ''
+        const key = item.upahBorongan
+          ? `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${item.biaya || 0}|${item.jumlah || 0}|${item.satuan || ''}|${item.hargaSatuan || 0}|${(item as any).imageUrl || ''}`
+          : `${dateKey}|${item.jenisPekerjaan}|${item.keterangan || ''}|${(item as any).imageUrl || ''}`
         const isPaid = !!(item.upahBorongan && item.gajianStatus === 'FINALIZED')
         const isInGajian = !!(item.upahBorongan && item.gajianId)
         if (!grouped.has(key)) {
@@ -454,20 +460,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             totalCount: 1,
             inGajianCount: isInGajian ? 1 : 0,
             finalizedCount: isPaid ? 1 : 0,
-          });
-        } else {
-          const existing = grouped.get(key)!;
-          existing.ids = [...(existing.ids || []), item.id];
-          if (item.user) {
-            existing.users = [...(existing.users || []), item.user];
-          }
-          existing.totalCount = (existing.totalCount || 0) + 1
-          existing.paidCount = (existing.paidCount || 0) + (isPaid ? 1 : 0)
-          existing.inGajianCount = (existing.inGajianCount || 0) + (isInGajian ? 1 : 0)
-          existing.finalizedCount = (existing.finalizedCount || 0) + (isPaid ? 1 : 0)
+          })
+          return
         }
-      });
-      setActivity(Array.from(grouped.values()));
+        const existing = grouped.get(key)!
+        existing.ids = [...(existing.ids || []), item.id]
+        if (item.user) existing.users = [...(existing.users || []), item.user]
+        existing.totalCount = (existing.totalCount || 0) + 1
+        existing.paidCount = (existing.paidCount || 0) + (isPaid ? 1 : 0)
+        existing.inGajianCount = (existing.inGajianCount || 0) + (isInGajian ? 1 : 0)
+        existing.finalizedCount = (existing.finalizedCount || 0) + (isPaid ? 1 : 0)
+      })
+      setActivity(Array.from(grouped.values()))
     } catch (error) {
       console.error(error);
       toast.error('Gagal memuat riwayat pekerjaan');
@@ -631,11 +635,13 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         ? activityDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
         : '-'
 
-      const karyawanText = (selectedActivity.users && selectedActivity.users.length > 0)
-        ? selectedActivity.users.map(u => u.name).join(', ')
-        : selectedActivity.user
-          ? selectedActivity.user.name
-          : '-'
+      const karyawanText = mode === 'borongan'
+        ? selectedActivity.user?.name || '-'
+        : (selectedActivity.users && selectedActivity.users.length > 0)
+          ? selectedActivity.users.map(u => u.name).join(', ')
+          : selectedActivity.user
+            ? selectedActivity.user.name
+            : '-'
 
       const biayaTotal = Number(selectedActivity.biaya || 0)
       const jumlahText = `${Number(selectedActivity.jumlah || 0).toLocaleString('id-ID')} ${selectedActivity.satuan || ''}`.trim()
@@ -709,7 +715,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     setSelectedActivity(item);
     setEditBuktiFile(null);
     setEditBuktiPreview(item.imageUrl || null);
-    const userIds = item.users && item.users.length > 0 ? item.users.map(u => u.id) : (item.user ? [item.user.id] : []);
+    const userIds = mode === 'borongan'
+      ? (item.user ? [item.user.id] : [])
+      : item.users && item.users.length > 0 ? item.users.map(u => u.id) : (item.user ? [item.user.id] : [])
     setEditForm({
       date: item.date ? formatWibYmd(new Date(item.date)) : formatWibYmd(new Date()),
       kategoriBorongan: String((item as any).kategoriBorongan || ''),
@@ -747,7 +755,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     setEditErrors({})
     const loadingToast = toast.loading('Menyimpan perubahan...');
     try {
-      const ids = selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id];
+      const ids = mode === 'borongan'
+        ? [selectedActivity.id]
+        : selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id]
       const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : editForm.upahBorongan
       const totalBiaya = effectiveUpahBorongan ? Math.round(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0)) : 0;
       const payload: any = {
@@ -795,7 +805,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const handleDelete = async () => {
     if (!selectedActivity) return;
     try {
-      const ids = selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id];
+      const ids = mode === 'borongan'
+        ? [selectedActivity.id]
+        : selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id]
       const res = await fetch(`/api/kebun/${kebunId}/pekerjaan?ids=${ids.join(',')}`, {
         method: 'DELETE',
       });
@@ -816,11 +828,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       if (activityFilter === 'aktivitas' && item.upahBorongan) return false
 
       if (mode === 'borongan') {
-        const totalCount = Number(item.totalCount || 0) || 1
-        const inGajianCount = Number(item.inGajianCount || 0)
-        const finalizedCount = Number(item.finalizedCount || 0)
-        const isPaid = !!(item.upahBorongan && finalizedCount > 0 && finalizedCount === totalCount)
-        const isInGajian = !!(item.upahBorongan && inGajianCount > 0 && !isPaid)
+        const isPaid = !!(item.upahBorongan && item.gajianStatus === 'FINALIZED')
+        const isInGajian = !!(item.upahBorongan && item.gajianId && !isPaid)
         const isDraft = !!(item.upahBorongan && !isPaid && !isInGajian)
 
         if (statusFilter === 'dibayar' && !isPaid) return false
@@ -939,11 +948,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
       const getStatus = (item: Pekerjaan) => {
         const isUpah = !!item.upahBorongan
-        const totalCount = Number(item.totalCount || 0) || 1
-        const inGajianCount = Number(item.inGajianCount || 0)
-        const finalizedCount = Number(item.finalizedCount || 0)
-        const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
-        const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+        const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
+        const isInGajian = isUpah && !!item.gajianId && !isPaid
         if (isPaid) return 'Dibayar'
         if (isInGajian) return 'Penggajian'
         if (isUpah) return 'Draft'
@@ -955,11 +961,13 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
           const jumlah = Number(item.jumlah || 0)
           const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
           const kategori = String((item as any).kategoriBorongan || '').trim() || 'Tanpa kategori'
+          const karyawanText = item.user?.name || ''
           return [
             idx + 1,
             item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
             kategori,
             item.jenisPekerjaan || '',
+            karyawanText,
             jumlah ? `${formatNumber(jumlah, 2)} ${item.satuan || ''}` : '',
             hargaSatuan > 0 ? formatNumber(hargaSatuan) : '',
             item.biaya > 0 ? formatNumber(item.biaya) : '',
@@ -973,10 +981,10 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
         autoTable(doc, {
           startY: headerHeight + 8,
-          head: [['NO', 'TANGGAL', 'KATEGORI', 'PEKERJAAN', 'JUMLAH', 'HARGA SATUAN', 'JUMLAH BIAYA', 'STATUS']],
+          head: [['NO', 'TANGGAL', 'KATEGORI', 'PEKERJAAN', 'KARYAWAN', 'JUMLAH', 'HARGA SATUAN', 'JUMLAH BIAYA', 'STATUS']],
           body: rows as any,
           foot: [[
-            { content: 'JUMLAH', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold' } },
+            { content: 'JUMLAH', colSpan: 5, styles: { halign: 'center', fontStyle: 'bold' } },
             { content: totalJumlah ? formatNumber(totalJumlah, 2) : '-', styles: { fontStyle: 'bold' } },
             { content: avgHargaSatuan > 0 ? formatNumber(avgHargaSatuan) : '-', styles: { fontStyle: 'bold' } },
             { content: totalBiaya > 0 ? formatNumber(totalBiaya) : '-', styles: { fontStyle: 'bold' } },
@@ -1040,15 +1048,26 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       (acc, curr) => {
         if (!curr.upahBorongan) return acc
         const total = Number(curr.biaya || 0)
-        const paidCount = Number(curr.paidCount || 0)
-        const totalCount = Number(curr.totalCount || 0) || 1
-        const ratio = totalCount > 0 ? Math.min(1, Math.max(0, paidCount / totalCount)) : 0
-        const paidAmount = total * ratio
+        const isPaid = mode === 'borongan'
+          ? curr.gajianStatus === 'FINALIZED'
+          : (() => {
+              const paidCount = Number(curr.paidCount || 0)
+              const totalCount = Number(curr.totalCount || 0) || 1
+              return totalCount > 0 && paidCount > 0 && paidCount === totalCount
+            })()
+        const paidAmount = isPaid ? total : 0
         const unpaidAmount = total - paidAmount
         acc.upahSudahDibayar += paidAmount
         acc.upahBelumDibayar += unpaidAmount
-        acc.upahSudahDibayarItem += Math.max(0, Math.round(paidCount))
-        acc.upahBelumDibayarItem += Math.max(0, Math.round(totalCount - paidCount))
+        if (mode === 'borongan') {
+          acc.upahSudahDibayarItem += isPaid ? 1 : 0
+          acc.upahBelumDibayarItem += isPaid ? 0 : 1
+        } else {
+          const paidCount = Number(curr.paidCount || 0)
+          const totalCount = Number(curr.totalCount || 0) || 1
+          acc.upahSudahDibayarItem += Math.max(0, Math.round(paidCount))
+          acc.upahBelumDibayarItem += Math.max(0, Math.round(totalCount - paidCount))
+        }
         return acc
       },
       { upahSudahDibayar: 0, upahBelumDibayar: 0, upahSudahDibayarItem: 0, upahBelumDibayarItem: 0 },
@@ -1066,7 +1085,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       upahSudahDibayarItem,
       upahBelumDibayarItem,
     }
-  }, [filteredActivities])
+  }, [filteredActivities, mode])
 
   return (
     <div className="space-y-6">
@@ -1638,12 +1657,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             <div className="grid grid-cols-1 gap-4 md:hidden">
               {pagedActivities.map((item, idx) => {
                 const isUpah = !!item.upahBorongan
-                const totalCount = Number(item.totalCount || 0) || 1
-                const inGajianCount = Number(item.inGajianCount || 0)
-                const finalizedCount = Number(item.finalizedCount || 0)
-                const isLocked = isUpah && inGajianCount > 0
-                const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
-                const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+                const isLocked = isUpah && !!item.gajianId
+                const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
+                const isInGajian = isUpah && !!item.gajianId && !isPaid
                 const isUnpaid = isUpah && !isLocked
                 const displayNo = startIndex + idx + 1
                 const jumlah = Number(item.jumlah || 0)
@@ -1688,18 +1704,16 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                           <CalendarIcon className="w-3 h-3" />
                           {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </div>
-                        {mode !== 'borongan' ? (
-                          (item.users && item.users.length > 0) ? (
-                            <div className="flex items-center gap-2 text-xs text-blue-600 mt-1 flex-wrap">
-                              <UserIcon className="w-3 h-3" />
-                              <span className="font-medium">{item.users.map(u => u.name).join(', ')}</span>
-                            </div>
-                          ) : item.user ? (
-                            <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
-                              <UserIcon className="w-3 h-3" />
-                              <span className="font-medium">{item.user.name}</span>
-                            </div>
-                          ) : null
+                        {(item.users && item.users.length > 0) ? (
+                          <div className="flex items-center gap-2 text-xs text-blue-600 mt-1 flex-wrap">
+                            <UserIcon className="w-3 h-3" />
+                            <span className="font-medium">{item.users.map(u => u.name).join(', ')}</span>
+                          </div>
+                        ) : item.user ? (
+                          <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
+                            <UserIcon className="w-3 h-3" />
+                            <span className="font-medium">{item.user.name}</span>
+                          </div>
                         ) : null}
                       </div>
                       
@@ -1793,12 +1807,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <tbody className="divide-y divide-gray-50">
                   {pagedActivities.map((item, idx) => {
                     const isUpah = !!item.upahBorongan
-                    const totalCount = Number(item.totalCount || 0) || 1
-                    const inGajianCount = Number(item.inGajianCount || 0)
-                    const finalizedCount = Number(item.finalizedCount || 0)
-                    const isLocked = isUpah && inGajianCount > 0
-                    const isPaid = isUpah && finalizedCount > 0 && finalizedCount === totalCount
-                    const isInGajian = isUpah && inGajianCount > 0 && !isPaid
+                    const isLocked = isUpah && !!item.gajianId
+                    const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
+                    const isInGajian = isUpah && !!item.gajianId && !isPaid
                     const isUnpaid = isUpah && !isLocked
                     const displayNo = startIndex + idx + 1
                     const jumlah = Number(item.jumlah || 0)
@@ -1832,7 +1843,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                               <div className="flex items-center gap-1.5 text-blue-600 font-medium">
                                 <UserIcon className="w-3.5 h-3.5 shrink-0" />
                                 <span className="truncate max-w-[220px]">
-                                  {(item.users && item.users.length > 0) ? item.users.map(u => u.name).join(', ') : item.user?.name || '-'}
+                                  {item.user?.name || '-'}
                                 </span>
                               </div>
                             </td>
@@ -2011,7 +2022,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
                         Upah Borongan
                       </span>
-                      {(selectedActivity?.paidCount || 0) > 0 && (selectedActivity?.paidCount || 0) === (selectedActivity?.totalCount || 0) ? (
+                      {selectedActivity?.gajianStatus === 'FINALIZED' ? (
                         <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
                           Sudah dibayar
                         </span>
@@ -2040,11 +2051,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   <div className="min-w-0">
                     <div className="text-xs font-black tracking-wider text-gray-400 uppercase">Karyawan</div>
                     <div className="text-sm font-semibold text-gray-900 break-words">
-                      {(selectedActivity?.users && selectedActivity.users.length > 0)
-                        ? selectedActivity.users.map(u => u.name).join(', ')
-                        : selectedActivity?.user
-                          ? selectedActivity.user.name
-                          : '-'}
+                      {selectedActivity?.user ? selectedActivity.user.name : '-'}
                     </div>
                   </div>
                 </div>

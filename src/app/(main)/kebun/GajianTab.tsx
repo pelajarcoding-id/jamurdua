@@ -379,42 +379,65 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
             <h2 className="text-lg md:text-xl font-bold text-gray-900 capitalize">Preview Pengajuan Gajian</h2>
             <p className="text-xs md:text-sm text-gray-500">Hitung gaji yang belum dibayar dan biaya lain sebelum diajukan.</p>
           </div>
-          <div className="flex flex-col sm:flex-row items-end gap-3">
-            <div className="space-y-1 w-full sm:w-auto">
+          <div className="w-full lg:hidden">
+            <div className="grid grid-cols-2 gap-3 items-end">
+              <div className="space-y-1 col-span-1">
+                <Label>Mulai</Label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 w-full bg-white !rounded-full pr-10" />
+              </div>
+              <div className="space-y-1 col-span-1">
+                <Label>Selesai</Label>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 w-full bg-white !rounded-full pr-10" />
+              </div>
+              <Button onClick={fetchPreview} variant="outline" className="rounded-full h-10 w-full whitespace-nowrap col-span-1">
+                Refresh
+              </Button>
+              <Button
+                onClick={() => setIsConfirmOpen(true)}
+                disabled={isSubmitting}
+                className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-full whitespace-nowrap col-span-1"
+              >
+                {isSubmitting ? 'Mengajukan...' : 'Ajukan Gajian'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="hidden lg:flex items-end gap-3">
+            <div className="space-y-1">
               <Label>Mulai</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 bg-white !rounded-full pr-10" />
             </div>
-            <div className="space-y-1 w-full sm:w-auto">
+            <div className="space-y-1">
               <Label>Selesai</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 w-full sm:w-auto bg-white !rounded-full pr-10" />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 bg-white !rounded-full pr-10" />
             </div>
-            <Button onClick={fetchPreview} variant="outline" className="rounded-full h-10 w-full sm:w-auto">
+            <Button onClick={fetchPreview} variant="outline" className="rounded-full h-10 whitespace-nowrap">
               Refresh
             </Button>
-            <Button onClick={() => setIsConfirmOpen(true)} disabled={isSubmitting} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-full sm:w-auto">
+            <Button onClick={() => setIsConfirmOpen(true)} disabled={isSubmitting} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 whitespace-nowrap">
               {isSubmitting ? 'Mengajukan...' : 'Ajukan Gajian'}
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
             <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Total Gaji Belum Dibayar</div>
-            <div className="text-2xl font-bold text-emerald-900 mt-2">{formatCurrency(totalGajiUnpaid)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-emerald-900 mt-2 leading-tight break-words">{formatCurrency(totalGajiUnpaid)}</div>
           </div>
           <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
             <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Total Biaya Lain</div>
-            <div className="text-2xl font-bold text-blue-900 mt-2">{formatCurrency(totalBiayaLain)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-blue-900 mt-2 leading-tight break-words">{formatCurrency(totalBiayaLain)}</div>
           </div>
           <div className="p-4 rounded-2xl bg-white border border-gray-100">
             <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Nota Sawit Belum Digaji</div>
-            <div className="text-2xl font-bold text-gray-900 mt-2">
+            <div className="text-xl sm:text-2xl font-bold text-gray-900 mt-2 leading-tight">
               {formatNumber(notaSawitCount)} <span className="text-base font-semibold text-gray-500">| {formatNumber(Math.round(notaSawitTotalKg || 0))} kg</span>
             </div>
           </div>
           <div className="p-4 rounded-2xl bg-gray-900 text-white">
             <div className="text-xs font-semibold uppercase tracking-wider">Total Pengajuan</div>
-            <div className="text-2xl font-bold mt-2">{formatCurrency(totalPengajuan)}</div>
+            <div className="text-xl sm:text-2xl font-bold mt-2 leading-tight break-words">{formatCurrency(totalPengajuan)}</div>
           </div>
         </div>
 

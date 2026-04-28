@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(res => res.json());
@@ -39,18 +38,33 @@ function SearchableFilter({
 }) {
     const [open, setOpen] = useState(false)
     const inputRef = useRef<HTMLInputElement | null>(null)
+    const [query, setQuery] = useState('')
 
     const selectedLabel = useMemo(() => {
         if (enableAll && value === allValue) return allLabel
         return options.find((o) => o.value === value)?.label || value || allLabel
     }, [allLabel, allValue, enableAll, options, value])
 
+    const filteredOptions = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        if (!q) return options
+        return options.filter((o) => o.label.toLowerCase().includes(q))
+    }, [options, query])
+
+    const pick = (next: string) => {
+        onChange(next)
+        setOpen(false)
+    }
+
     return (
         <Popover
             open={open}
             onOpenChange={(next) => {
                 setOpen(next)
-                if (next) requestAnimationFrame(() => inputRef.current?.focus())
+                if (next) {
+                    setQuery('')
+                    requestAnimationFrame(() => inputRef.current?.focus())
+                }
             }}
         >
             <PopoverTrigger asChild>
@@ -66,46 +80,45 @@ function SearchableFilter({
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[9999]" align="start">
-                <Command>
-                    <CommandInput
+                <div className="border-b px-3 py-2">
+                    <Input
                         ref={inputRef as any}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
                         placeholder={searchPlaceholder}
+                        className="h-9"
                         autoFocus
                         onKeyDown={(e) => e.stopPropagation()}
                     />
-                    <CommandList className="max-h-64 overflow-y-auto no-scrollbar">
-                        <CommandEmpty>Tidak ada data.</CommandEmpty>
-                        <CommandGroup heading={label}>
-                            {enableAll ? (
-                                <CommandItem
-                                    value={allLabel}
-                                    className="cursor-pointer"
-                                    onSelect={() => {
-                                        onChange(allValue)
-                                        setOpen(false)
-                                    }}
-                                >
-                                    <CheckIcon className={cn('mr-2 h-4 w-4', value === allValue ? 'opacity-100' : 'opacity-0')} />
-                                    {allLabel}
-                                </CommandItem>
-                            ) : null}
-                            {options.map((opt) => (
-                                <CommandItem
-                                    key={opt.value}
-                                    value={opt.label}
-                                    className="cursor-pointer"
-                                    onSelect={() => {
-                                        onChange(opt.value)
-                                        setOpen(false)
-                                    }}
-                                >
-                                    <CheckIcon className={cn('mr-2 h-4 w-4', value === opt.value ? 'opacity-100' : 'opacity-0')} />
-                                    {opt.label}
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
+                </div>
+                <div className="max-h-64 overflow-y-auto no-scrollbar p-1">
+                    {enableAll ? (
+                        <button
+                            type="button"
+                            className="w-full flex items-center rounded-sm px-2 py-1.5 text-sm text-left hover:bg-gray-100"
+                            onClick={() => pick(allValue)}
+                        >
+                            <CheckIcon className={cn('mr-2 h-4 w-4', value === allValue ? 'opacity-100' : 'opacity-0')} />
+                            {allLabel}
+                        </button>
+                    ) : null}
+
+                    {filteredOptions.length === 0 ? (
+                        <div className="px-2 py-3 text-sm text-gray-500">Tidak ada data.</div>
+                    ) : (
+                        filteredOptions.map((opt) => (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                className="w-full flex items-center rounded-sm px-2 py-1.5 text-sm text-left hover:bg-gray-100"
+                                onClick={() => pick(opt.value)}
+                            >
+                                <CheckIcon className={cn('mr-2 h-4 w-4', value === opt.value ? 'opacity-100' : 'opacity-0')} />
+                                {opt.label}
+                            </button>
+                        ))
+                    )}
+                </div>
             </PopoverContent>
         </Popover>
     )
@@ -131,9 +144,11 @@ export default function CostCenterPage() {
     const [kebunList, setKebunList] = useState<Array<{ id: number; name: string }>>([]);
     const [kendaraanList, setKendaraanList] = useState<Array<{ platNomor: string; merk: string }>>([]);
     const [perusahaanList, setPerusahaanList] = useState<Array<{ id: number; name: string }>>([]);
+    const [karyawanList, setKaryawanList] = useState<Array<{ id: number; name: string; role?: string }>>([]);
     const [selectedKebunId, setSelectedKebunId] = useState<string>('all');
     const [selectedKendaraan, setSelectedKendaraan] = useState<string>('all');
     const [selectedPerusahaanId, setSelectedPerusahaanId] = useState<string>('all');
+    const [selectedKaryawanId, setSelectedKaryawanId] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState<string>('')
     const [searchDraft, setSearchDraft] = useState<string>('')
     const [tab, setTab] = useState<'kebun' | 'perusahaan' | 'kendaraan' | 'gaji'>('kebun');
@@ -203,6 +218,16 @@ export default function CostCenterPage() {
                 setKebunList([]);
             }
         };
+        const loadKaryawan = async () => {
+            try {
+                const res = await fetch('/api/karyawan/tag-list?limit=1000', { cache: 'no-store' })
+                const json = await res.json()
+                const data = json.data || json
+                setKaryawanList(Array.isArray(data) ? data : [])
+            } catch {
+                setKaryawanList([])
+            }
+        }
         const loadKendaraan = async () => {
             try {
                 const res = await fetch('/api/kendaraan?limit=500');
@@ -224,6 +249,7 @@ export default function CostCenterPage() {
             }
         }
         loadFilters();
+        loadKaryawan();
         loadKendaraan();
         loadPerusahaan();
     }, []);
@@ -234,7 +260,7 @@ export default function CostCenterPage() {
         setPerusahaanKasPage(1)
         setPerusahaanBiayaPage(1)
         setGajianPage(1)
-    }, [endDate, searchQuery, selectedKendaraan, selectedKebunId, selectedPerusahaanId, startDate])
+    }, [endDate, searchQuery, selectedKaryawanId, selectedKendaraan, selectedKebunId, selectedPerusahaanId, startDate])
 
     const kendaraanKasParams = new URLSearchParams()
     kendaraanKasParams.set('startDate', startDate)
@@ -275,7 +301,7 @@ export default function CostCenterPage() {
     karyawanGajiParams.set('startDate', startDate)
     karyawanGajiParams.set('endDate', endDate)
     karyawanGajiParams.set('mode', 'tag_biaya')
-    if (selectedKebunId !== 'all') karyawanGajiParams.set('kebunId', selectedKebunId)
+    if (selectedKaryawanId !== 'all') karyawanGajiParams.set('karyawanId', selectedKaryawanId)
     if (searchQuery) karyawanGajiParams.set('search', searchQuery)
     karyawanGajiParams.set('page', String(gajianPage))
     karyawanGajiParams.set('pageSize', String(pageSize))
@@ -805,7 +831,7 @@ export default function CostCenterPage() {
             p.set('startDate', startDate)
             p.set('endDate', endDate)
             p.set('mode', 'tag_biaya')
-            if (selectedKebunId !== 'all') p.set('kebunId', selectedKebunId)
+            if (selectedKaryawanId !== 'all') p.set('karyawanId', selectedKaryawanId)
             p.set('page', '1')
             p.set('pageSize', '10000')
             const res = await fetch(`/api/reports/cost-center/karyawan-gaji?${p.toString()}`, { cache: 'no-store' })
@@ -817,7 +843,7 @@ export default function CostCenterPage() {
                 Total: Number(r.total || 0),
             }))
             const blob = buildCsv(['Karyawan','Kas','Uang Jalan','Total'], rows)
-            const suffix = selectedKebunId !== 'all' ? `-kebun-${selectedKebunId}` : ''
+            const suffix = selectedKaryawanId !== 'all' ? `-karyawan-${selectedKaryawanId}` : ''
             saveBlob(blob, `biaya-karyawan-tag${suffix}-${periodKey}.csv`)
         } finally {
             setExporting(s => ({...s, gaji: false}))
@@ -832,7 +858,7 @@ export default function CostCenterPage() {
             p.set('startDate', startDate)
             p.set('endDate', endDate)
             p.set('mode', 'tag_biaya')
-            if (selectedKebunId !== 'all') p.set('kebunId', selectedKebunId)
+            if (selectedKaryawanId !== 'all') p.set('karyawanId', selectedKaryawanId)
             p.set('page', '1')
             p.set('pageSize', '10000')
             const res = await fetch(`/api/reports/cost-center/karyawan-gaji?${p.toString()}`, { cache: 'no-store' })
@@ -856,7 +882,7 @@ export default function CostCenterPage() {
                 headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: 'bold' },
                 columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
             })
-            const suffix = selectedKebunId !== 'all' ? `-kebun-${selectedKebunId}` : ''
+            const suffix = selectedKaryawanId !== 'all' ? `-karyawan-${selectedKaryawanId}` : ''
             doc.save(`biaya-karyawan-tag${suffix}-${periodKey}.pdf`)
         } finally {
             setExporting(s => ({...s, gaji: false}))
@@ -1891,13 +1917,13 @@ export default function CostCenterPage() {
                     <TabsContent value="gaji" className="mt-0 focus-visible:outline-none">
                         <div className="flex flex-col md:flex-row gap-2 w-full">
                             <SearchableFilter
-                                label="Kebun"
-                                value={selectedKebunId}
-                                onChange={(next) => setSelectedKebunId(next)}
-                                options={kebunList.map((k) => ({ value: String(k.id), label: k.name }))}
-                                allLabel="Semua Kebun"
+                                label="Karyawan"
+                                value={selectedKaryawanId}
+                                onChange={(next) => setSelectedKaryawanId(next)}
+                                options={karyawanList.map((k) => ({ value: String(k.id), label: k.name }))}
+                                allLabel="Semua Karyawan"
                                 allValue="all"
-                                searchPlaceholder="Cari kebun..."
+                                searchPlaceholder="Cari karyawan..."
                                 triggerClassName="h-10 rounded-md px-3 py-2 text-sm focus:outline-none w-full md:w-64"
                             />
                         </div>

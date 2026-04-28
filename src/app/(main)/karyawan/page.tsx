@@ -2542,52 +2542,6 @@ export default function KaryawanKebunPage() {
                 </p>
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-              <div className="flex items-center justify-between px-4 py-3 border-b">
-                <div className="text-sm font-semibold text-gray-900">Biaya (Tag Karyawan)</div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full text-gray-600 hover:text-gray-900"
-                  onClick={() => setBiayaKaryawanOpen(v => !v)}
-                >
-                  {biayaKaryawanOpen ? 'Sembunyikan' : 'Tampilkan'}
-                </Button>
-              </div>
-              {biayaKaryawanOpen ? (
-                biayaKaryawanLoading ? (
-                  <div className="px-4 py-4 text-sm text-gray-500">Memuat...</div>
-                ) : biayaKaryawanRows.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-gray-500">Tidak ada biaya pada periode ini.</div>
-                ) : (
-                  <div className="w-full overflow-x-auto">
-                    <table className="min-w-[720px] w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {biayaKaryawanRows.slice(0, 20).map((r: any) => (
-                          <tr key={`${r.source || 'KAS'}-${r.id}`} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap text-gray-700">{format(new Date(r.date), 'dd-MMM-yy', { locale: idLocale })}</td>
-                            <td className="px-4 py-3 text-gray-900">{r.deskripsi || '-'}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-gray-700">{r.kategori || '-'}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-gray-700">{String(r.source || 'KAS')}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900">Rp {Number(r.jumlah || 0).toLocaleString('id-ID')}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              ) : null}
-            </div>
             {openAbsenSection && (
               <>
             <div className="flex flex-col md:flex-row items-start md:items-center gap-3 mb-4">
@@ -2744,113 +2698,162 @@ export default function KaryawanKebunPage() {
                 })()}
               </div>
             </div>
-            <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
-                <h3 className="text-sm font-semibold text-gray-700">History Pembayaran Gaji</h3>
-                <div className="flex items-center gap-2">
+            <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b">
+                  <div className="text-sm font-semibold text-gray-900">Biaya (Tag Karyawan)</div>
                   <Button
+                    type="button"
                     variant="ghost"
-                    size="icon"
-                    className="rounded-full"
-                    onClick={() => setAbsenPayHistoryOpen(v => !v)}
-                    aria-label="Toggle history pembayaran gaji"
+                    size="sm"
+                    className="rounded-full text-gray-600 hover:text-gray-900"
+                    onClick={() => setBiayaKaryawanOpen(v => !v)}
                   >
-                    <ChevronDownIcon className={`h-4 w-4 transition-transform ${absenPayHistoryOpen ? 'rotate-180' : ''}`} />
+                    {biayaKaryawanOpen ? 'Sembunyikan' : 'Tampilkan'}
                   </Button>
                 </div>
-              </div>
-              {absenPayHistoryOpen && (
-                <>
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Dari</span>
-                      <Input
-                        type="date"
-                        className="input-style h-8 rounded-full text-xs"
-                        value={absenPayHistoryStart}
-                        onChange={e => setAbsenPayHistoryStart(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Sampai</span>
-                      <Input
-                        type="date"
-                        className="input-style h-8 rounded-full text-xs"
-                        value={absenPayHistoryEnd}
-                        onChange={e => setAbsenPayHistoryEnd(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  {absenPayHistoryLoading ? (
-                    <div className="text-xs text-gray-500">Memuat...</div>
-                  ) : absenPayHistoryRows.length === 0 ? (
-                    <div className="text-xs text-gray-500">Belum ada pembayaran gaji di rentang ini.</div>
+                {biayaKaryawanOpen ? (
+                  biayaKaryawanLoading ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">Memuat...</div>
+                  ) : biayaKaryawanRows.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">Tidak ada biaya pada periode ini.</div>
                   ) : (
-                    <div className="overflow-x-auto -mx-3 sm:mx-0">
-                      <table className="min-w-[600px] w-full text-xs sm:text-sm border whitespace-nowrap">
-                        <thead>
-                          <tr className="border">
-                            <th className="p-2 border text-left">Periode Gaji</th>
-                            <th className="p-2 border text-left">Dibayar Tanggal</th>
-                            <th className="p-2 border text-right">Jumlah</th>
-                            <th className="p-2 border text-right">Potongan Hutang</th>
-                            <th className="p-2 border text-left">Dibayar Oleh</th>
-                            <th className="p-2 border text-left">Keterangan</th>
-                            {canDelete && (
-                              <th className="p-2 border text-center">Aksi</th>
-                            )}
+                    <div className="w-full overflow-x-auto">
+                      <table className="min-w-[720px] w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {absenPayHistoryRows.map(r => (
-                            <tr key={r.id} className="border">
-                              <td className="p-2 border">
-                                {r.startDate === r.endDate
-                                  ? format(new Date(r.startDate), 'dd MMM yyyy', { locale: idLocale })
-                                  : `${format(new Date(r.startDate), 'dd MMM yyyy', { locale: idLocale })} - ${format(new Date(r.endDate), 'dd MMM yyyy', { locale: idLocale })}`}
-                              </td>
-                              <td className="p-2 border">{format(new Date(r.paidAt), 'dd MMM yyyy', { locale: idLocale })}</td>
-                              <td className="p-2 border text-right">Rp {Number(r.jumlah).toLocaleString('id-ID')}</td>
-                              <td className="p-2 border text-right">Rp {Number(r.potonganHutang || 0).toLocaleString('id-ID')}</td>
-                              <td className="p-2 border">{r.userName || '-'}</td>
-                              <td className="p-2 border">{r.deskripsi || '-'}</td>
-                              {canDelete && (
-                                <td className="p-2 border text-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
-                                    onClick={() => {
-                                      setDeleteAbsenPayId(r.id)
-                                      setDeleteAbsenPayPaidAt(r.paidAt)
-                                      setOpenDeleteAbsenPay(true)
-                                    }}
-                                  >
-                                    <TrashIcon className="h-4 w-4" />
-                                  </Button>
-                                </td>
-                              )}
+                        <tbody className="divide-y">
+                          {biayaKaryawanRows.slice(0, 20).map((r: any) => (
+                            <tr key={`${r.source || 'KAS'}-${r.id}`} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{format(new Date(r.date), 'dd-MMM-yy', { locale: idLocale })}</td>
+                              <td className="px-4 py-3 text-gray-900">{r.deskripsi || '-'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{r.kategori || '-'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{String(r.source || 'KAS')}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900">Rp {Number(r.jumlah || 0).toLocaleString('id-ID')}</td>
                             </tr>
                           ))}
                         </tbody>
-                        <tfoot>
-                          <tr className="border font-semibold">
-                            <td className="p-2 border">Total</td>
-                            <td className="p-2 border"></td>
-                            <td className="p-2 border text-right">
-                              Rp {absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.jumlah) || 0), 0).toLocaleString('id-ID')}
-                            </td>
-                            <td className="p-2 border text-right">
-                              Rp {absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.potonganHutang) || 0), 0).toLocaleString('id-ID')}
-                            </td>
-                            <td className="p-2 border" colSpan={canDelete ? 3 : 2}></td>
-                          </tr>
-                        </tfoot>
                       </table>
                     </div>
-                  )}
-                </>
-              )}
+                  )
+                ) : null}
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-gray-700">History Pembayaran Gaji</h3>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full"
+                      onClick={() => setAbsenPayHistoryOpen(v => !v)}
+                      aria-label="Toggle history pembayaran gaji"
+                    >
+                      <ChevronDownIcon className={`h-4 w-4 transition-transform ${absenPayHistoryOpen ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
+                {absenPayHistoryOpen && (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Dari</span>
+                        <Input
+                          type="date"
+                          className="input-style h-8 rounded-full text-xs"
+                          value={absenPayHistoryStart}
+                          onChange={e => setAbsenPayHistoryStart(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Sampai</span>
+                        <Input
+                          type="date"
+                          className="input-style h-8 rounded-full text-xs"
+                          value={absenPayHistoryEnd}
+                          onChange={e => setAbsenPayHistoryEnd(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    {absenPayHistoryLoading ? (
+                      <div className="text-xs text-gray-500">Memuat...</div>
+                    ) : absenPayHistoryRows.length === 0 ? (
+                      <div className="text-xs text-gray-500">Belum ada pembayaran gaji di rentang ini.</div>
+                    ) : (
+                      <div className="overflow-x-auto -mx-3 sm:mx-0">
+                        <table className="min-w-[600px] w-full text-xs sm:text-sm border whitespace-nowrap">
+                          <thead>
+                            <tr className="border">
+                              <th className="p-2 border text-left">Periode Gaji</th>
+                              <th className="p-2 border text-left">Dibayar Tanggal</th>
+                              <th className="p-2 border text-right">Jumlah</th>
+                              <th className="p-2 border text-right">Potongan Hutang</th>
+                              <th className="p-2 border text-left">Dibayar Oleh</th>
+                              <th className="p-2 border text-left">Keterangan</th>
+                              {canDelete && (
+                                <th className="p-2 border text-center">Aksi</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {absenPayHistoryRows.map(r => (
+                              <tr key={r.id} className="border">
+                                <td className="p-2 border">
+                                  {r.startDate === r.endDate
+                                    ? format(new Date(r.startDate), 'dd MMM yyyy', { locale: idLocale })
+                                    : `${format(new Date(r.startDate), 'dd MMM yyyy', { locale: idLocale })} - ${format(new Date(r.endDate), 'dd MMM yyyy', { locale: idLocale })}`}
+                                </td>
+                                <td className="p-2 border">{format(new Date(r.paidAt), 'dd MMM yyyy', { locale: idLocale })}</td>
+                                <td className="p-2 border text-right">Rp {Number(r.jumlah).toLocaleString('id-ID')}</td>
+                                <td className="p-2 border text-right">Rp {Number(r.potonganHutang || 0).toLocaleString('id-ID')}</td>
+                                <td className="p-2 border">{r.userName || '-'}</td>
+                                <td className="p-2 border">{r.deskripsi || '-'}</td>
+                                {canDelete && (
+                                  <td className="p-2 border text-center">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
+                                      onClick={() => {
+                                        setDeleteAbsenPayId(r.id)
+                                        setDeleteAbsenPayPaidAt(r.paidAt)
+                                        setOpenDeleteAbsenPay(true)
+                                      }}
+                                    >
+                                      <TrashIcon className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border font-semibold">
+                              <td className="p-2 border">Total</td>
+                              <td className="p-2 border"></td>
+                              <td className="p-2 border text-right">
+                                Rp {absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.jumlah) || 0), 0).toLocaleString('id-ID')}
+                              </td>
+                              <td className="p-2 border text-right">
+                                Rp {absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.potonganHutang) || 0), 0).toLocaleString('id-ID')}
+                              </td>
+                              <td className="p-2 border" colSpan={canDelete ? 3 : 2}></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
               </>
             )}

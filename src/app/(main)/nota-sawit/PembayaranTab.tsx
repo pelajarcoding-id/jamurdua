@@ -109,10 +109,47 @@ export function PembayaranTab(props: {
             <p className="text-xs text-gray-500">Riwayat rekonsiliasi pembayaran (batch transfer)</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="w-full sm:hidden">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              className="rounded-full h-10 w-full whitespace-nowrap"
+              onClick={() => fetchReconcileHistory()}
+              disabled={reconcileHistoryLoading || reconcileHistorySoftLoading}
+            >
+              <ArrowPathIcon
+                className={cn(
+                  'w-4 h-4 mr-2',
+                  reconcileHistoryLoading || reconcileHistorySoftLoading ? 'animate-spin' : ''
+                )}
+              />
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              className={cn(
+                'rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-4 h-10 w-full whitespace-nowrap',
+              )}
+              onClick={onExportPdf}
+              title="Export PDF"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
+              Export PDF
+            </Button>
+            <Button
+              onClick={handleOpenBulkReconcileEmpty}
+              className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-full whitespace-nowrap col-span-2"
+            >
+              <PlusIcon className="w-4 h-4 mr-2" />
+              Pembayaran
+            </Button>
+          </div>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2">
           <Button
             variant="outline"
-            className="rounded-full"
+            className="rounded-full h-10 whitespace-nowrap"
             onClick={() => fetchReconcileHistory()}
             disabled={reconcileHistoryLoading || reconcileHistorySoftLoading}
           >
@@ -127,7 +164,7 @@ export function PembayaranTab(props: {
           <Button
             variant="outline"
             className={cn(
-              'rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-4 w-auto',
+              'rounded-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-4 h-10 whitespace-nowrap',
             )}
             onClick={onExportPdf}
             title="Export PDF"
@@ -135,7 +172,7 @@ export function PembayaranTab(props: {
             <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
             Export PDF
           </Button>
-          <Button onClick={handleOpenBulkReconcileEmpty} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button onClick={handleOpenBulkReconcileEmpty} className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 whitespace-nowrap">
             <PlusIcon className="w-4 h-4 mr-2" />
             Pembayaran
           </Button>
