@@ -357,13 +357,13 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
       if (!batch) throw new Error('NOT_FOUND')
 
       const notaIds = (Array.isArray(batch.items) ? batch.items : []).map((i: any) => Number(i?.notaSawitId)).filter((n: number) => Number.isFinite(n) && n > 0)
-      if (notaIds.length === 0) throw new Error('EMPTY')
-
-      const newer = await (tx as any).notaSawitPembayaranBatchItem.findFirst({
-        where: { notaSawitId: { in: notaIds }, batchId: { gt: batchId } },
-        select: { id: true },
-      })
-      if (newer) throw new Error('LOCKED')
+      if (notaIds.length > 0) {
+        const newer = await (tx as any).notaSawitPembayaranBatchItem.findFirst({
+          where: { notaSawitId: { in: notaIds }, batchId: { gt: batchId } },
+          select: { id: true },
+        })
+        if (newer) throw new Error('LOCKED')
+      }
 
       const kasTrx = await tx.kasTransaksi.findFirst({
         where: {
@@ -381,10 +381,12 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
         await tx.kasTransaksi.update({ where: { id: kasTrx.id }, data: { deletedAt: new Date(), deletedById: guard.id } as any })
       }
 
-      await tx.notaSawit.updateMany({
-        where: { id: { in: notaIds } },
-        data: { statusPembayaran: 'BELUM_LUNAS', pembayaranAktual: null } as any,
-      })
+      if (notaIds.length > 0) {
+        await tx.notaSawit.updateMany({
+          where: { id: { in: notaIds } },
+          data: { statusPembayaran: 'BELUM_LUNAS', pembayaranAktual: null } as any,
+        })
+      }
 
       await (tx as any).notaSawitPembayaranBatchItem.deleteMany({ where: { batchId } })
       await (tx as any).notaSawitPembayaranBatch.delete({ where: { id: batchId } })
@@ -395,7 +397,6 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     return NextResponse.json({ ok: true })
   } catch (error) {
     if ((error as any)?.message === 'NOT_FOUND') return NextResponse.json({ error: 'Batch tidak ditemukan' }, { status: 404 })
-    if ((error as any)?.message === 'EMPTY') return NextResponse.json({ error: 'Batch tidak memiliki nota' }, { status: 400 })
     if ((error as any)?.message === 'LOCKED') {
       return NextResponse.json({ error: 'Tidak bisa hapus batch ini karena ada batch lebih baru yang memakai nota yang sama.' }, { status: 400 })
     }

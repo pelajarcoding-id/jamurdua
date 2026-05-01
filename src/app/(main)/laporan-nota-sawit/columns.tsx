@@ -66,6 +66,27 @@ export const columns: ColumnDef<NotaSawitLaporanData>[] = [
     },
   },
   {
+    accessorKey: 'buahBalik',
+    header: () => <div className="text-right">Buah Balik (Kg)</div>,
+    cell: ({ row }) => {
+      const r = row.original as any
+      const hasSnapshot = Object.prototype.hasOwnProperty.call(r as any, 'beratKosongSnapshot')
+      const storedBuahBalik = (r as any)?.buahBalik
+      if (hasSnapshot) {
+        const bb = (typeof storedBuahBalik === 'number' && storedBuahBalik > 0) ? Math.round(storedBuahBalik) : 0
+        return <div className="text-right">{bb > 0 ? formatNumber(bb) : '-'}</div>
+      }
+      const tara = Number(r?.tara ?? 0) || 0
+      const beratKosong = (r?.kendaraan && typeof (r.kendaraan as any).beratKosong === 'number') ? Number((r.kendaraan as any).beratKosong) : 0
+      const bb = (tara > 0 && beratKosong > 0) ? Math.round(tara - beratKosong) : 0
+      return <div className="text-right">{bb > 0 ? formatNumber(bb) : '-'}</div>
+    },
+    footer: ({ table }) => {
+      const kpi = (table.options.meta as any)?.kpi
+      return <div className="text-right font-bold">{formatNumber(kpi?.totalBuahBalik || 0)}</div>
+    },
+  },
+  {
     accessorKey: 'potongan',
     header: () => <div className="text-right">Potongan</div>,
     cell: ({ row }) => <div className="text-right text-red-500">{formatNumber(row.original.potongan)}</div>,

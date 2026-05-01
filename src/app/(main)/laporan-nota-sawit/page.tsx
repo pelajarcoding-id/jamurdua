@@ -736,11 +736,23 @@ export default function LaporanNotaSawitPage() {
         return dt ? new Date(dt).toLocaleDateString('id-ID') : '-'
       }
 
+      const resolveBuahBalik = (item: any) => {
+        const hasSnapshot = Object.prototype.hasOwnProperty.call(item as any, 'beratKosongSnapshot')
+        const stored = (item as any)?.buahBalik
+        if (hasSnapshot) {
+          return (typeof stored === 'number' && stored > 0) ? Math.round(stored) : 0
+        }
+        const tara = Number(item?.tara ?? 0) || 0
+        const beratKosong = (item?.kendaraan && typeof (item.kendaraan as any).beratKosong === 'number') ? Number((item.kendaraan as any).beratKosong) : 0
+        const bb = (tara > 0 && beratKosong > 0) ? (tara - beratKosong) : 0
+        return Number.isFinite(bb) ? Math.max(0, Math.round(bb)) : 0
+      }
 
       const totals = dataToExport.reduce((acc, item) => {
         acc.grossKg += Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0;
         acc.tareKg += Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0;
         acc.netKg += resolveNetto(item);
+        acc.buahBalik += resolveBuahBalik(item);
         acc.potongan += Number(item.potongan ?? 0) || 0;
         acc.beratAkhir += Number(item.beratAkhir ?? 0) || 0;
         acc.hargaPerKg += Number(item.hargaPerKg ?? 0) || 0;
@@ -748,7 +760,7 @@ export default function LaporanNotaSawitPage() {
         acc.pph += Number(item.pph ?? 0) || 0;
         acc.pembayaranAktual += Number(item.pembayaranAktual ?? 0) || 0;
         return acc;
-      }, { grossKg: 0, tareKg: 0, netKg: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0 });
+      }, { grossKg: 0, tareKg: 0, netKg: 0, buahBalik: 0, potongan: 0, beratAkhir: 0, hargaPerKg: 0, totalPembayaran: 0, pph: 0, pembayaranSetelahPph: 0 });
 
       const avgHargaPerKg = dataToExport.length > 0 ? totals.hargaPerKg / dataToExport.length : 0;
       const jumlahNota = dataToExport.length;
@@ -757,7 +769,7 @@ export default function LaporanNotaSawitPage() {
 
       const tableColumn = [
         'No', 'Tgl Bongkar', 'Pabrik', 'Supir', 'Plat No', 'Kebun', 
-        'Bruto', 'Tara', 'Netto', 'Potongan', 'Berat Akhir', 'Harga/kg', 'Total', 'PPh 25', 'Net', 'Tgl Dibayar', 'Status', 'Perusahaan'
+        'Bruto', 'Tara', 'Buah Balik', 'Netto', 'Potongan', 'Berat Akhir', 'Harga/kg', 'Total', 'PPh 25', 'Net', 'Tgl Dibayar', 'Status', 'Perusahaan'
       ];
       
       const tableRows = dataToExport.map((item, index) => [
@@ -769,6 +781,7 @@ export default function LaporanNotaSawitPage() {
         item.timbangan?.kebun?.name ?? item.kebun?.name ?? '-',
         (Number(item.timbangan?.grossKg ?? item.bruto ?? 0) || 0).toLocaleString('id-ID'),
         (Number(item.timbangan?.tareKg ?? item.tara ?? 0) || 0).toLocaleString('id-ID'),
+        resolveBuahBalik(item) > 0 ? resolveBuahBalik(item).toLocaleString('id-ID') : '-',
         resolveNetto(item).toLocaleString('id-ID'),
         (Number(item.potongan ?? 0) || 0).toLocaleString('id-ID'),
         (Number(item.beratAkhir ?? 0) || 0).toLocaleString('id-ID'),
@@ -789,6 +802,7 @@ export default function LaporanNotaSawitPage() {
         },
         { content: Math.round(totals.grossKg).toLocaleString('id-ID'), styles: { fontStyle: 'bold' as 'bold' } },
         { content: Math.round(totals.tareKg).toLocaleString('id-ID'), styles: { fontStyle: 'bold' as 'bold' } },
+        { content: Math.round(totals.buahBalik).toLocaleString('id-ID'), styles: { fontStyle: 'bold' as 'bold' } },
         { content: Math.round(totals.netKg).toLocaleString('id-ID'), styles: { fontStyle: 'bold' as 'bold' } },
         { content: Math.round(totals.potongan).toLocaleString('id-ID'), styles: { fontStyle: 'bold' as 'bold' } },
         { content: Math.round(totals.beratAkhir).toLocaleString('id-ID'), styles: { fontStyle: 'bold' as 'bold' } },
@@ -1800,6 +1814,15 @@ export default function LaporanNotaSawitPage() {
                   const netTimb = Number(item.timbangan?.netKg ?? 0) || 0
                   const netNota = Number((item as any)?.netto ?? 0) || 0
                   const netto = netTimb > 0 ? netTimb : netNota > 0 ? netNota : (netTimb || netNota || 0)
+            const taraPabrik = Number((item as any)?.tara ?? 0) || 0
+            const beratKosong = ((item as any)?.kendaraan && typeof ((item as any).kendaraan as any).beratKosong === 'number')
+              ? Number(((item as any).kendaraan as any).beratKosong)
+              : 0
+            const hasSnapshot = Object.prototype.hasOwnProperty.call(item as any, 'beratKosongSnapshot')
+            const storedBuahBalik = (item as any)?.buahBalik
+            const buahBalik = hasSnapshot
+              ? (typeof storedBuahBalik === 'number' && storedBuahBalik > 0) ? Math.round(storedBuahBalik) : 0
+              : (taraPabrik > 0 && beratKosong > 0) ? Math.max(0, Math.round(taraPabrik - beratKosong)) : 0
                   return (
                     <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3">
                       <button
@@ -1819,6 +1842,10 @@ export default function LaporanNotaSawitPage() {
                         <div>
                           <div className="text-gray-400">Netto (Kg)</div>
                           <div className="font-semibold text-gray-900">{typeof netto === 'number' ? netto.toLocaleString('id-ID') : '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400">Buah Balik (Kg)</div>
+                          <div className="font-semibold text-gray-900">{buahBalik > 0 ? buahBalik.toLocaleString('id-ID') : '-'}</div>
                         </div>
                         <div>
                           <div className="text-gray-400">Total</div>
