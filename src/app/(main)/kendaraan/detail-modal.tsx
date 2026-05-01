@@ -393,6 +393,10 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
                                                 <span className="text-sm text-gray-600">Jenis</span>
                                                 <span className="font-medium">{kendaraan.jenis}</span>
                                             </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-sm text-gray-600">Berat Kosong</span>
+                                                <span className="font-medium">{(kendaraan as any).beratKosong ? `${(kendaraan as any).beratKosong.toLocaleString('id-ID')} kg` : '-'}</span>
+                                            </div>
                                         </div>
                                     </div>
 

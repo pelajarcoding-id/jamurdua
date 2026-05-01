@@ -97,7 +97,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { platNomor, merk, jenis, tanggalMatiStnk, imageUrl, tanggalPajakTahunan, tanggalIzinTrayek, speksi, fotoStnkUrl, fotoIzinTrayekUrl, fotoPajakUrl, fotoSpeksiUrl } = body;
+        const { platNomor, merk, jenis, tanggalMatiStnk, imageUrl, tanggalPajakTahunan, tanggalIzinTrayek, speksi, fotoStnkUrl, fotoIzinTrayekUrl, fotoPajakUrl, fotoSpeksiUrl, beratKosong } = body;
 
         if (!platNomor || !merk || !jenis || !tanggalMatiStnk) {
             return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
@@ -140,6 +140,7 @@ export async function POST(request: Request) {
             speksi: speksi ? new Date(speksi) : null,
             fotoStnkUrl: fotoStnkUrl || imageUrl,
             fotoSpeksiUrl,
+            beratKosong: beratKosong ? parseFloat(beratKosong) : null,
         }
 
         const newKendaraan = await (prisma.kendaraan as any).create({ data: baseData })

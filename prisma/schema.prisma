@@ -269,6 +269,7 @@ model Kendaraan {
   fotoPajakUrlLegacy  String?          @map("fotoPajakUrl")
   fotoSpeksiUrl       String?
   fotoStnkUrl         String?
+  beratKosong         Float?
   kasTransaksi        KasTransaksi[]
   notasSawit          NotaSawit[]
   riwayatDokumen      RiwayatDokumen[]

@@ -46,7 +46,7 @@ export async function PUT(request: Request, { params }: Params) {
     try {
         const platNomor = normalizePlatParam(params.platNomor);
         const body = await request.json();
-        const { platNomor: newPlatNomor, merk, jenis, tanggalMatiStnk, imageUrl, tanggalPajakTahunan, tanggalIzinTrayek, speksi, fotoStnkUrl, fotoIzinTrayekUrl, fotoPajakUrl, fotoSpeksiUrl } = body;
+        const { platNomor: newPlatNomor, merk, jenis, tanggalMatiStnk, imageUrl, tanggalPajakTahunan, tanggalIzinTrayek, speksi, fotoStnkUrl, fotoIzinTrayekUrl, fotoPajakUrl, fotoSpeksiUrl, beratKosong } = body;
 
         if (!merk || !jenis || !tanggalMatiStnk) {
             return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
@@ -113,6 +113,7 @@ export async function PUT(request: Request, { params }: Params) {
             speksi: speksi ? new Date(speksi) : null,
             fotoStnkUrl: fotoStnkUrl || imageUrl,
             fotoSpeksiUrl,
+            beratKosong: beratKosong !== undefined ? (beratKosong ? parseFloat(beratKosong) : null) : undefined,
         }
 
         const updateResult = await prisma.kendaraan.updateMany({ where: { platNomor: existingPlatNomor }, data: updateBase })

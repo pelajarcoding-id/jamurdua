@@ -44,6 +44,7 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
         fotoStnkUrl: '',
         fotoIzinTrayekUrl: '',
         fotoSpeksiUrl: '',
+        beratKosong: '',
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                 fotoStnkUrl: initialData.fotoStnkUrl || '',
                 fotoIzinTrayekUrl: izinTrayekUrl,
                 fotoSpeksiUrl: initialData.fotoSpeksiUrl || '',
+                beratKosong: (initialData as any).beratKosong?.toString() || '',
             });
             setPreviewUrl(initialData.imageUrl || initialData.fotoStnkUrl || null);
             setPreviewIzinTrayekUrl(izinTrayekUrl || null);
@@ -95,6 +97,7 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                 fotoStnkUrl: '',
                 fotoIzinTrayekUrl: '',
                 fotoSpeksiUrl: '',
+                beratKosong: '',
             });
             setPreviewUrl(null);
             setPreviewIzinTrayekUrl(null);
@@ -292,6 +295,11 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                                     className={`w-full rounded-xl ${errors.tanggalMatiStnk ? 'border-red-500' : ''}`} 
                                 />
                                 {errors.tanggalMatiStnk && <p className="text-red-500 text-xs">{errors.tanggalMatiStnk}</p>}
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="beratKosong">Berat Kosong (kg) (Opsional)</Label>
+                                <Input id="beratKosong" type="number" name="beratKosong" value={formData.beratKosong} onChange={handleChange} className="w-full rounded-xl" placeholder="Contoh: 8500" />
                             </div>
 
                             <div className="grid gap-2">

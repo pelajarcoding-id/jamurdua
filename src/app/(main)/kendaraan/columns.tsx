@@ -53,6 +53,11 @@ export const columns = (
     ),
   },
   {
+    accessorKey: 'beratKosong',
+    header: () => <span className="font-semibold">Berat Kosong</span>,
+    cell: ({ row }) => <span>{(row.original as any).beratKosong ? `${(row.original as any).beratKosong.toLocaleString('id-ID')} kg` : '-'}</span>,
+  },
+  {
     accessorKey: 'tanggalMatiStnk',
     header: () => <span className="font-semibold text-amber-700">Mati STNK</span>,
     cell: ({ row }) => {
