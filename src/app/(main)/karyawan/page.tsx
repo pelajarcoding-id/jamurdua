@@ -997,9 +997,10 @@ export default function KaryawanKebunPage() {
       const num = Number((val || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
       totalGaji += num
     })
+    const gajiBerjalan = selectedUser ? Math.round(Number(summaryData?.gaji?.unpaid || 0)) : 0
     const hutang = selectedUser ? Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0) : 0
-    return { hariKerja, totalGaji, hutang }
-  }, [absenMonth, absenWorkMap, absenMap, selectedUser, rows])
+    return { hariKerja, totalGaji, gajiBerjalan, hutang }
+  }, [absenMonth, absenWorkMap, absenMap, rows, selectedUser, summaryData])
   const formatJobTypeLabel = useCallback((raw?: string | null) => {
     const val = (raw || '').toString().toUpperCase().trim()
     if (!val || val === 'ALL') return 'Semua Jenis'
@@ -2609,7 +2610,7 @@ export default function KaryawanKebunPage() {
               </div>
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
                 <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Gaji Berjalan</p>
-                <p className="text-2xl font-bold text-emerald-900">Rp {absenSummary.totalGaji.toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-emerald-900">Rp {absenSummary.gajiBerjalan.toLocaleString('id-ID')}</p>
               </div>
               <div className="p-4 rounded-2xl bg-red-50 border border-red-100 shadow-sm">
                 <p className="text-xs font-medium text-red-600 uppercase tracking-wider mb-1">Saldo Hutang</p>

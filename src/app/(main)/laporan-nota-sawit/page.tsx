@@ -1715,42 +1715,42 @@ export default function LaporanNotaSawitPage() {
               Tidak ada data produksi kebun
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-[1100px] w-full text-sm">
+            <div className="overflow-x-hidden">
+              <table className="w-full table-fixed text-xs">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="py-2 px-3 text-left sticky left-0 bg-gray-50">Bulan</th>
+                    <th className="py-2 px-2 text-left sticky left-0 bg-gray-50 w-20">Bulan</th>
                     {kebunNames.map((name) => (
-                      <th key={name} className="py-2 px-3 text-right">{name}</th>
+                      <th key={name} className="py-2 px-2 text-right whitespace-normal break-words">{name}</th>
                     ))}
-                    <th className="py-2 px-3 text-right">Total</th>
+                    <th className="py-2 px-2 text-right w-24">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {transposedKebunProduksi.map((row) => (
                     <tr key={row.month} className="border-t">
-                      <td className="py-2 px-3 font-medium text-gray-900 sticky left-0 bg-white">{row.month}</td>
+                      <td className="py-2 px-2 font-medium text-gray-900 sticky left-0 bg-white">{row.month}</td>
                       {row.kebuns.map((k, idx) => (
-                        <td key={idx} className="py-2 px-3 text-right">
+                        <td key={idx} className="py-2 px-2 text-right">
                           <div className="text-gray-900">{(Number(k.kg) || 0).toLocaleString('id-ID')} kg</div>
-                          <div className={cn('text-[11px]', k.pct == null ? 'text-gray-400' : k.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+                          <div className={cn('text-[10px]', k.pct == null ? 'text-gray-400' : k.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
                             {k.pct == null ? '-' : `${k.pct >= 0 ? '+' : ''}${k.pct.toFixed(2)}%`}
                           </div>
                         </td>
                       ))}
-                      <td className="py-2 px-3 text-right font-semibold text-gray-900">{(Number(row.totalKg) || 0).toLocaleString('id-ID')} kg</td>
+                      <td className="py-2 px-2 text-right font-semibold text-gray-900">{(Number(row.totalKg) || 0).toLocaleString('id-ID')} kg</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-emerald-50/60">
-                    <td className="py-2 px-3 font-semibold text-gray-900 sticky left-0 bg-emerald-50/60">Jumlah</td>
+                    <td className="py-2 px-2 font-semibold text-gray-900 sticky left-0 bg-emerald-50/60">Jumlah</td>
                     {transposedFooter.kebunTotals.map((kt, idx) => (
-                      <td key={idx} className="py-2 px-3 text-right font-semibold text-gray-900">
+                      <td key={idx} className="py-2 px-2 text-right font-semibold text-gray-900">
                         {Math.round(Number(kt.total) || 0).toLocaleString('id-ID')} kg
                       </td>
                     ))}
-                    <td className="py-2 px-3 text-right font-bold text-gray-900">
+                    <td className="py-2 px-2 text-right font-bold text-gray-900">
                       {Math.round(Number(transposedFooter.grandTotal) || 0).toLocaleString('id-ID')} kg
                     </td>
                   </tr>
