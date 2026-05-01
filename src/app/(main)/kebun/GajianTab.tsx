@@ -441,7 +441,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 font-semibold text-gray-700 text-sm">Detail Gaji Karyawan (Belum Dibayar)</div>
             <div className="md:hidden space-y-3 p-4">
@@ -570,7 +570,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
             </div>
           </div>
 
-          <div className="border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="border border-gray-100 rounded-2xl overflow-hidden lg:col-span-2">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 font-semibold text-gray-700 text-sm flex items-center justify-between gap-3">
               <span>Potongan</span>
               <div className="flex items-center gap-2">

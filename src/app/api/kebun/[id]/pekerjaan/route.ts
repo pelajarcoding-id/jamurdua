@@ -323,7 +323,7 @@ export async function PATCH(
           new Set<number>(
             lockedRows
               .map((r) => (r.gajianId ? Number(r.gajianId) : null))
-              .filter((x): x is number => Number.isFinite(x) && x > 0),
+              .filter((x): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0),
           ),
         )
         const gajianRows = gajianIds.length
