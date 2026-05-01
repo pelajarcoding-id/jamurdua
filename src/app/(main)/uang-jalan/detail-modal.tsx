@@ -93,6 +93,10 @@ export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalPro
                             <p className="font-semibold">{formatDate(data.tanggalMulai)}</p>
                         </div>
                         <div>
+                            <p className="text-sm text-gray-500">Input oleh</p>
+                            <p className="font-semibold">{(data as any).createdBy?.name || '-'}</p>
+                        </div>
+                        <div>
                             <p className="text-sm text-gray-500">Keterangan</p>
                             <p className="font-semibold">{data.keterangan || '-'}</p>
                         </div>

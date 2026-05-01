@@ -678,6 +678,10 @@ export default function NotaSawitPageModals(props: {
                       <span className="font-extrabold text-gray-900">{formatNumber(Number(reconcileDetail?.count || 0))}</span> nota
                     </div>
                     <div className="mt-1 text-xs text-gray-600">
+                      <span className="font-semibold text-gray-700">Input oleh:</span>{' '}
+                      <span className="text-gray-700">{reconcileDetail?.createdBy?.name || '-'}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-600">
                       <span className="font-semibold text-gray-700">Keterangan:</span>{' '}
                       <span className="text-gray-700">{reconcileDetail?.keterangan ? String(reconcileDetail.keterangan) : '-'}</span>
                     </div>

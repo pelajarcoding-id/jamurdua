@@ -41,9 +41,16 @@ export const columns: ColumnDef<SesiUangJalanWithDetails>[] = [
         header: "Supir",
     },
     {
-        accessorKey: "kendaraan.platNomor",
+        id: "kendaraan",
         header: "Kendaraan",
-        cell: ({ row }) => row.original.kendaraan?.platNomor || '-',
+        cell: ({ row }) => {
+          const platNomor = row.original.kendaraan?.platNomor || row.original.kendaraanPlatNomor;
+          const merk = row.original.kendaraan?.merk;
+          if (platNomor && merk) {
+            return `${platNomor} - ${merk}`;
+          }
+          return platNomor || '-';
+        },
     },
     {
         accessorKey: "tanggalMulai",

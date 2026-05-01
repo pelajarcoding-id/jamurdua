@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 type SesiWithDetails = SesiUangJalan & {
   supir: User;
   kendaraan: Kendaraan | null;
+  createdBy: User | null;
   rincian: UangJalan[];
 };
 
@@ -100,20 +101,21 @@ export async function GET(request: Request) {
       totalPengeluaran = pengeluaranAgg._sum.amount || 0;
     }
 
-    const sesiUangJalan: SesiWithDetails[] = await prisma.sesiUangJalan.findMany({
+    const sesiUangJalan = await prisma.sesiUangJalan.findMany({
       skip,
       take: limit,
       where,
       include: {
         supir: true,
         kendaraan: true,
+        createdBy: { select: { id: true, name: true } },
         rincian: { where: { deletedAt: null } },
-      },
+      } as any,
       orderBy: [
         { tanggalMulai: 'desc' },
         { createdAt: 'desc' }
       ],
-    });
+    }) as any[];
 
     const normalizeTipe = (val: any) => String(val || '').toUpperCase()
 
@@ -188,11 +190,20 @@ export async function POST(request: Request) {
     }
 
     // Create a new session and the first transaction within it
+    const currentUserId = session?.user?.id ? Number(session.user.id) : null;
     const newSesi = await prisma.sesiUangJalan.create({
       data: {
         supirId: Number(supirId),
         keterangan,
         kendaraanPlatNomor,
+        ...(kendaraanPlatNomor ? {
+          kendaraan: {
+            connect: {
+              platNomor: kendaraanPlatNomor
+            }
+          }
+        } : {}),
+        ...(currentUserId ? { createdById: currentUserId } : {}),
         tanggalMulai: (() => {
           const ymd = parseWibYmd(tanggalMulai)
           return ymd ? wibStartUtc(ymd) : (tanggalMulai ? new Date(tanggalMulai) : undefined)
@@ -204,15 +215,15 @@ export async function POST(request: Request) {
             description,
           },
         },
-      },
+      } as any,
       include: {
         rincian: true,
       },
     });
 
     // Audit Log
-    const currentUserId = session?.user?.id ? Number(session.user.id) : 1;
-    await createAuditLog(currentUserId, 'CREATE', 'SesiUangJalan', newSesi.id.toString(), {
+    const auditUserId = currentUserId || 1;
+    await createAuditLog(auditUserId, 'CREATE', 'SesiUangJalan', newSesi.id.toString(), {
         supirId,
         amount,
         kendaraanPlatNomor,

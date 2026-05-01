@@ -238,6 +238,7 @@ model User {
   perusahaanPpnReports PerusahaanPpnReport[]
   attendanceSelfies AttendanceSelfie[]
   notaSawitPembayaranBatches NotaSawitPembayaranBatch[] @relation("NotaSawitPembayaranBatchCreatedBy")
+  sesiUangJalanCreated SesiUangJalan[] @relation("SesiUangJalanCreatedBy")
 }
 
 model PushSubscription {
@@ -799,9 +800,13 @@ model SesiUangJalan {
   updatedAt          DateTime    @updatedAt
   deletedAt          DateTime?
   deletedById        Int?
+  createdById        Int?
   kendaraan          Kendaraan?  @relation(fields: [kendaraanPlatNomor], references: [platNomor])
   supir              User        @relation(fields: [supirId], references: [id])
+  createdBy          User?       @relation("SesiUangJalanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   rincian            UangJalan[]
+
+  @@index([createdById])
 }
 
 model UangJalan {

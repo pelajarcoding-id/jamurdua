@@ -49,6 +49,12 @@ type KebunProduksiTahunanRow = {
   totalKg: number;
 };
 
+type TransposedKebunProduksiRow = {
+  month: string;
+  kebuns: Array<{ name: string; kg: number; pct: number | null }>;
+  totalKg: number;
+};
+
 interface KpiData {
   totalTonase: number;
   totalPotongan: number;
@@ -863,37 +869,41 @@ export default function LaporanNotaSawitPage() {
       doc.text(`Produksi Kebun per Bulan (Jan–Des) - ${year}`, tableMargin.left, 15)
       doc.setTextColor(0, 0, 0)
 
-      const head = [['Kebun', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des', 'Total']]
+      const head = [['Bulan', ...kebunNames, 'Total']]
 
-      const produksiBody = kebunProduksiTahunan.map((row) => {
-        const monthCells = row.months.map((m) => Math.round(Number(m.kg) || 0).toLocaleString('id-ID'))
-        return [row.kebunName, ...monthCells, Math.round(Number(row.totalKg) || 0).toLocaleString('id-ID')]
+      const produksiBody = transposedKebunProduksi.map((row) => {
+        const kebunCells = row.kebuns.map((k) => Math.round(Number(k.kg) || 0).toLocaleString('id-ID'))
+        return [row.month, ...kebunCells, Math.round(Number(row.totalKg) || 0).toLocaleString('id-ID')]
       })
 
       const produksiFoot = [
         [
           { content: 'Jumlah', styles: { fontStyle: 'bold', halign: 'left' } },
-          ...produksiKebunFooter.monthTotals.map((v) => ({ content: Math.round(Number(v) || 0).toLocaleString('id-ID'), styles: { fontStyle: 'bold' } })),
-          { content: Math.round(Number(produksiKebunFooter.grandTotal) || 0).toLocaleString('id-ID'), styles: { fontStyle: 'bold' } },
+          ...transposedFooter.kebunTotals.map((kt) => ({ content: Math.round(Number(kt.total) || 0).toLocaleString('id-ID'), styles: { fontStyle: 'bold' } })),
+          { content: Math.round(Number(transposedFooter.grandTotal) || 0).toLocaleString('id-ID'), styles: { fontStyle: 'bold' } },
         ],
       ]
 
-      const pertumbuhanBody = kebunProduksiTahunan.map((row) => {
-        const pctCells = row.months.map((m, idx) => {
-          if (idx === 0 || m.pct == null) return '-'
-          const pct = Number(m.pct) || 0
-          return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+      const pertumbuhanBody = transposedKebunProduksi.map((row) => {
+        const pctCells = row.kebuns.map((k, idx) => {
+          const kebunIdx = kebunNames.indexOf(k.name)
+          const rowKebun = kebunProduksiTahunan.find(r => r.kebunName === k.name)!
+          const monthIdx = monthLabels.indexOf(row.month)
+          const pct = rowKebun.months[monthIdx].pct
+          if (monthIdx === 0 || pct == null) return '-'
+          const pctVal = Number(pct) || 0
+          return `${pctVal >= 0 ? '+' : ''}${pctVal.toFixed(2)}%`
         })
-        return [row.kebunName, ...pctCells, '-']
+        return [row.month, ...pctCells, '-']
       })
 
       const columnStyles: Record<number, any> = {
-        0: { cellWidth: 42, halign: 'left' },
-        13: { cellWidth: 22, halign: 'right' },
+        0: { cellWidth: 18, halign: 'left' },
       }
-      for (let i = 1; i <= 12; i += 1) {
-        columnStyles[i] = { cellWidth: 18, halign: 'right' }
+      for (let i = 1; i <= kebunNames.length; i += 1) {
+        columnStyles[i] = { cellWidth: Math.max(18, 100 / (kebunNames.length + 2)), halign: 'right' }
       }
+      columnStyles[kebunNames.length + 1] = { cellWidth: 22, halign: 'right' }
 
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
@@ -964,25 +974,27 @@ export default function LaporanNotaSawitPage() {
         return string
       }
 
-      const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
-      const header = ['Kebun', ...monthLabels, 'Total']
+      const header = ['Bulan', ...kebunNames, 'Total']
 
-      const produksiRows = kebunProduksiTahunan.map((row) => {
-        const cells = row.months.map((m) => Math.round(Number(m.kg) || 0))
-        return [row.kebunName, ...cells, Math.round(Number(row.totalKg) || 0)].map(escapeCsv).join(',')
+      const produksiRows = transposedKebunProduksi.map((row) => {
+        const cells = row.kebuns.map((k) => Math.round(Number(k.kg) || 0))
+        return [row.month, ...cells, Math.round(Number(row.totalKg) || 0)].map(escapeCsv).join(',')
       })
 
-      const produksiFooterRow = ['Jumlah', ...produksiKebunFooter.monthTotals.map((v) => Math.round(Number(v) || 0)), Math.round(Number(produksiKebunFooter.grandTotal) || 0)]
+      const produksiFooterRow = ['Jumlah', ...transposedFooter.kebunTotals.map((kt) => Math.round(Number(kt.total) || 0)), Math.round(Number(transposedFooter.grandTotal) || 0)]
         .map(escapeCsv)
         .join(',')
 
-      const pertumbuhanRows = kebunProduksiTahunan.map((row) => {
-        const pctCells = row.months.map((m, idx) => {
-          if (idx === 0 || m.pct == null) return ''
-          const pct = Number(m.pct) || 0
-          return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+      const pertumbuhanRows = transposedKebunProduksi.map((row) => {
+        const pctCells = row.kebuns.map((k, idx) => {
+          const rowKebun = kebunProduksiTahunan.find(r => r.kebunName === k.name)!
+          const monthIdx = monthLabels.indexOf(row.month)
+          const pct = rowKebun.months[monthIdx].pct
+          if (monthIdx === 0 || pct == null) return ''
+          const pctVal = Number(pct) || 0
+          return `${pctVal >= 0 ? '+' : ''}${pctVal.toFixed(2)}%`
         })
-        return [row.kebunName, ...pctCells, ''].map(escapeCsv).join(',')
+        return [row.month, ...pctCells, ''].map(escapeCsv).join(',')
       })
 
       const csv = [
@@ -1033,41 +1045,26 @@ export default function LaporanNotaSawitPage() {
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;')
 
-      const monthLabels = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'Mei',
-        'Jun',
-        'Jul',
-        'Agu',
-        'Sep',
-        'Okt',
-        'Nov',
-        'Des',
-      ]
-
       const theadKg =
         '<thead><tr>' +
-        '<th style="white-space:nowrap;background:#059669;color:#fff;">Kebun</th>' +
-        monthLabels.map((m) => `<th style="white-space:nowrap;background:#059669;color:#fff;">${m}Kg</th>`).join('') +
+        '<th style="white-space:nowrap;background:#059669;color:#fff;">Bulan</th>' +
+        kebunNames.map((name) => `<th style="white-space:nowrap;background:#059669;color:#fff;">${escapeHtml(name)}Kg</th>`).join('') +
         '<th style="white-space:nowrap;background:#059669;color:#fff;">TotalKg</th>' +
         '</tr></thead>'
 
       const theadPct =
         '<thead><tr>' +
-        '<th style="white-space:nowrap;background:#059669;color:#fff;">Kebun</th>' +
-        monthLabels.map((m) => `<th style="white-space:nowrap;background:#059669;color:#fff;">${m}%</th>`).join('') +
+        '<th style="white-space:nowrap;background:#059669;color:#fff;">Bulan</th>' +
+        kebunNames.map((name) => `<th style="white-space:nowrap;background:#059669;color:#fff;">${escapeHtml(name)}%</th>`).join('') +
         '<th style="white-space:nowrap;background:#059669;color:#fff;">Total%</th>' +
         '</tr></thead>'
 
       const tbodyKg =
         '<tbody>' +
-        kebunProduksiTahunan
+        transposedKebunProduksi
           .map((row) => {
-            const monthTds = row.months.map((m) => `<td>${escapeHtml(Math.round(Number(m.kg) || 0))}</td>`).join('')
-            return `<tr><td>${escapeHtml(row.kebunName)}</td>${monthTds}<td>${escapeHtml(Math.round(Number(row.totalKg) || 0))}</td></tr>`
+            const kebunTds = row.kebuns.map((k) => `<td>${escapeHtml(Math.round(Number(k.kg) || 0))}</td>`).join('')
+            return `<tr><td>${escapeHtml(row.month)}</td>${kebunTds}<td>${escapeHtml(Math.round(Number(row.totalKg) || 0))}</td></tr>`
           })
           .join('') +
         '</tbody>'
@@ -1075,23 +1072,26 @@ export default function LaporanNotaSawitPage() {
       const tfootKg =
         '<tfoot><tr>' +
         `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml('Jumlah')}</td>` +
-        produksiKebunFooter.monthTotals.map((v) => `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml(Math.round(Number(v) || 0))}</td>`).join('') +
-        `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml(Math.round(Number(produksiKebunFooter.grandTotal) || 0))}</td>` +
+        transposedFooter.kebunTotals.map((kt) => `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml(Math.round(Number(kt.total) || 0))}</td>`).join('') +
+        `<td style="font-weight:bold;background:#d1fae5;">${escapeHtml(Math.round(Number(transposedFooter.grandTotal) || 0))}</td>` +
         '</tr></tfoot>'
 
       const tbodyPct =
         '<tbody>' +
-        kebunProduksiTahunan
+        transposedKebunProduksi
           .map((row) => {
-            const monthTds = row.months
-              .map((m, idx) => {
-                if (idx === 0 || m.pct == null) return `<td></td>`
-                const pct = Number(m.pct) || 0
-                const pctText = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+            const kebunTds = row.kebuns
+              .map((k) => {
+                const rowKebun = kebunProduksiTahunan.find(r => r.kebunName === k.name)!
+                const monthIdx = monthLabels.indexOf(row.month)
+                const pct = rowKebun.months[monthIdx].pct
+                if (monthIdx === 0 || pct == null) return `<td></td>`
+                const pctVal = Number(pct) || 0
+                const pctText = `${pctVal >= 0 ? '+' : ''}${pctVal.toFixed(2)}%`
                 return `<td>${escapeHtml(pctText)}</td>`
               })
               .join('')
-            return `<tr><td>${escapeHtml(row.kebunName)}</td>${monthTds}<td></td></tr>`
+            return `<tr><td>${escapeHtml(row.month)}</td>${kebunTds}<td></td></tr>`
           })
           .join('') +
         '</tbody>'
@@ -1142,6 +1142,34 @@ export default function LaporanNotaSawitPage() {
     }
     return { monthTotals, grandTotal }
   }, [kebunProduksiTahunan])
+
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+  const kebunNames = useMemo(() => {
+    return (kebunProduksiTahunan || []).map((r) => r.kebunName)
+  }, [kebunProduksiTahunan])
+
+  const transposedKebunProduksi = useMemo((): TransposedKebunProduksiRow[] => {
+    return monthLabels.map((month, monthIdx) => {
+      let totalKg = 0
+      const kebuns = kebunNames.map((kebunName) => {
+        const row = kebunProduksiTahunan.find(r => r.kebunName === kebunName)!
+        const kg = row.months[monthIdx].kg || 0
+        const pct = row.months[monthIdx].pct
+        totalKg += kg
+        return { name: kebunName, kg, pct }
+      })
+      return { month, kebuns, totalKg }
+    })
+  }, [kebunProduksiTahunan, kebunNames])
+
+  const transposedFooter = useMemo(() => {
+    const kebunTotals = kebunNames.map((name) => {
+      const row = kebunProduksiTahunan.find(r => r.kebunName === name)!
+      return { name, total: row.totalKg || 0 }
+    })
+    const grandTotal = kebunTotals.reduce((acc, kt) => acc + kt.total, 0)
+    return { kebunTotals, grandTotal }
+  }, [kebunProduksiTahunan, kebunNames])
 
   return (
     <main className="p-4 md:p-8">
@@ -1677,22 +1705,22 @@ export default function LaporanNotaSawitPage() {
               <table className="min-w-[1100px] w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="py-2 px-3 text-left sticky left-0 bg-gray-50">Kebun</th>
-                    {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map((m) => (
-                      <th key={m} className="py-2 px-3 text-right">{m}</th>
+                    <th className="py-2 px-3 text-left sticky left-0 bg-gray-50">Bulan</th>
+                    {kebunNames.map((name) => (
+                      <th key={name} className="py-2 px-3 text-right">{name}</th>
                     ))}
                     <th className="py-2 px-3 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {kebunProduksiTahunan.map((row) => (
-                    <tr key={row.kebunName} className="border-t">
-                      <td className="py-2 px-3 font-medium text-gray-900 sticky left-0 bg-white">{row.kebunName}</td>
-                      {row.months.map((m, idx) => (
+                  {transposedKebunProduksi.map((row) => (
+                    <tr key={row.month} className="border-t">
+                      <td className="py-2 px-3 font-medium text-gray-900 sticky left-0 bg-white">{row.month}</td>
+                      {row.kebuns.map((k, idx) => (
                         <td key={idx} className="py-2 px-3 text-right">
-                          <div className="text-gray-900">{(Number(m.kg) || 0).toLocaleString('id-ID')} kg</div>
-                          <div className={cn('text-[11px]', m.pct == null ? 'text-gray-400' : m.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
-                            {m.pct == null ? '-' : `${m.pct >= 0 ? '+' : ''}${m.pct.toFixed(2)}%`}
+                          <div className="text-gray-900">{(Number(k.kg) || 0).toLocaleString('id-ID')} kg</div>
+                          <div className={cn('text-[11px]', k.pct == null ? 'text-gray-400' : k.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+                            {k.pct == null ? '-' : `${k.pct >= 0 ? '+' : ''}${k.pct.toFixed(2)}%`}
                           </div>
                         </td>
                       ))}
@@ -1703,13 +1731,13 @@ export default function LaporanNotaSawitPage() {
                 <tfoot>
                   <tr className="border-t bg-emerald-50/60">
                     <td className="py-2 px-3 font-semibold text-gray-900 sticky left-0 bg-emerald-50/60">Jumlah</td>
-                    {produksiKebunFooter.monthTotals.map((v, idx) => (
+                    {transposedFooter.kebunTotals.map((kt, idx) => (
                       <td key={idx} className="py-2 px-3 text-right font-semibold text-gray-900">
-                        {Math.round(Number(v) || 0).toLocaleString('id-ID')} kg
+                        {Math.round(Number(kt.total) || 0).toLocaleString('id-ID')} kg
                       </td>
                     ))}
                     <td className="py-2 px-3 text-right font-bold text-gray-900">
-                      {Math.round(Number(produksiKebunFooter.grandTotal) || 0).toLocaleString('id-ID')} kg
+                      {Math.round(Number(transposedFooter.grandTotal) || 0).toLocaleString('id-ID')} kg
                     </td>
                   </tr>
                 </tfoot>

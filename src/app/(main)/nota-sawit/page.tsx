@@ -1213,15 +1213,19 @@ export default function NotaSawitPage() {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
     doc.text(`Ditransfer: ${tanggalText} • ${jumlahNota} nota`, marginX, 45)
+    if (reconcileDetail?.createdBy?.name) {
+      doc.text(`Input oleh: ${reconcileDetail.createdBy.name}`, marginX, 51)
+    }
 
     doc.setFontSize(10)
     doc.setTextColor(107, 114, 128)
     const ketLineHeight = 5
     const ketRaw = `Keterangan: ${keteranganText ? keteranganText : '-'}`
     const ketLines = (doc as any).splitTextToSize ? (doc as any).splitTextToSize(ketRaw, contentW) : [ketRaw]
-    doc.text(ketLines, marginX, 51)
+    const ketStartY = reconcileDetail?.createdBy?.name ? 57 : 51
+    doc.text(ketLines, marginX, ketStartY)
 
-    const cardY = 51 + ketLines.length * ketLineHeight + 2
+    const cardY = ketStartY + ketLines.length * ketLineHeight + 2
     const cardGap = 4
     const cardW = (contentW - cardGap * 2) / 3
     const cardH = 22

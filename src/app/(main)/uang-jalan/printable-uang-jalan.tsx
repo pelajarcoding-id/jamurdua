@@ -24,6 +24,7 @@ export const PrintableUangJalan = React.forwardRef<HTMLDivElement, PrintableUang
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
                     <div><strong>Supir:</strong> {data.supir.name}</div>
                     <div><strong>Status:</strong> {data.status}</div>
+                    <div><strong>Input oleh:</strong> {(data as any).createdBy?.name || '-'}</div>
                     <div><strong>Keterangan:</strong> {data.keterangan || '-'}</div>
                     {data.kendaraan && <div><strong>Kendaraan:</strong> {data.kendaraan.platNomor} - {data.kendaraan.merk}</div>}
                 </div>

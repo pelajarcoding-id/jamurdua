@@ -32,6 +32,7 @@ type UangJalanWithSoftDelete = UangJalan & {
 export type SesiUangJalanWithDetails = SesiUangJalan & {
     supir: User;
     kendaraan: Kendaraan | null;
+    createdBy?: User | null;
     kendaraanPlatNomor?: string | null;
     deletedAt?: Date | null;
     deletedById?: number | null;
@@ -51,7 +52,7 @@ interface SummaryData {
 }
 
 export default function UangJalanPage() {
-    const { role, id: userId } = useAuth();
+    const { role, id: userId, name: userName } = useAuth();
     const searchParams = useSearchParams();
     const router = useRouter();
     const [data, setData] = useState<SesiUangJalanWithDetails[]>([])
@@ -330,6 +331,7 @@ export default function UangJalanPage() {
                     deletedById: null,
                     supir: supirList.find(s => s.id === Number(created.supirId))!,
                     kendaraan: kendaraanList.find(k => k.platNomor === created.kendaraanPlatNomor) || null,
+                    createdBy: userId ? { id: Number(userId), name: userName } as any : null,
                     rincian: rincian.map((r: any) => ({
                         ...r,
                         createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
