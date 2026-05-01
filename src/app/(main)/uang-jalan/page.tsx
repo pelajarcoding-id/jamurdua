@@ -33,6 +33,7 @@ export type SesiUangJalanWithDetails = SesiUangJalan & {
     supir: User;
     kendaraan: Kendaraan | null;
     createdBy?: User | null;
+    createdById?: number | null;
     kendaraanPlatNomor?: string | null;
     deletedAt?: Date | null;
     deletedById?: number | null;
@@ -329,6 +330,7 @@ export default function UangJalanPage() {
                     keterangan: created.keterangan ?? null,
                     deletedAt: null,
                     deletedById: null,
+                    createdById: userId ? Number(userId) : null,
                     supir: supirList.find(s => s.id === Number(created.supirId))!,
                     kendaraan: kendaraanList.find(k => k.platNomor === created.kendaraanPlatNomor) || null,
                     createdBy: userId ? { id: Number(userId), name: userName } as any : null,
@@ -377,9 +379,11 @@ export default function UangJalanPage() {
             keterangan: formData.keterangan || null,
             deletedAt: isEditing ? selectedSesi.deletedAt : null,
             deletedById: isEditing ? selectedSesi.deletedById : null,
+            createdById: isEditing ? selectedSesi.createdById : (userId ? Number(userId) : null),
             // Mock relationships and other fields
             supir: isEditing ? selectedSesi.supir : supirList.find(s => s.id === Number(formData.supirId))!,
             kendaraan: kendaraanList.find(k => k.platNomor === formData.kendaraanPlatNomor) || null,
+            createdBy: isEditing ? selectedSesi.createdBy : (userId ? { id: Number(userId), name: userName } as any : null),
             rincian: isEditing ? selectedSesi.rincian : [],
             totalDiberikan: isEditing ? selectedSesi.totalDiberikan : (Number(formData.amount) || 0),
             totalPengeluaran: isEditing ? selectedSesi.totalPengeluaran : 0,
