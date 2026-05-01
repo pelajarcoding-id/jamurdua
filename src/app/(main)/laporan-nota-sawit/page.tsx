@@ -1156,7 +1156,7 @@ export default function LaporanNotaSawitPage() {
       const kebuns = (kebunNames || []).map((kebunName) => {
         const row = safeKebunList.find(r => r.kebunName === kebunName)
         const kg = row?.months?.[monthIdx]?.kg || 0
-        const pct = row?.months?.[monthIdx]?.pct
+        const pct = row?.months?.[monthIdx]?.pct ?? null
         totalKg += kg
         return { name: kebunName, kg, pct }
       })
