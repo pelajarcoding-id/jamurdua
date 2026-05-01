@@ -984,9 +984,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
           head: [['NO', 'TANGGAL', 'KATEGORI', 'PEKERJAAN', 'KARYAWAN', 'JUMLAH', 'HARGA SATUAN', 'JUMLAH BIAYA', 'STATUS']],
           body: rows as any,
           foot: [[
-            { content: 'JUMLAH', colSpan: 5, styles: { halign: 'center', fontStyle: 'bold' } },
-            { content: totalJumlah ? formatNumber(totalJumlah, 2) : '-', styles: { fontStyle: 'bold' } },
-            { content: avgHargaSatuan > 0 ? formatNumber(avgHargaSatuan) : '-', styles: { fontStyle: 'bold' } },
+            { content: 'JUMLAH', colSpan: 7, styles: { halign: 'center', fontStyle: 'bold' } },
             { content: totalBiaya > 0 ? formatNumber(totalBiaya) : '-', styles: { fontStyle: 'bold' } },
             { content: '', styles: { fontStyle: 'bold' } },
           ]] as any,

@@ -376,7 +376,8 @@ export default function LaporanNotaSawitPage() {
   }, [startDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, searchQuery, toYmd]);
 
   const growthKebunOptions = useMemo(() => {
-    return Array.from(new Set((monthlyDataPerGroup || []).map((k) => k.groupName))).sort((a, b) => a.localeCompare(b))
+    const safeList = monthlyDataPerGroup || []
+    return Array.from(new Set(safeList.map((k) => k.groupName).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   }, [monthlyDataPerGroup])
 
   const kebunProduksiTahunan = useMemo(() => {
@@ -1149,12 +1150,13 @@ export default function LaporanNotaSawitPage() {
   }, [kebunProduksiTahunan])
 
   const transposedKebunProduksi = useMemo((): TransposedKebunProduksiRow[] => {
+    const safeKebunList = (kebunProduksiTahunan || [])
     return monthLabels.map((month, monthIdx) => {
       let totalKg = 0
-      const kebuns = kebunNames.map((kebunName) => {
-        const row = kebunProduksiTahunan.find(r => r.kebunName === kebunName)!
-        const kg = row.months[monthIdx].kg || 0
-        const pct = row.months[monthIdx].pct
+      const kebuns = (kebunNames || []).map((kebunName) => {
+        const row = safeKebunList.find(r => r.kebunName === kebunName)
+        const kg = row?.months?.[monthIdx]?.kg || 0
+        const pct = row?.months?.[monthIdx]?.pct
         totalKg += kg
         return { name: kebunName, kg, pct }
       })
@@ -1163,9 +1165,10 @@ export default function LaporanNotaSawitPage() {
   }, [kebunProduksiTahunan, kebunNames])
 
   const transposedFooter = useMemo(() => {
-    const kebunTotals = kebunNames.map((name) => {
-      const row = kebunProduksiTahunan.find(r => r.kebunName === name)!
-      return { name, total: row.totalKg || 0 }
+    const safeKebunList = (kebunProduksiTahunan || [])
+    const kebunTotals = (kebunNames || []).map((name) => {
+      const row = safeKebunList.find(r => r.kebunName === name)
+      return { name, total: row?.totalKg || 0 }
     })
     const grandTotal = kebunTotals.reduce((acc, kt) => acc + kt.total, 0)
     return { kebunTotals, grandTotal }
@@ -1538,22 +1541,24 @@ export default function LaporanNotaSawitPage() {
             {isStatsLoading ? (
               <Skeleton className="h-[300px] w-full" />
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-                  <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                  <Tooltip formatter={(value, name) => {
-                    if (name === 'Total Pembayaran') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value as number);
-                    if (name === 'Total Berat') return `${(value as number).toLocaleString('id-ID')} kg`;
-                    return value;
-                  }} />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="totalPembayaran" fill="#8884d8" name="Total Pembayaran" />
-                  <Bar yAxisId="right" dataKey="totalBerat" fill="#82ca9d" name="Total Berat" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ width: '100%', height: 300, minWidth: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData || []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+                    <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+                    <Tooltip formatter={(value, name) => {
+                      if (name === 'Total Pembayaran') return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value as number);
+                      if (name === 'Total Berat') return `${(value as number).toLocaleString('id-ID')} kg`;
+                      return value;
+                    }} />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="totalPembayaran" fill="#8884d8" name="Total Pembayaran" />
+                    <Bar yAxisId="right" dataKey="totalBerat" fill="#82ca9d" name="Total Berat" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
 
             {!isStatsLoading && monthlyData.length > 0 && (
