@@ -127,9 +127,13 @@ export const columns: ColumnDef<NotaSawitData>[] = [
     id: 'buahBalik',
     header: () => <div className="text-right">Buah Balik (Kg)</div>,
     cell: ({ row }) => {
-      const stored = (row.original as any)?.buahBalik
-      if (typeof stored === 'number' && stored > 0) {
-        return <div className="text-right">{formatNumber(Math.round(stored))}</div>
+      const hasSnapshot = Object.prototype.hasOwnProperty.call(row.original as any, 'beratKosongSnapshot')
+      if (hasSnapshot) {
+        const stored = (row.original as any)?.buahBalik
+        if (typeof stored === 'number' && stored > 0) {
+          return <div className="text-right">{formatNumber(Math.round(stored))}</div>
+        }
+        return <div className="text-right">-</div>
       }
 
       const taraPabrik = Number(row.original.tara || 0)

@@ -65,9 +65,10 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
     const taraPabrik = Number(n.tara || 0)
     const beratKosong = (n.kendaraan && typeof (n.kendaraan as any).beratKosong === 'number') ? Number((n.kendaraan as any).beratKosong) : null
     const buahBalikRaw = (taraPabrik > 0 && typeof beratKosong === 'number' && beratKosong > 0) ? (taraPabrik - beratKosong) : null
+    const hasSnapshot = Object.prototype.hasOwnProperty.call(n as any, 'beratKosongSnapshot')
     const storedBuahBalik = (n as any)?.buahBalik
-    const buahBalik = (typeof storedBuahBalik === 'number' && storedBuahBalik > 0)
-      ? Math.round(storedBuahBalik)
+    const buahBalik = hasSnapshot
+      ? (typeof storedBuahBalik === 'number' && storedBuahBalik > 0) ? Math.round(storedBuahBalik) : null
       : (typeof buahBalikRaw === 'number' && buahBalikRaw > 0) ? Math.round(buahBalikRaw) : null
     const pphRateApplied = (n as any).pphRateApplied ?? 0.0025
     return [
@@ -630,9 +631,10 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
   const taraPabrik = Number(nota.tara || 0)
   const beratKosong = (nota.kendaraan && typeof (nota.kendaraan as any).beratKosong === 'number') ? Number((nota.kendaraan as any).beratKosong) : null
   const buahBalikRaw = (taraPabrik > 0 && typeof beratKosong === 'number' && beratKosong > 0) ? (taraPabrik - beratKosong) : null
+  const hasSnapshot = Object.prototype.hasOwnProperty.call(nota as any, 'beratKosongSnapshot')
   const storedBuahBalik = (nota as any)?.buahBalik
-  const buahBalik = (typeof storedBuahBalik === 'number' && storedBuahBalik > 0)
-    ? Math.round(storedBuahBalik)
+  const buahBalik = hasSnapshot
+    ? (typeof storedBuahBalik === 'number' && storedBuahBalik > 0) ? Math.round(storedBuahBalik) : null
     : (typeof buahBalikRaw === 'number' && buahBalikRaw > 0) ? Math.round(buahBalikRaw) : null
   const hasTimbanganAsal = nota.timbangan ? !!(nota.timbangan.supir || nota.timbangan.kendaraan) : false;
   const kebunName = nota.timbangan?.kebun?.name || nota.kebun?.name || '-';

@@ -1745,7 +1745,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
                 const isInGajian = isUpah && !!item.gajianId && !isPaid
                 const isLocked = mode === 'borongan' ? isInGajian : (isUpah && !!item.gajianId)
-                const isUnpaid = isUpah && !isLocked
+                const isUnpaid = isUpah && !isInGajian && !isPaid
                 const displayNo = startIndex + idx + 1
                 const jumlah = Number(item.jumlah || 0)
                 const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
@@ -1897,7 +1897,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                     const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
                     const isInGajian = isUpah && !!item.gajianId && !isPaid
                     const isLocked = mode === 'borongan' ? isInGajian : (isUpah && !!item.gajianId)
-                    const isUnpaid = isUpah && !isLocked
+                    const isUnpaid = isUpah && !isInGajian && !isPaid
                     const displayNo = startIndex + idx + 1
                     const jumlah = Number(item.jumlah || 0)
                     const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
@@ -2251,17 +2251,16 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
               </div>
             ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {!editKategoriOnly ? (
-                <div>
-                  <Label>Tanggal</Label>
-                  <Input
-                    type="date"
-                    value={editForm.date}
-                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                    className="bg-white"
-                  />
-                </div>
-              ) : null}
+              <div>
+                <Label>Tanggal</Label>
+                <Input
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                  className="bg-white"
+                  disabled={editKategoriOnly}
+                />
+              </div>
               {mode === 'borongan' ? (
                 <div>
                   <Label>Kategori Borongan *</Label>
@@ -2326,24 +2325,23 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   ) : null}
                 </div>
               ) : null}
-              {!editKategoriOnly ? (
-                <div>
-                  <Label>{mode === 'borongan' ? 'Jenis Pekerjaan *' : 'Deskripsi'}</Label>
-                  <Input
-                    value={editForm.jenisPekerjaan}
-                    onChange={(e) => {
-                      setEditForm({ ...editForm, jenisPekerjaan: e.target.value })
-                      if (mode === 'borongan') setEditErrors((prev) => ({ ...prev, jenisPekerjaan: undefined }))
-                    }}
-                    className="bg-white"
-                    placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'}
-                    ref={editJenisFieldRef}
-                  />
-                  {mode === 'borongan' && editErrors.jenisPekerjaan ? (
-                    <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{editErrors.jenisPekerjaan}</p>
-                  ) : null}
-                </div>
-              ) : null}
+              <div>
+                <Label>{mode === 'borongan' ? 'Jenis Pekerjaan *' : 'Deskripsi'}</Label>
+                <Input
+                  value={editForm.jenisPekerjaan}
+                  onChange={(e) => {
+                    setEditForm({ ...editForm, jenisPekerjaan: e.target.value })
+                    if (mode === 'borongan') setEditErrors((prev) => ({ ...prev, jenisPekerjaan: undefined }))
+                  }}
+                  className="bg-white"
+                  placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'}
+                  ref={editJenisFieldRef}
+                  disabled={editKategoriOnly}
+                />
+                {mode === 'borongan' && editErrors.jenisPekerjaan ? (
+                  <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{editErrors.jenisPekerjaan}</p>
+                ) : null}
+              </div>
               {mode === 'aktivitas' ? (
                 <div>
                   <Label>Kendaraan</Label>
@@ -2400,9 +2398,19 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <p className="text-xs text-gray-500 mt-1">Boleh dikosongkan. Hanya alat berat dan mobil truck.</p>
                 </div>
               ) : null}
-              {!editKategoriOnly ? (
-                <div>
-                  <Label>Karyawan</Label>
+              <div>
+                <Label>Karyawan</Label>
+                {editKategoriOnly ? (
+                  <button
+                    type="button"
+                    className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-left text-sm text-gray-500 cursor-not-allowed"
+                    disabled
+                  >
+                    {editForm.userId
+                      ? (users.find((u) => String(u.id) === String(editForm.userId))?.name ?? '-')
+                      : '-'}
+                  </button>
+                ) : (
                   <Popover open={openEditUserSelect} onOpenChange={setOpenEditUserSelect}>
                     <PopoverTrigger asChild>
                       <button type="button" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-left text-sm">
@@ -2442,9 +2450,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <p className="text-xs text-gray-500 mt-1">Karyawan boleh dikosongkan.</p>
-                </div>
-              ) : null}
+                )}
+                <p className="text-xs text-gray-500 mt-1">Karyawan boleh dikosongkan.</p>
+              </div>
               {!mode ? (
                 <div>
                   <Label>Upah Borongan</Label>
@@ -2460,7 +2468,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   </div>
                 </div>
               ) : null}
-              {!editKategoriOnly && (mode === 'borongan' || editForm.upahBorongan) && (
+              {(mode === 'borongan' || editForm.upahBorongan) && (
                 <>
                   <div>
                     <Label>Jumlah</Label>
@@ -2474,6 +2482,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                         setEditForm({ ...editForm, jumlah: val === '' ? 0 : Number(val) })
                       }}
                       className="bg-white"
+                      disabled={editKategoriOnly}
                     />
                   </div>
                   <div>
@@ -2483,6 +2492,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       onChange={(e) => setEditForm({ ...editForm, satuan: e.target.value })}
                       className="bg-white"
                       placeholder="Contoh: HK, Kg, Ha"
+                      disabled={editKategoriOnly}
                     />
                   </div>
                   <div>
@@ -2492,6 +2502,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                       onChange={(value) => setEditForm({ ...editForm, hargaSatuan: value })}
                       className="bg-white"
                       placeholder="0"
+                      disabled={editKategoriOnly}
                     />
                   </div>
                   <div>
@@ -2505,31 +2516,30 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 </>
               )}
             </div>
+            <div>
+              <Label>Keterangan Tambahan (Opsional)</Label>
+              <Textarea
+                value={editForm.keterangan}
+                onChange={(e) => setEditForm({ ...editForm, keterangan: e.target.value })}
+                className="bg-white"
+                disabled={editKategoriOnly}
+              />
+            </div>
             {!editKategoriOnly ? (
-              <>
-                <div>
-                  <Label>Keterangan Tambahan (Opsional)</Label>
-                  <Textarea
-                    value={editForm.keterangan}
-                    onChange={(e) => setEditForm({ ...editForm, keterangan: e.target.value })}
-                    className="bg-white"
-                  />
-                </div>
-                <div>
-                  <Label>Upload Gambar (Opsional)</Label>
-                  <ImageUpload
-                    previewUrl={editBuktiPreview}
-                    onFileChange={(file) => {
-                      setEditBuktiFile(file);
-                      if (!file) {
-                        setEditBuktiPreview(null);
-                        return;
-                      }
-                      setEditBuktiPreview(URL.createObjectURL(file));
-                    }}
-                  />
-                </div>
-              </>
+              <div>
+                <Label>Upload Gambar (Opsional)</Label>
+                <ImageUpload
+                  previewUrl={editBuktiPreview}
+                  onFileChange={(file) => {
+                    setEditBuktiFile(file);
+                    if (!file) {
+                      setEditBuktiPreview(null);
+                      return;
+                    }
+                    setEditBuktiPreview(URL.createObjectURL(file));
+                  }}
+                />
+              </div>
             ) : null}
           </ModalContentWrapper>
           <ModalFooter>
