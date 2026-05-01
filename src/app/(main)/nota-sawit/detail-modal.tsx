@@ -62,6 +62,13 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
   const buildSummary = (n: NotaSawitData) => {
     const effectiveNetto = (n.netto && n.netto > 0) ? n.netto : (n.timbangan?.netKg || 0);
     const beratTotal = effectiveNetto - n.potongan;
+    const taraPabrik = Number(n.tara || 0)
+    const beratKosong = (n.kendaraan && typeof (n.kendaraan as any).beratKosong === 'number') ? Number((n.kendaraan as any).beratKosong) : null
+    const buahBalikRaw = (taraPabrik > 0 && typeof beratKosong === 'number' && beratKosong > 0) ? (taraPabrik - beratKosong) : null
+    const storedBuahBalik = (n as any)?.buahBalik
+    const buahBalik = (typeof storedBuahBalik === 'number' && storedBuahBalik > 0)
+      ? Math.round(storedBuahBalik)
+      : (typeof buahBalikRaw === 'number' && buahBalikRaw > 0) ? Math.round(buahBalikRaw) : null
     const pphRateApplied = (n as any).pphRateApplied ?? 0.0025
     return [
       `Nota Sawit #${n.id}`,
@@ -71,6 +78,7 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
       `Pabrik: ${n.pabrikSawit.name}`,
       `Perusahaan: ${(n as any).perusahaan?.name || '-'}`,
       `Bruto/Tara/Netto: ${(n.bruto || n.timbangan?.grossKg || 0).toLocaleString('id-ID')} / ${(n.tara || n.timbangan?.tareKg || 0).toLocaleString('id-ID')} / ${(n.netto || n.timbangan?.netKg || 0).toLocaleString('id-ID')} kg`,
+      `Buah Balik: ${buahBalik === null ? '-' : `${buahBalik.toLocaleString('id-ID')} kg`}`,
       `Potongan: ${n.potongan.toLocaleString('id-ID')} kg`,
       `Total Berat (Net): ${beratTotal.toLocaleString('id-ID')} kg`,
       `Status Pembayaran: ${n.statusPembayaran === 'LUNAS' ? 'Lunas' : 'Pending'}`,
@@ -619,6 +627,13 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
         ? `Timbangan Pabrik Lebih ${formatWeight(Math.abs(selisihBruto))}`
         : `Timbangan Pabrik Kurang ${formatWeight(Math.abs(selisihBruto))}`
   const beratTotal = effectiveNetto - nota.potongan;
+  const taraPabrik = Number(nota.tara || 0)
+  const beratKosong = (nota.kendaraan && typeof (nota.kendaraan as any).beratKosong === 'number') ? Number((nota.kendaraan as any).beratKosong) : null
+  const buahBalikRaw = (taraPabrik > 0 && typeof beratKosong === 'number' && beratKosong > 0) ? (taraPabrik - beratKosong) : null
+  const storedBuahBalik = (nota as any)?.buahBalik
+  const buahBalik = (typeof storedBuahBalik === 'number' && storedBuahBalik > 0)
+    ? Math.round(storedBuahBalik)
+    : (typeof buahBalikRaw === 'number' && buahBalikRaw > 0) ? Math.round(buahBalikRaw) : null
   const hasTimbanganAsal = nota.timbangan ? !!(nota.timbangan.supir || nota.timbangan.kendaraan) : false;
   const kebunName = nota.timbangan?.kebun?.name || nota.kebun?.name || '-';
 
@@ -682,6 +697,12 @@ export default function ModalDetail({ nota, onClose, onEdit, onDelete, readonly 
               <Row 
                 label="Tara" 
                 value={formatWeight(nota.tara || 0)} 
+                className="border-b border-green-200/50 pb-3 last:border-0 last:pb-0"
+                valueClassName="text-green-900"
+              />
+              <Row 
+                label="Buah Balik" 
+                value={buahBalik === null ? '-' : formatWeight(buahBalik)} 
                 className="border-b border-green-200/50 pb-3 last:border-0 last:pb-0"
                 valueClassName="text-green-900"
               />

@@ -328,6 +328,30 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (tara !== undefined && tara !== null) dataToUpdate.tara = roundInt(tara);
     if (netto !== undefined && netto !== null) dataToUpdate.netto = roundInt(netto);
 
+    const targetPlatNomor = (kendaraanPlatNomor !== undefined && kendaraanPlatNomor !== null)
+      ? (String(kendaraanPlatNomor).trim() || null)
+      : ((existingNota as any).kendaraanPlatNomor ? String((existingNota as any).kendaraanPlatNomor).trim() : null)
+
+    const existingSnapshot =
+      typeof (existingNota as any).beratKosongSnapshot === 'number' ? Number((existingNota as any).beratKosongSnapshot) : null
+
+    let beratKosongSnapshot = existingSnapshot
+    if (targetPlatNomor) {
+      const shouldRefresh = (kendaraanPlatNomor !== undefined && kendaraanPlatNomor !== null) || existingSnapshot === null
+      if (shouldRefresh) {
+        const kendaraanRow = await prisma.kendaraan.findUnique({ where: { platNomor: targetPlatNomor }, select: { beratKosong: true } as any })
+        beratKosongSnapshot = (kendaraanRow && typeof (kendaraanRow as any).beratKosong === 'number') ? Number((kendaraanRow as any).beratKosong) : null
+      }
+    } else {
+      beratKosongSnapshot = null
+    }
+
+    const taraEffective = (dataToUpdate.tara !== undefined && dataToUpdate.tara !== null) ? Number(dataToUpdate.tara) : Number((existingNota as any).tara || 0)
+    const buahBalikRaw = (taraEffective > 0 && typeof beratKosongSnapshot === 'number' && beratKosongSnapshot > 0) ? (taraEffective - beratKosongSnapshot) : null
+    const buahBalik = (typeof buahBalikRaw === 'number' && buahBalikRaw > 0) ? roundInt(buahBalikRaw) : null
+    dataToUpdate.beratKosongSnapshot = beratKosongSnapshot
+    dataToUpdate.buahBalik = buahBalik
+
     let timbanganData = { ...existingNota.timbangan };
 
     // Jangan ubah data timbangan saat edit Nota Sawit; gunakan data timbangan sebagai pembanding saja

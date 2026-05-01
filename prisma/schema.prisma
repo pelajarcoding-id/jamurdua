@@ -610,6 +610,8 @@ model NotaSawit {
   timbanganId          Int?             @unique
   supirId              Int
   kendaraanPlatNomor   String?
+  beratKosongSnapshot  Float?
+  buahBalik            Float?
   potongan             Float            @default(0)
   beratAkhir           Float
   hargaPerKg           Float            @default(0)

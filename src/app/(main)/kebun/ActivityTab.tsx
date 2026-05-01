@@ -188,6 +188,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   const [detailExporting, setDetailExporting] = useState(false);
   const [listExporting, setListExporting] = useState(false)
   const [editOpen, setEditOpen] = useState(false);
+  const [editKategoriOnly, setEditKategoriOnly] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Pekerjaan | null>(null);
   const [editUserQuery, setEditUserQuery] = useState('');
@@ -712,7 +713,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
   }
 
   const openEdit = (item: Pekerjaan) => {
+    const isPaid = !!(mode === 'borongan' && item.upahBorongan && item.gajianStatus === 'FINALIZED')
     setSelectedActivity(item);
+    setEditKategoriOnly(isPaid)
     setEditBuktiFile(null);
     setEditBuktiPreview(item.imageUrl || null);
     const userIds = mode === 'borongan'
@@ -741,13 +744,13 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   const handleUpdate = async () => {
     if (!selectedActivity) return;
-    const nextErrors: { kategoriBorongan?: string; jenisPekerjaan?: string } = {}
-    if (mode === 'borongan') {
-      if (!String((editForm as any).kategoriBorongan || '').trim()) nextErrors.kategoriBorongan = 'Kategori borongan wajib dipilih.'
-      if (!String(editForm.jenisPekerjaan || '').trim()) nextErrors.jenisPekerjaan = 'Jenis pekerjaan wajib diisi.'
+    if (mode === 'borongan' && !String((editForm as any).kategoriBorongan || '').trim()) {
+      setEditErrors({ kategoriBorongan: 'Kategori borongan wajib dipilih.' })
+      toast.error('Harap lengkapi field wajib.')
+      return
     }
-    if (Object.keys(nextErrors).length > 0) {
-      setEditErrors(nextErrors)
+    if (!editKategoriOnly && mode === 'borongan' && !String(editForm.jenisPekerjaan || '').trim()) {
+      setEditErrors({ jenisPekerjaan: 'Jenis pekerjaan wajib diisi.' })
       toast.error('Harap lengkapi field wajib.')
       return
     }
@@ -758,40 +761,54 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       const ids = mode === 'borongan'
         ? [selectedActivity.id]
         : selectedActivity.ids && selectedActivity.ids.length > 0 ? selectedActivity.ids : [selectedActivity.id]
-      const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : editForm.upahBorongan
-      const totalBiaya = effectiveUpahBorongan ? Math.round(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0)) : 0;
-      const payload: any = {
-        ids,
-        ...editForm,
-        upahBorongan: effectiveUpahBorongan,
-        biaya: totalBiaya,
+      const payload: any = editKategoriOnly
+        ? {
+            ids,
+            kategoriBorongan: String((editForm as any).kategoriBorongan || '').trim(),
+            kategoriOnly: true,
+          }
+        : (() => {
+            const effectiveUpahBorongan = mode === 'borongan' ? true : mode === 'aktivitas' ? false : editForm.upahBorongan
+            const totalBiaya = effectiveUpahBorongan ? Math.round(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0)) : 0;
+            const base: any = {
+              ids,
+              ...editForm,
+              upahBorongan: effectiveUpahBorongan,
+              biaya: totalBiaya,
+            }
+            if (mode === 'aktivitas') {
+              delete base.kategoriBorongan
+              delete base.jumlah
+              delete base.satuan
+              delete base.hargaSatuan
+            } else {
+              delete base.kendaraanPlatNomor
+            }
+            return base
+          })()
+
+      if (!editKategoriOnly) {
+        let imageUrl: string | undefined = undefined;
+        if (editBuktiFile) {
+          const fd = new FormData();
+          fd.append('file', editBuktiFile);
+          const up = await fetch('/api/upload', { method: 'POST', body: fd });
+          const upJson = await up.json().catch(() => ({}));
+          if (!up.ok || !upJson?.success) throw new Error(upJson?.error || 'Upload gambar gagal');
+          imageUrl = upJson.url;
+        }
+        if (typeof imageUrl !== 'undefined') payload.imageUrl = imageUrl
       }
-      if (mode === 'aktivitas') {
-        delete payload.kategoriBorongan
-        delete payload.jumlah
-        delete payload.satuan
-        delete payload.hargaSatuan
-      } else {
-        delete payload.kendaraanPlatNomor
-      }
-      let imageUrl: string | undefined = undefined;
-      if (editBuktiFile) {
-        const fd = new FormData();
-        fd.append('file', editBuktiFile);
-        const up = await fetch('/api/upload', { method: 'POST', body: fd });
-        const upJson = await up.json().catch(() => ({}));
-        if (!up.ok || !upJson?.success) throw new Error(upJson?.error || 'Upload gambar gagal');
-        imageUrl = upJson.url;
-      }
-      if (typeof imageUrl !== 'undefined') payload.imageUrl = imageUrl
       const res = await fetch(`/api/kebun/${kebunId}/pekerjaan`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Gagal memperbarui');
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(json?.error || 'Gagal memperbarui');
       toast.success('Pekerjaan diperbarui', { id: loadingToast });
       setEditOpen(false);
+      setEditKategoriOnly(false)
       setSelectedActivity(null);
       setEditBuktiFile(null);
       setEditBuktiPreview(null);
@@ -995,6 +1012,76 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
           footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' as const },
           margin: { left: 12, right: 12, top: headerHeight + 8, bottom: footerHeight + 8 },
         })
+
+        const kategoriTotals = Array.from(
+          filteredActivities.reduce((acc, curr) => {
+            const kategori = String((curr as any).kategoriBorongan || '').trim() || 'Tanpa kategori'
+            acc.set(kategori, (acc.get(kategori) || 0) + Number(curr.biaya || 0))
+            return acc
+          }, new Map<string, number>()),
+        )
+          .map(([kategori, total]) => ({ kategori, total }))
+          .filter((x) => x.total > 0)
+          .sort((a, b) => b.total - a.total)
+
+        if (kategoriTotals.length > 0) {
+          const marginX = 12
+          const contentBottomY = pageHeight - footerHeight - 8
+          const cols = 3
+          const gap = 4
+          const cardW = (pageWidth - (marginX * 2) - (gap * (cols - 1))) / cols
+          const cardH = 14
+
+          const lastAutoTable = (doc as any).lastAutoTable
+          let cursorY = Number(lastAutoTable?.finalY || (headerHeight + 8)) + 8
+
+          const ensureSpace = (needHeight: number) => {
+            if (cursorY + needHeight <= contentBottomY) return
+            doc.addPage()
+            cursorY = headerHeight + 8
+          }
+
+          ensureSpace(10)
+          doc.setTextColor(15, 23, 42)
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(10)
+          doc.text('Biaya per Kategori', marginX, cursorY)
+          cursorY += 6
+
+          doc.setFontSize(8)
+          kategoriTotals.forEach((item, idx) => {
+            const row = Math.floor(idx / cols)
+            const col = idx % cols
+            const x = marginX + col * (cardW + gap)
+            const y = cursorY + row * (cardH + gap)
+
+            if (y + cardH > contentBottomY) {
+              doc.addPage()
+              cursorY = headerHeight + 8
+
+              doc.setTextColor(15, 23, 42)
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(10)
+              doc.text('Biaya per Kategori', marginX, cursorY)
+              cursorY += 6
+            }
+
+            const cardY = cursorY + row * (cardH + gap)
+            doc.setFillColor(241, 245, 249)
+            doc.setDrawColor(226, 232, 240)
+            doc.roundedRect(x, cardY, cardW, cardH, 2, 2, 'FD')
+
+            doc.setTextColor(15, 23, 42)
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8)
+            const lines = (doc as any).splitTextToSize(String(item.kategori || ''), cardW - 4) as string[]
+            doc.text(String(lines?.[0] || ''), x + 2, cardY + 5)
+
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(9)
+            doc.text(formatNumber(item.total), x + cardW - 2, cardY + 11, { align: 'right' })
+          })
+        }
       } else {
         const rows = filteredActivities.map((item, idx) => {
           const karyawanText = (item.users && item.users.length > 0)
@@ -1655,9 +1742,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             <div className="grid grid-cols-1 gap-4 md:hidden">
               {pagedActivities.map((item, idx) => {
                 const isUpah = !!item.upahBorongan
-                const isLocked = isUpah && !!item.gajianId
                 const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
                 const isInGajian = isUpah && !!item.gajianId && !isPaid
+                const isLocked = mode === 'borongan' ? isInGajian : (isUpah && !!item.gajianId)
                 const isUnpaid = isUpah && !isLocked
                 const displayNo = startIndex + idx + 1
                 const jumlah = Number(item.jumlah || 0)
@@ -1748,9 +1835,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                             <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
                               <PencilSquareIcon className="h-4 w-4" />
                             </Button>
-                            <Button variant="destructive" className="h-8 w-8 p-0 rounded-full" onClick={() => openDelete(item)}>
-                              <TrashIcon className="h-4 w-4" />
-                            </Button>
+                            {!(mode === 'borongan' && isPaid) ? (
+                              <Button variant="destructive" className="h-8 w-8 p-0 rounded-full" onClick={() => openDelete(item)}>
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            ) : null}
                           </>
                         )}
                       </div>
@@ -1805,9 +1894,9 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <tbody className="divide-y divide-gray-50">
                   {pagedActivities.map((item, idx) => {
                     const isUpah = !!item.upahBorongan
-                    const isLocked = isUpah && !!item.gajianId
                     const isPaid = isUpah && item.gajianStatus === 'FINALIZED'
                     const isInGajian = isUpah && !!item.gajianId && !isPaid
+                    const isLocked = mode === 'borongan' ? isInGajian : (isUpah && !!item.gajianId)
                     const isUnpaid = isUpah && !isLocked
                     const displayNo = startIndex + idx + 1
                     const jumlah = Number(item.jumlah || 0)
@@ -1916,9 +2005,11 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-blue-50 hover:text-blue-600" onClick={() => openEdit(item)} title="Edit">
                                   <PencilSquareIcon className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600" onClick={() => openDelete(item)} title="Hapus">
-                                  <TrashIcon className="h-4 w-4" />
-                                </Button>
+                                {!(mode === 'borongan' && isPaid) ? (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600" onClick={() => openDelete(item)} title="Hapus">
+                                    <TrashIcon className="h-4 w-4" />
+                                  </Button>
+                                ) : null}
                               </>
                             )}
                           </div>
@@ -2133,25 +2224,44 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open)
+          if (!open) {
+            setEditKategoriOnly(false)
+            setSelectedActivity(null)
+            setEditBuktiFile(null)
+            setEditBuktiPreview(null)
+            setEditErrors({})
+          }
+        }}
+      >
         <DialogContent className="w-[92vw] sm:max-w-2xl max-h-[90vh] p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
           <ModalHeader
-            title="Edit Pekerjaan"
+            title={editKategoriOnly ? 'Ubah Kategori Borongan' : 'Edit Pekerjaan'}
             variant="emerald"
             icon={<PencilSquareIcon className="h-5 w-5 text-white" />}
-            onClose={() => setEditOpen(false)}
+            onClose={() => { setEditOpen(false); setEditKategoriOnly(false); }}
           />
           <ModalContentWrapper className="space-y-6 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Tanggal</Label>
-                <Input
-                  type="date"
-                  value={editForm.date}
-                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                  className="bg-white"
-                />
+            {editKategoriOnly ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Data sudah digaji. Yang bisa diubah hanya kategori.
               </div>
+            ) : null}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {!editKategoriOnly ? (
+                <div>
+                  <Label>Tanggal</Label>
+                  <Input
+                    type="date"
+                    value={editForm.date}
+                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                    className="bg-white"
+                  />
+                </div>
+              ) : null}
               {mode === 'borongan' ? (
                 <div>
                   <Label>Kategori Borongan *</Label>
@@ -2216,22 +2326,24 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   ) : null}
                 </div>
               ) : null}
-              <div>
-                <Label>{mode === 'borongan' ? 'Jenis Pekerjaan *' : 'Deskripsi'}</Label>
-                <Input
-                  value={editForm.jenisPekerjaan}
-                  onChange={(e) => {
-                    setEditForm({ ...editForm, jenisPekerjaan: e.target.value })
-                    if (mode === 'borongan') setEditErrors((prev) => ({ ...prev, jenisPekerjaan: undefined }))
-                  }}
-                  className="bg-white"
-                  placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'}
-                  ref={editJenisFieldRef}
-                />
-                {mode === 'borongan' && editErrors.jenisPekerjaan ? (
-                  <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{editErrors.jenisPekerjaan}</p>
-                ) : null}
-              </div>
+              {!editKategoriOnly ? (
+                <div>
+                  <Label>{mode === 'borongan' ? 'Jenis Pekerjaan *' : 'Deskripsi'}</Label>
+                  <Input
+                    value={editForm.jenisPekerjaan}
+                    onChange={(e) => {
+                      setEditForm({ ...editForm, jenisPekerjaan: e.target.value })
+                      if (mode === 'borongan') setEditErrors((prev) => ({ ...prev, jenisPekerjaan: undefined }))
+                    }}
+                    className="bg-white"
+                    placeholder={mode === 'borongan' ? 'Contoh: Panen, Mupuk...' : 'Contoh : Minyak Kendaraan, Panen , Mupuk ....'}
+                    ref={editJenisFieldRef}
+                  />
+                  {mode === 'borongan' && editErrors.jenisPekerjaan ? (
+                    <p className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{editErrors.jenisPekerjaan}</p>
+                  ) : null}
+                </div>
+              ) : null}
               {mode === 'aktivitas' ? (
                 <div>
                   <Label>Kendaraan</Label>
@@ -2288,49 +2400,51 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 <p className="text-xs text-gray-500 mt-1">Boleh dikosongkan. Hanya alat berat dan mobil truck.</p>
                 </div>
               ) : null}
-              <div>
-                <Label>Karyawan</Label>
-                <Popover open={openEditUserSelect} onOpenChange={setOpenEditUserSelect}>
-                  <PopoverTrigger asChild>
-                    <button type="button" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-left text-sm">
-                      {editForm.userId
-                        ? (users.find((u) => String(u.id) === String(editForm.userId))?.name ?? 'Pilih karyawan')
-                        : 'Pilih karyawan'}
-                      <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
-                    <Input
-                      autoFocus
-                      placeholder="Cari karyawan..."
-                      value={editUserQuery}
-                      onChange={(e) => setEditUserQuery(e.target.value)}
-                      className="mb-2 rounded-lg"
-                    />
-                    <div className="max-h-56 overflow-y-auto space-y-1">
-                      {users
-                        .filter((u) => u.name.toLowerCase().includes(editUserQuery.toLowerCase()))
-                        .map((user) => (
-                          <button
-                            key={user.id}
-                            type="button"
-                            onClick={() => {
-                              setEditForm({ ...editForm, userId: String(user.id) });
-                              setOpenEditUserSelect(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 ${String(user.id) === String(editForm.userId) ? 'bg-emerald-50 text-emerald-700' : ''}`}
-                          >
-                            {user.name}
-                          </button>
-                        ))}
-                      {users.filter((u) => u.name.toLowerCase().includes(editUserQuery.toLowerCase())).length === 0 && (
-                        <div className="px-3 py-2 text-sm text-gray-500">Karyawan tidak ditemukan</div>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                <p className="text-xs text-gray-500 mt-1">Karyawan boleh dikosongkan.</p>
-              </div>
+              {!editKategoriOnly ? (
+                <div>
+                  <Label>Karyawan</Label>
+                  <Popover open={openEditUserSelect} onOpenChange={setOpenEditUserSelect}>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-left text-sm">
+                        {editForm.userId
+                          ? (users.find((u) => String(u.id) === String(editForm.userId))?.name ?? 'Pilih karyawan')
+                          : 'Pilih karyawan'}
+                        <ChevronUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+                      <Input
+                        autoFocus
+                        placeholder="Cari karyawan..."
+                        value={editUserQuery}
+                        onChange={(e) => setEditUserQuery(e.target.value)}
+                        className="mb-2 rounded-lg"
+                      />
+                      <div className="max-h-56 overflow-y-auto space-y-1">
+                        {users
+                          .filter((u) => u.name.toLowerCase().includes(editUserQuery.toLowerCase()))
+                          .map((user) => (
+                            <button
+                              key={user.id}
+                              type="button"
+                              onClick={() => {
+                                setEditForm({ ...editForm, userId: String(user.id) });
+                                setOpenEditUserSelect(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 ${String(user.id) === String(editForm.userId) ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                            >
+                              {user.name}
+                            </button>
+                          ))}
+                        {users.filter((u) => u.name.toLowerCase().includes(editUserQuery.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">Karyawan tidak ditemukan</div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <p className="text-xs text-gray-500 mt-1">Karyawan boleh dikosongkan.</p>
+                </div>
+              ) : null}
               {!mode ? (
                 <div>
                   <Label>Upah Borongan</Label>
@@ -2346,7 +2460,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                   </div>
                 </div>
               ) : null}
-              {(mode === 'borongan' || editForm.upahBorongan) && (
+              {!editKategoriOnly && (mode === 'borongan' || editForm.upahBorongan) && (
                 <>
                   <div>
                     <Label>Jumlah</Label>
@@ -2391,35 +2505,39 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
                 </>
               )}
             </div>
-            <div>
-              <Label>Keterangan Tambahan (Opsional)</Label>
-              <Textarea
-                value={editForm.keterangan}
-                onChange={(e) => setEditForm({ ...editForm, keterangan: e.target.value })}
-                className="bg-white"
-              />
-            </div>
-            <div>
-              <Label>Upload Gambar (Opsional)</Label>
-              <ImageUpload
-                previewUrl={editBuktiPreview}
-                onFileChange={(file) => {
-                  setEditBuktiFile(file);
-                  if (!file) {
-                    setEditBuktiPreview(null);
-                    return;
-                  }
-                  setEditBuktiPreview(URL.createObjectURL(file));
-                }}
-              />
-            </div>
+            {!editKategoriOnly ? (
+              <>
+                <div>
+                  <Label>Keterangan Tambahan (Opsional)</Label>
+                  <Textarea
+                    value={editForm.keterangan}
+                    onChange={(e) => setEditForm({ ...editForm, keterangan: e.target.value })}
+                    className="bg-white"
+                  />
+                </div>
+                <div>
+                  <Label>Upload Gambar (Opsional)</Label>
+                  <ImageUpload
+                    previewUrl={editBuktiPreview}
+                    onFileChange={(file) => {
+                      setEditBuktiFile(file);
+                      if (!file) {
+                        setEditBuktiPreview(null);
+                        return;
+                      }
+                      setEditBuktiPreview(URL.createObjectURL(file));
+                    }}
+                  />
+                </div>
+              </>
+            ) : null}
           </ModalContentWrapper>
           <ModalFooter>
-            <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="rounded-full">
+            <Button type="button" variant="outline" onClick={() => { setEditOpen(false); setEditKategoriOnly(false); }} className="rounded-full">
               Batal
             </Button>
             <Button type="button" onClick={handleUpdate} className="rounded-full bg-emerald-600 hover:bg-emerald-700">
-              Simpan
+              {editKategoriOnly ? 'Simpan Kategori' : 'Simpan'}
             </Button>
           </ModalFooter>
         </DialogContent>

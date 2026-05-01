@@ -124,6 +124,31 @@ export const columns: ColumnDef<NotaSawitData>[] = [
     },
   },
   {
+    id: 'buahBalik',
+    header: () => <div className="text-right">Buah Balik (Kg)</div>,
+    cell: ({ row }) => {
+      const stored = (row.original as any)?.buahBalik
+      if (typeof stored === 'number' && stored > 0) {
+        return <div className="text-right">{formatNumber(Math.round(stored))}</div>
+      }
+
+      const taraPabrik = Number(row.original.tara || 0)
+      const beratKosong = (row.original.kendaraan && typeof (row.original.kendaraan as any).beratKosong === 'number')
+        ? Number((row.original.kendaraan as any).beratKosong)
+        : null
+
+      if (!(taraPabrik > 0) || !(typeof beratKosong === 'number' && beratKosong > 0)) {
+        return <div className="text-right">-</div>
+      }
+
+      const diff = taraPabrik - beratKosong
+      if (!(diff > 0)) return <div className="text-right">-</div>
+      const buahBalik = Math.round(diff)
+      return <div className="text-right">{formatNumber(buahBalik)}</div>
+    },
+    footer: () => <div className="text-right">-</div>,
+  },
+  {
     accessorKey: 'netto', // Change accessorKey
     id: 'netto',
     header: () => <div className="text-right">Netto (Kg)</div>,

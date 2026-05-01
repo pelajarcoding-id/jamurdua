@@ -738,27 +738,27 @@ export async function POST(request: Request) {
           },
         })
 
-        await tx.jurnal.create({
-          data: {
-            date: trxDate,
-            keterangan: `${deskripsi} | ${keterangan}`,
-            refType: 'KasTransaksi',
-            refId: kasTransaksi.id,
-            detailJurnal: {
-              create: [
-                {
-                  akunId: 601,
-                  posisi: 'DEBIT',
-                  nominal: totalJumlah
-                },
-                {
-                  akunId: 101,
-                  posisi: 'KREDIT',
-                  nominal: totalJumlah
-                }
-              ]
-            }
-          } as any
+        await tx.jurnal.createMany({
+          data: [
+            {
+              date: trxDate,
+              akun: 'Beban Gaji',
+              deskripsi: `${deskripsi} | ${keterangan}`,
+              debit: totalJumlah,
+              kredit: 0,
+              refType: 'KasTransaksi',
+              refId: kasTransaksi.id,
+            },
+            {
+              date: trxDate,
+              akun: 'Kas',
+              deskripsi: `${deskripsi} | ${keterangan}`,
+              debit: 0,
+              kredit: totalJumlah,
+              refType: 'KasTransaksi',
+              refId: kasTransaksi.id,
+            },
+          ],
         })
       }
     })

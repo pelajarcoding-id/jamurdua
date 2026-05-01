@@ -397,6 +397,14 @@ export async function POST(request: Request) {
     
     const effectiveNetto = netto; 
 
+    const kendaraanRow = kendaraanPlatNomor
+      ? await prisma.kendaraan.findUnique({ where: { platNomor: kendaraanPlatNomor }, select: { beratKosong: true } as any })
+      : null
+    const beratKosongSnapshot =
+      kendaraanRow && typeof (kendaraanRow as any).beratKosong === 'number' ? Number((kendaraanRow as any).beratKosong) : null
+    const buahBalikRaw = (tara > 0 && typeof beratKosongSnapshot === 'number' && beratKosongSnapshot > 0) ? (tara - beratKosongSnapshot) : null
+    const buahBalik = (typeof buahBalikRaw === 'number' && buahBalikRaw > 0) ? roundInt(buahBalikRaw) : null
+
     const beratAkhir = Math.max(0, effectiveNetto - potongan);
     const totalPembayaran = roundInt(beratAkhir * hargaPerKg);
     const pph = roundInt(totalPembayaran * 0.0025);
@@ -525,7 +533,9 @@ export async function POST(request: Request) {
         gambarNotaUrl,
         bruto, 
         tara,   
-        netto: effectiveNetto
+        netto: effectiveNetto,
+        beratKosongSnapshot,
+        buahBalik,
     };
 
     const newNotaSawit = await prisma.notaSawit.create({

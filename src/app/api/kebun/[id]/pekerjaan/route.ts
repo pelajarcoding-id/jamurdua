@@ -289,9 +289,16 @@ export async function PATCH(
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json();
+    const kategoriOnly = body?.kategoriOnly === true || body?.kategoriOnly === 'true'
     const { id, ids, jenisPekerjaan, kategoriBorongan, keterangan, biaya, userId, date, upahBorongan, jumlah, satuan, hargaSatuan, imageUrl, kendaraanPlatNomor } = body;
-    if ((!id && (!Array.isArray(ids) || ids.length === 0)) || !jenisPekerjaan) {
+    if (!id && (!Array.isArray(ids) || ids.length === 0)) {
       return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
+    }
+    if (!kategoriOnly && !jenisPekerjaan) {
+      return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
+    }
+    if (kategoriOnly && !String(kategoriBorongan || '').trim()) {
+      return NextResponse.json({ error: 'Kategori borongan wajib diisi' }, { status: 400 })
     }
 
     const targetIds = Array.isArray(ids) && ids.length > 0
@@ -306,11 +313,47 @@ export async function PATCH(
           upahBorongan: true,
           gajianId: { not: null },
         },
-        select: { id: true },
+        select: { id: true, gajianId: true },
       })
       if (lockedRows.length > 0) {
-        return NextResponse.json({ error: 'Data borongan sudah masuk penggajian dan tidak bisa diubah' }, { status: 400 })
+        if (!kategoriOnly) {
+          return NextResponse.json({ error: 'Data borongan sudah masuk penggajian dan tidak bisa diubah' }, { status: 400 })
+        }
+        const gajianIds = Array.from(
+          new Set<number>(
+            lockedRows
+              .map((r) => (r.gajianId ? Number(r.gajianId) : null))
+              .filter((x): x is number => Number.isFinite(x) && x > 0),
+          ),
+        )
+        const gajianRows = gajianIds.length
+          ? await prisma.gajian.findMany({ where: { id: { in: gajianIds } }, select: { id: true, status: true } })
+          : []
+        const statusById = new Map<number, string>(gajianRows.map((g) => [g.id, g.status]))
+        const hasNonFinalized = lockedRows.some((r) => {
+          const gid = r.gajianId ? Number(r.gajianId) : 0
+          if (!gid) return true
+          return (statusById.get(gid) || null) !== 'FINALIZED'
+        })
+        if (hasNonFinalized) {
+          return NextResponse.json({ error: 'Data borongan sudah masuk penggajian dan tidak bisa diubah' }, { status: 400 })
+        }
       }
+    }
+
+    const kategoriBoronganValue = typeof kategoriBorongan === 'string' && kategoriBorongan.trim() ? kategoriBorongan.trim() : null
+    if (kategoriOnly) {
+      await (prisma as any).pekerjaanKebun.updateMany({
+        where: {
+          id: { in: targetIds },
+          kebunId,
+          upahBorongan: true,
+        },
+        data: {
+          kategoriBorongan: kategoriBoronganValue,
+        },
+      })
+      return NextResponse.json({ ok: true })
     }
 
     const isUpahBorongan = Boolean(upahBorongan);
@@ -322,7 +365,6 @@ export async function PATCH(
     if (kendaraanPlatNomor && !resolvedKendaraanPlatNomor) {
       return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 400 })
     }
-    const kategoriBoronganValue = typeof kategoriBorongan === 'string' && kategoriBorongan.trim() ? kategoriBorongan.trim() : null
     const updateData = {
       kebunId,
       jenisPekerjaan,

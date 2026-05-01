@@ -1,0 +1,2 @@
+ALTER TABLE "NotaSawit" ADD COLUMN "beratKosongSnapshot" DOUBLE PRECISION;
+ALTER TABLE "NotaSawit" ADD COLUMN "buahBalik" DOUBLE PRECISION;
