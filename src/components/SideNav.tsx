@@ -83,6 +83,18 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
     return true;
   });
 
+  const sortedVisibleLinks = useMemo(() => {
+    const dashboard = visibleLinks.find((l) => l.name === 'Dashboard')
+    const rest = visibleLinks
+      .filter((l) => l.name !== 'Dashboard')
+      .sort((a, b) => {
+        const cmp = String(a?.name || '').localeCompare(String(b?.name || ''), 'id-ID', { sensitivity: 'base' })
+        if (cmp !== 0) return cmp
+        return String(a?.href || '').localeCompare(String(b?.href || ''), 'id-ID', { sensitivity: 'base' })
+      })
+    return dashboard ? [dashboard, ...rest] : rest
+  }, [visibleLinks])
+
   const toggleSubmenu = (key: string) => {
     setOpenSubmenus(prevOpenSubmenus => {
       const isCurrentlyOpen = !!prevOpenSubmenus[key];
@@ -179,7 +191,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
               {!isMinimized && (
                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Menu</p>
               )}
-              {visibleLinks.map((link) => {
+              {sortedVisibleLinks.map((link) => {
                 const LinkIcon = link.icon;
                 const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(`${link.href}/`));
 

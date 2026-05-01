@@ -120,7 +120,7 @@ export async function GET(request: Request) {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
         select,
       }),
       prisma.user.count({ where }),

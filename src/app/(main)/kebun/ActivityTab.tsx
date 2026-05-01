@@ -873,8 +873,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
     })
     if (mode === 'borongan') {
       return [...filtered].sort((a, b) => {
-        const aj = String(a?.jenisPekerjaan || '')
-        const bj = String(b?.jenisPekerjaan || '')
+        const aj = String(a?.jenisPekerjaan || '').trim()
+        const bj = String(b?.jenisPekerjaan || '').trim()
         const cmp = aj.localeCompare(bj, 'id-ID', { sensitivity: 'base' })
         if (cmp !== 0) return cmp
         const ad = a?.date ? new Date(a.date).getTime() : 0
@@ -987,7 +987,18 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       }
 
       if (isBoronganMode) {
-        const rows = filteredActivities.map((item, idx) => {
+        const exportItems = [...filteredActivities].sort((a, b) => {
+          const aj = String(a?.jenisPekerjaan || '').trim()
+          const bj = String(b?.jenisPekerjaan || '').trim()
+          const cmp = aj.localeCompare(bj, 'id-ID', { sensitivity: 'base' })
+          if (cmp !== 0) return cmp
+          const ad = a?.date ? new Date(a.date).getTime() : 0
+          const bd = b?.date ? new Date(b.date).getTime() : 0
+          if (ad !== bd) return ad - bd
+          return Number(a?.id || 0) - Number(b?.id || 0)
+        })
+
+        const rows = exportItems.map((item, idx) => {
           const jumlah = Number(item.jumlah || 0)
           const hargaSatuan = Number(item.hargaSatuan || 0) || (jumlah > 0 ? Math.round(Number(item.biaya || 0) / jumlah) : 0)
           const kategori = String((item as any).kategoriBorongan || '').trim() || 'Tanpa kategori'
@@ -1005,8 +1016,8 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
           ]
         })
 
-        const totalJumlah = filteredActivities.reduce((acc, curr) => acc + Number(curr.jumlah || 0), 0)
-        const totalBiaya = filteredActivities.reduce((acc, curr) => acc + Number(curr.biaya || 0), 0)
+        const totalJumlah = exportItems.reduce((acc, curr) => acc + Number(curr.jumlah || 0), 0)
+        const totalBiaya = exportItems.reduce((acc, curr) => acc + Number(curr.biaya || 0), 0)
         const avgHargaSatuan = totalJumlah > 0 ? Math.round(totalBiaya / totalJumlah) : 0
 
         autoTable(doc, {
@@ -1027,7 +1038,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         })
 
         const kategoriTotals = Array.from(
-          filteredActivities.reduce((acc, curr) => {
+          exportItems.reduce((acc, curr) => {
             const kategori = String((curr as any).kategoriBorongan || '').trim() || 'Tanpa kategori'
             acc.set(kategori, (acc.get(kategori) || 0) + Number(curr.biaya || 0))
             return acc
@@ -1040,11 +1051,6 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
         if (kategoriTotals.length > 0) {
           const marginX = 12
           const contentBottomY = pageHeight - footerHeight - 8
-          const cols = 3
-          const gap = 4
-          const cardW = (pageWidth - (marginX * 2) - (gap * (cols - 1))) / cols
-          const cardH = 14
-
           const lastAutoTable = (doc as any).lastAutoTable
           let cursorY = Number(lastAutoTable?.finalY || (headerHeight + 8)) + 8
 
@@ -1054,45 +1060,48 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             cursorY = headerHeight + 8
           }
 
-          ensureSpace(10)
+          const sectionPadding = 4
+          const sectionW = pageWidth - (marginX * 2)
+          const colGap = 4
+          const rowGap = 3
+          const cellH = 12
+          const titleH = 6
+          const sectionH = sectionPadding + titleH + (cellH * 2) + rowGap + sectionPadding
+
+          ensureSpace(sectionH)
+
+          const maxCols = Math.min(6, Math.max(2, Math.floor((sectionW - (sectionPadding * 2) + colGap) / (52 + colGap))))
+          const cols = Math.min(maxCols, Math.max(1, Math.ceil(kategoriTotals.length / 2)))
+          const maxItems = Math.min(kategoriTotals.length, cols * 2)
+          const shownItems = kategoriTotals.slice(0, maxItems)
+          const cellW = (sectionW - (sectionPadding * 2) - (colGap * (cols - 1))) / cols
+
+          doc.setFillColor(248, 250, 252)
+          doc.setDrawColor(226, 232, 240)
+          doc.roundedRect(marginX, cursorY, sectionW, sectionH, 3, 3, 'FD')
+
           doc.setTextColor(15, 23, 42)
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(10)
-          doc.text('Biaya per Kategori', marginX, cursorY)
-          cursorY += 6
+          doc.text('Biaya per Kategori', marginX + sectionPadding, cursorY + sectionPadding + 4)
 
+          const gridTop = cursorY + sectionPadding + titleH
           doc.setFontSize(8)
-          kategoriTotals.forEach((item, idx) => {
+          shownItems.forEach((item, idx) => {
             const row = Math.floor(idx / cols)
             const col = idx % cols
-            const x = marginX + col * (cardW + gap)
-            const y = cursorY + row * (cardH + gap)
-
-            if (y + cardH > contentBottomY) {
-              doc.addPage()
-              cursorY = headerHeight + 8
-
-              doc.setTextColor(15, 23, 42)
-              doc.setFont('helvetica', 'bold')
-              doc.setFontSize(10)
-              doc.text('Biaya per Kategori', marginX, cursorY)
-              cursorY += 6
-            }
-
-            const cardY = cursorY + row * (cardH + gap)
-            doc.setFillColor(241, 245, 249)
-            doc.setDrawColor(226, 232, 240)
-            doc.roundedRect(x, cardY, cardW, cardH, 2, 2, 'FD')
+            const x = marginX + sectionPadding + col * (cellW + colGap)
+            const y = gridTop + row * (cellH + rowGap)
 
             doc.setTextColor(15, 23, 42)
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(8)
-            const lines = (doc as any).splitTextToSize(String(item.kategori || ''), cardW - 4) as string[]
-            doc.text(String(lines?.[0] || ''), x + 2, cardY + 5)
+            doc.setFontSize(7)
+            const lines = (doc as any).splitTextToSize(String(item.kategori || ''), cellW) as string[]
+            doc.text(String(lines?.[0] || ''), x, y + 4)
 
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(9)
-            doc.text(formatNumber(item.total), x + cardW - 2, cardY + 11, { align: 'right' })
+            doc.text(formatNumber(item.total), x + cellW, y + 10, { align: 'right' })
           })
         }
       } else {

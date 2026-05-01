@@ -720,7 +720,7 @@ export default function LaporanNotaSawitPage() {
       // Add title and date range
       doc.setFontSize(16);
       doc.setTextColor(5, 150, 105);
-      doc.text('Laporan Nota Sawit', 14, 15);
+      doc.text('Laporan Kebun', 14, 15);
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       doc.text(`Periode: ${startDate ? format(startDate, 'dd MMM yyyy', { locale: idLocale }) : ''} - ${endDate ? format(endDate, 'dd MMM yyyy', { locale: idLocale }) : ''}`, 14, 22);
@@ -1177,7 +1177,7 @@ export default function LaporanNotaSawitPage() {
   return (
     <main className="p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Laporan Nota Sawit</h1>
+        <h1 className="text-2xl font-bold mb-6">Laporan Kebun</h1>
 
         <div className="bg-white p-6 rounded-lg shadow-md mb-8">
           <div className="flex items-center justify-between gap-3 mb-4">
@@ -1423,7 +1423,7 @@ export default function LaporanNotaSawitPage() {
                     <ChartBarIcon className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Ringkasan Laporan Nota Sawit</p>
+                    <p className="text-sm font-semibold text-gray-900">Ringkasan Laporan Kebun</p>
                     <p className="text-xs text-gray-500">Tonase dan nilai pembayaran</p>
                   </div>
                 </div>

@@ -7,6 +7,7 @@ import {
   ClipboardDocumentListIcon,
   CurrencyDollarIcon,
   DocumentDuplicateIcon,
+  DocumentTextIcon,
   TruckIcon,
   UsersIcon,
   UserIcon,
@@ -79,12 +80,11 @@ export const links: NavLink[] = [
             name: 'Nota Sawit',
             href: '/nota-sawit',
             icon: ClipboardDocumentListIcon,
-            subLinks: [
-                {
-                    name: 'Laporan Nota Sawit',
-                    href: '/laporan-nota-sawit',
-                },
-            ],
+        },
+        {
+            name: 'Laporan Kebun',
+            href: '/laporan-nota-sawit',
+            icon: DocumentTextIcon,
         },
         {
             name: 'Gajian',

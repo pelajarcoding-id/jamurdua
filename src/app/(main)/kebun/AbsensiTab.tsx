@@ -188,9 +188,15 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
 
   const filteredRows = useMemo(() => {
     const base = rows.filter((r) => !r?.karyawan?.deleteRequestPending)
-    if (!karyawanSearch.trim()) return base
-    const s = karyawanSearch.toLowerCase()
-    return base.filter((r) => r.karyawan.name.toLowerCase().includes(s))
+    const s = karyawanSearch.trim().toLowerCase()
+    const filtered = s ? base.filter((r) => r.karyawan.name.toLowerCase().includes(s)) : base
+    return [...filtered].sort((a, b) => {
+      const an = String(a?.karyawan?.name || '')
+      const bn = String(b?.karyawan?.name || '')
+      const cmp = an.localeCompare(bn, 'id-ID', { sensitivity: 'base' })
+      if (cmp !== 0) return cmp
+      return Number(a?.karyawan?.id || 0) - Number(b?.karyawan?.id || 0)
+    })
   }, [rows, karyawanSearch])
 
   useEffect(() => {
@@ -214,8 +220,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   const totalSaldoHutang = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.hutangSaldo || 0), 0), [filteredRows])
 
   const hutangList = useMemo(() => {
-    return filteredRows
-      .sort((a, b) => (Number(b.hutangSaldo || 0) - Number(a.hutangSaldo || 0)))
+    return [...filteredRows].sort((a, b) => (Number(b.hutangSaldo || 0) - Number(a.hutangSaldo || 0)))
   }, [filteredRows])
 
   const hutangTotalPages = useMemo(() => Math.max(1, Math.ceil(hutangList.length / hutangPerView)), [hutangList.length, hutangPerView])
