@@ -274,7 +274,7 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
   useEffect(() => {
     const fetchSupir = async () => {
       try {
-        const res = await fetch('/api/users?limit=1000');
+        const res = await fetch('/api/karyawan/tag-list?limit=1000');
         if (res.ok) {
           const data = await res.json();
           setSupirList(Array.isArray(data?.data) ? data.data : []);

@@ -135,7 +135,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANAGER', 'MANDOR'])
+    const guard = await requireRole(['ADMIN', 'PEMILIK', 'MANAGER', 'MANDOR','KASIR'])
     if (guard.response) return guard.response
     const body = await request.json()
     const { name, email, password, kebunId, jobType, jenisPekerjaan, status, kendaraanPlatNomor, role, photoUrl, tanggalMulaiBekerja } = body || {}

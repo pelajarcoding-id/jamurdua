@@ -999,7 +999,7 @@ export function DetailGajianModal({ isOpen, onClose, gajian: gajianProp, isPrevi
         </div>
         <DialogFooter className="flex-shrink-0 border-t bg-white px-6 py-4 pb-[calc(16px+env(safe-area-inset-bottom))] flex flex-row justify-between items-center gap-2">
           <div className="flex gap-2">
-            {!isPreview && gajian?.status === 'FINALIZED' && (role === 'ADMIN' || role === 'PEMILIK') && (
+            {!isPreview && gajian?.status === 'FINALIZED' && (role === 'ADMIN' || role === 'PEMILIK' || role === 'KASIR') && (
               <Button
                 variant="outline"
                 className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50"

@@ -750,7 +750,7 @@ export async function DELETE(request: Request) {
     if (!session?.user?.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!['ADMIN', 'PEMILIK', 'MANAGER', 'MANDOR'].includes(session.user.role)) {
+    if (!['ADMIN', 'PEMILIK', 'KASIR', 'MANAGER', 'MANDOR'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { searchParams } = new URL(request.url)
