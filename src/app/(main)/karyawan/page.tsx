@@ -319,6 +319,19 @@ export default function KaryawanKebunPage() {
   const [moveLoading, setMoveLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyItems, setHistoryItems] = useState<Array<{ id: number; startDate: string; endDate?: string | null; status: string; location: WorkLocation }>>([])
+  const absenUserName = useMemo(() => {
+    if (!absenUserId) return '-'
+    if (selectedUser?.id === absenUserId) return selectedUser?.name || '-'
+    if (Array.isArray(karyawanList)) {
+      const hit = karyawanList.find(k => k.id === absenUserId)
+      if (hit?.name) return hit.name
+    }
+    if (Array.isArray(filteredKaryawanList)) {
+      const hit = filteredKaryawanList.find(k => k.id === absenUserId)
+      if (hit?.name) return hit.name
+    }
+    return '-'
+  }, [absenUserId, selectedUser, karyawanList, filteredKaryawanList])
   const openMoveModal = useCallback((k: User) => {
     setMoveUser(k)
     setMoveDate(new Date().toISOString().split('T')[0])
@@ -516,20 +529,22 @@ export default function KaryawanKebunPage() {
 
   useEffect(() => {
     const loadBiayaKaryawan = async () => {
-      if (!selectedUser?.id) {
+      if (!absenUserId) {
         setBiayaKaryawanRows([])
         setBiayaKaryawanTotal(0)
         return
       }
       setBiayaKaryawanLoading(true)
       try {
-        const start = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
-        const end = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
+        const monthStart = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
+        const monthEnd = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
+        const startKey = startDate || formatDateKey(monthStart)
+        const endKey = endDate || formatDateKey(monthEnd)
         const sp = new URLSearchParams()
         sp.set('tagScope', 'karyawan')
-        sp.set('karyawanId', String(selectedUser.id))
-        sp.set('startDate', formatDateKey(start))
-        sp.set('endDate', formatDateKey(end))
+        sp.set('karyawanId', String(absenUserId))
+        sp.set('startDate', startKey)
+        sp.set('endDate', endKey)
         sp.set('page', '1')
         sp.set('pageSize', '50')
         const res = await fetch(`/api/reports/cost-center/kas-transaksi?${sp.toString()}`, { cache: 'no-store' })
@@ -544,7 +559,7 @@ export default function KaryawanKebunPage() {
       }
     }
     loadBiayaKaryawan()
-  }, [absenMonth, formatDateKey, selectedUser?.id])
+  }, [absenMonth, formatDateKey, absenUserId, startDate, endDate])
 
   // Load attendance from localStorage (fallback/initial)
   useEffect(() => {
@@ -718,22 +733,24 @@ export default function KaryawanKebunPage() {
     loadPaid(selectedKebunId ?? 0, absenUserId, absenMonth)
   }, [selectedKebunId, absenUserId, absenMonth, loadPaid])
   useEffect(() => {
-    const start = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
-    const end = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
-    setAbsenPayHistoryStart(formatDateKey(start))
-    setAbsenPayHistoryEnd(formatDateKey(end))
-  }, [absenMonth, formatDateKey])
+    const monthStart = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
+    const monthEnd = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
+    setAbsenPayHistoryStart(startDate || formatDateKey(monthStart))
+    setAbsenPayHistoryEnd(endDate || formatDateKey(monthEnd))
+  }, [absenMonth, endDate, formatDateKey, startDate])
   const fetchAbsenPayHistory = useCallback(async () => {
     if (!absenUserId) {
       setAbsenPayHistoryRows([])
       return
     }
     const kebunKey = selectedKebunId ?? 0
+    const monthStart = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
+    const monthEnd = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)
     const params = new URLSearchParams({
       kebunId: String(kebunKey),
       karyawanId: String(absenUserId),
-      startDate: absenPayHistoryStart || formatDateKey(new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)),
-      endDate: absenPayHistoryEnd || formatDateKey(new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0)),
+      startDate: absenPayHistoryStart || startDate || formatDateKey(monthStart),
+      endDate: absenPayHistoryEnd || endDate || formatDateKey(monthEnd),
       history: '1',
     })
     setAbsenPayHistoryLoading(true)
@@ -748,7 +765,7 @@ export default function KaryawanKebunPage() {
     } finally {
       setAbsenPayHistoryLoading(false)
     }
-  }, [selectedKebunId, absenUserId, absenMonth, formatDateKey, absenPayHistoryStart, absenPayHistoryEnd])
+  }, [selectedKebunId, absenUserId, absenMonth, formatDateKey, absenPayHistoryStart, absenPayHistoryEnd, startDate, endDate])
   useEffect(() => {
     fetchAbsenPayHistory()
   }, [fetchAbsenPayHistory])
@@ -1390,8 +1407,8 @@ export default function KaryawanKebunPage() {
       doc.text('BIAYA (TAG KARYAWAN)', 14, 18)
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Karyawan: ${selectedUser?.name || '-'}`, 14, 26)
-      doc.text(`Periode: ${new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(absenMonth)}`, 14, 31)
+      doc.text(`Karyawan: ${absenUserName}`, 14, 26)
+      doc.text(`Periode: ${dateDisplay}`, 14, 31)
       const total = biayaKaryawanRows.reduce((acc, r: any) => acc + (Number(r?.jumlah) || 0), 0)
       autoTable(doc, {
         head: [['Tanggal', 'Deskripsi', 'Kategori', 'Sumber', 'Diinput Oleh', 'Jumlah']],
@@ -1412,7 +1429,7 @@ export default function KaryawanKebunPage() {
         styles: { fontSize: 9 },
         columnStyles: { 5: { halign: 'right' }, 4: { cellWidth: 45 }, 1: { cellWidth: 90 } },
       })
-      doc.save(`Biaya-Tag-Karyawan-${selectedUser?.name || 'Karyawan'}-${format(absenMonth, 'yyyy-MM')}.pdf`)
+      doc.save(`Biaya-Tag-Karyawan-${absenUserName || 'Karyawan'}-${format(new Date(), 'yyyyMMdd')}.pdf`)
     } catch {
       toast.error('Gagal export PDF')
     }
@@ -1428,7 +1445,7 @@ export default function KaryawanKebunPage() {
       doc.text('HISTORY PEMBAYARAN GAJI', 14, 18)
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Karyawan: ${selectedUser?.name || '-'}`, 14, 26)
+      doc.text(`Karyawan: ${absenUserName}`, 14, 26)
       const totalJumlah = absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.jumlah) || 0), 0)
       const totalPotong = absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.potonganHutang) || 0), 0)
       autoTable(doc, {
@@ -1452,7 +1469,7 @@ export default function KaryawanKebunPage() {
         styles: { fontSize: 9 },
         columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 5: { cellWidth: 90 } },
       })
-      doc.save(`History-Pembayaran-Gaji-${selectedUser?.name || 'Karyawan'}-${format(new Date(), 'yyyyMMdd')}.pdf`)
+      doc.save(`History-Pembayaran-Gaji-${absenUserName || 'Karyawan'}-${format(new Date(), 'yyyyMMdd')}.pdf`)
     } catch {
       toast.error('Gagal export PDF')
     }
