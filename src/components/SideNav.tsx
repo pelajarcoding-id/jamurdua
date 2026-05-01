@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PowerIcon, Bars3Icon, XMarkIcon, ChevronDownIcon, ArrowRightOnRectangleIcon, CubeIcon } from '@heroicons/react/24/outline';
-import { useState } from 'react';
+import { PowerIcon, XMarkIcon, ChevronDownIcon, ArrowRightOnRectangleIcon, CubeIcon } from '@heroicons/react/24/outline';
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { links, NavLink } from './nav-links';
 import { logout } from '@/lib/actions';
@@ -83,7 +83,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
     return true;
   });
 
-  const sortedVisibleLinks = useMemo(() => {
+  const sortedVisibleLinks = useMemo<NavLink[]>(() => {
     const dashboard = visibleLinks.find((l) => l.name === 'Dashboard')
     const rest = visibleLinks
       .filter((l) => l.name !== 'Dashboard')
@@ -164,7 +164,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
           <div className={clsx("flex items-center mb-8 h-10", { 'justify-center': isMinimized, 'justify-start px-2': !isMinimized })}>
             <Link
               href="/"
-              onClick={(e) => {
+              onClick={() => {
                 window.dispatchEvent(new Event('nav:start'));
                 setIsOpen(false);
               }}
@@ -191,7 +191,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
               {!isMinimized && (
                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Menu</p>
               )}
-              {sortedVisibleLinks.map((link) => {
+              {sortedVisibleLinks.map((link: NavLink) => {
                 const LinkIcon = link.icon;
                 const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(`${link.href}/`));
 
@@ -208,7 +208,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
                       >
                         <Link
                             href={link.href}
-                            onClick={(e) => {
+                            onClick={() => {
                                 window.dispatchEvent(new Event('nav:start'));
                                 setIsOpen(false);
                             }}
@@ -239,7 +239,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
                       {openSubmenus[link.name] && !isMinimized && (
                         <div className="flex flex-col space-y-1 mt-1 ml-4 border-l-2 border-gray-100 pl-2">
                           {link.subLinks.map((subLink) => (
-                            <Link key={subLink.name} href={subLink.href} onClick={(e) => { window.dispatchEvent(new Event('nav:start')); setIsOpen(false); }} 
+                            <Link key={subLink.name} href={subLink.href} onClick={() => { window.dispatchEvent(new Event('nav:start')); setIsOpen(false); }} 
                             className={clsx('block py-2.5 px-4 text-sm rounded-lg transition-colors', {
                               'text-emerald-600 font-medium bg-emerald-50': pathname.startsWith(subLink.href),
                               'text-gray-500 hover:text-gray-800 hover:bg-gray-50': !pathname.startsWith(subLink.href),
@@ -258,7 +258,7 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
                   <Link
                     key={link.name}
                     href={link.href}
-                    onClick={(e) => { window.dispatchEvent(new Event('nav:start')); setIsOpen(false); }}
+                    onClick={() => { window.dispatchEvent(new Event('nav:start')); setIsOpen(false); }}
                     title={isMinimized ? link.name : undefined}
                     className={clsx('flex items-center mb-1 text-sm rounded-xl transition-all duration-200 group', {
                       'bg-emerald-600 text-white shadow-md': isActive,
