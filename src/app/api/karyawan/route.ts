@@ -32,7 +32,7 @@ type UserCreateWithMeta = Prisma.UserUncheckedCreateInput & {
 
 export async function GET(request: Request) {
   try {
-    const guard = await requireRole(['ADMIN', 'PEMILIK'])
+    const guard = await requireRole(['ADMIN', 'PEMILIK', 'KASIR'])
     if (guard.response) return guard.response
     const { searchParams } = new URL(request.url)
     const search = (searchParams.get('search') || '').trim()
