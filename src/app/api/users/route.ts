@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const roleParam = (searchParams.get('role') || '').toUpperCase().trim()
-        const guard = await requireRole(roleParam === 'SUPIR' ? ['ADMIN', 'PEMILIK', 'MANAGER', 'MANDOR'] : ['ADMIN', 'PEMILIK'])
+        const guard = await requireRole(roleParam === 'SUPIR' ? ['ADMIN', 'PEMILIK', 'KASIR', 'MANAGER', 'MANDOR'] : ['ADMIN', 'PEMILIK'])
         if (guard.response) return guard.response
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
