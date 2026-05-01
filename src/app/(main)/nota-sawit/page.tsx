@@ -2061,6 +2061,11 @@ export default function NotaSawitPage() {
         cell: ({ row }) => <div className="text-gray-700 truncate max-w-[240px]" title={row.original?.pabrikSawit?.name || '-'}>{row.original?.pabrikSawit?.name || '-'}</div>,
       },
       {
+        id: 'inputOleh',
+        header: 'Input Oleh',
+        cell: ({ row }) => <div className="text-gray-700 truncate max-w-[180px]" title={row.original?.createdBy?.name || '-'}>{row.original?.createdBy?.name || '-'}</div>,
+      },
+      {
         id: 'nota',
         header: () => <div className="text-right whitespace-nowrap">Nota</div>,
         cell: ({ row }) => <div className="text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">{formatNumber(Number(row.original?.count || 0))}</div>,

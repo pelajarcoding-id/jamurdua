@@ -202,6 +202,7 @@ export async function GET(request: Request) {
       where,
       include: {
         pabrikSawit: true,
+        createdBy: { select: { id: true, name: true } },
         items: {
           include: {
             notaSawit: {
@@ -241,6 +242,7 @@ export async function GET(request: Request) {
         id: b.id,
         tanggal: b.tanggal,
         pabrikSawit: b.pabrikSawit ? { id: b.pabrikSawit.id, name: b.pabrikSawit.name } : null,
+        createdBy: b.createdBy ? { id: b.createdBy.id, name: b.createdBy.name } : null,
         jumlahMasuk,
         adminBank,
         metodeAlokasi: b.metodeAlokasi,

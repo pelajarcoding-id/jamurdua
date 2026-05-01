@@ -91,13 +91,13 @@ const KasirPage = () => {
   const { role, id: currentUserId } = useAuth();
   const isAdmin = role === 'ADMIN' || role === 'PEMILIK';
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [hasSetDefaultUser, setHasSetDefaultUser] = useState(false);
   const [perusahaanList, setPerusahaanList] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     if ((role === 'ADMIN' || role === 'PEMILIK') && currentUserId && !hasSetDefaultUser) {
-      setSelectedUserId(String(currentUserId));
+      setSelectedUserId(String(currentUserId)); // Default: tampilkan transaksi user sendiri untuk ADMIN/PEMILIK
       setHasSetDefaultUser(true);
     }
   }, [role, currentUserId, hasSetDefaultUser]);

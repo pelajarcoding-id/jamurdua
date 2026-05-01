@@ -237,6 +237,7 @@ model User {
   perusahaanFinanceSnapshots PerusahaanFinanceSnapshot[]
   perusahaanPpnReports PerusahaanPpnReport[]
   attendanceSelfies AttendanceSelfie[]
+  notaSawitPembayaranBatches NotaSawitPembayaranBatch[] @relation("NotaSawitPembayaranBatchCreatedBy")
 }
 
 model PushSubscription {
@@ -661,11 +662,13 @@ model NotaSawitPembayaranBatch {
   updatedAt     DateTime @updatedAt
 
   pabrikSawit   PabrikSawit                 @relation(fields: [pabrikSawitId], references: [id], onDelete: Cascade)
+  createdBy     User?                       @relation("NotaSawitPembayaranBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   items         NotaSawitPembayaranBatchItem[]
   kasTransaksi  KasTransaksi[]
 
   @@index([pabrikSawitId])
   @@index([tanggal])
+  @@index([createdById])
 }
 
 model NotaSawitPembayaranBatchItem {

@@ -645,14 +645,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'kebunId/karyawanId tidak valid' }, { status: 400 })
     }
 
-    const [kebunExists, karyawanExists, creatorExists] = await Promise.all([
+    const [kebunExists, karyawanExists, creatorExists, pemilik] = await Promise.all([
       kebunIdNum > 0 ? prisma.kebun.findUnique({ where: { id: kebunIdNum }, select: { id: true } }) : Promise.resolve({ id: 0 } as any),
-      prisma.user.findUnique({ where: { id: karyawanIdNum }, select: { id: true } }),
+      prisma.user.findUnique({ where: { id: karyawanIdNum }, select: { id: true, name: true } }),
       prisma.user.findUnique({ where: { id: currentUserId }, select: { id: true } }),
+      prisma.user.findFirst({ where: { role: 'PEMILIK' }, select: { id: true } })
     ])
     if (kebunIdNum > 0 && !kebunExists) return NextResponse.json({ error: 'Kebun tidak ditemukan' }, { status: 400 })
     if (!karyawanExists) return NextResponse.json({ error: 'Karyawan tidak ditemukan' }, { status: 400 })
     if (!creatorExists) return NextResponse.json({ error: 'User pembuat transaksi tidak ditemukan' }, { status: 400 })
+
+    const transactionUserId = pemilik?.id ?? currentUserId
 
     const validEntries = entries
       .map((entry: any) => {
@@ -687,11 +690,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    const karyawan = await prisma.user.findUnique({
-      where: { id: Number(karyawanId) },
-      select: { name: true },
-    })
-
     const batchCreatedAt = (() => {
       if (!createdAt) return new Date()
       const d = new Date(String(createdAt))
@@ -702,39 +700,68 @@ export async function POST(request: Request) {
     const startDate = sortedEntries[0]?.dateKey
     const endDate = sortedEntries[sortedEntries.length - 1]?.dateKey
     const totalJumlah = sortedEntries.reduce((acc, e) => acc + (Number(e.jumlah) || 0), 0)
-    for (const entry of sortedEntries) {
-      const date = entry.dateKey
-      const jumlah = entry.jumlah
-      await prisma.$executeRaw`
-        INSERT INTO "AbsensiGajiHarian" ("kebunId","karyawanId","date","jumlah")
-        VALUES (${kebunIdNum}, ${karyawanIdNum}, ${date}::DATE, ${jumlah})
-        ON CONFLICT ("kebunId","karyawanId","date") DO NOTHING
-      `
-    }
-    if (startDate && endDate && totalJumlah > 0) {
-      const periodeText = startDate === endDate
-        ? formatIdLongDateFromYmdKey(startDate)
-        : `${formatIdLongDateFromYmdKey(startDate)} - ${formatIdLongDateFromYmdKey(endDate)}`
-      const trxDate = (() => {
-        const ymd = parseWibYmd(startDate)
-        return ymd ? wibStartUtc(ymd) : new Date()
-      })()
-      const kasKebunId = kebunIdNum > 0 ? kebunIdNum : null
-      await prisma.kasTransaksi.create({
-        data: {
-          date: trxDate,
-          tipe: 'PENGELUARAN',
-          deskripsi: `Pembayaran Gaji Harian - ${karyawan?.name || karyawanId}`,
-          keterangan: `Periode ${periodeText}`,
-          jumlah: totalJumlah,
-          kategori: 'GAJI',
-          kebunId: kasKebunId,
-          karyawanId: karyawanIdNum,
-          userId: currentUserId,
-          createdAt: batchCreatedAt,
-        },
-      })
-    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const entry of sortedEntries) {
+        const date = entry.dateKey
+        const jumlah = entry.jumlah
+        await tx.$executeRaw`
+          INSERT INTO "AbsensiGajiHarian" ("kebunId","karyawanId","date","jumlah")
+          VALUES (${kebunIdNum}, ${karyawanIdNum}, ${date}::DATE, ${jumlah})
+          ON CONFLICT ("kebunId","karyawanId","date") DO NOTHING
+        `
+      }
+      if (startDate && endDate && totalJumlah > 0) {
+        const periodeText = startDate === endDate
+          ? formatIdLongDateFromYmdKey(startDate)
+          : `${formatIdLongDateFromYmdKey(startDate)} - ${formatIdLongDateFromYmdKey(endDate)}`
+        const trxDate = (() => {
+          const ymd = parseWibYmd(startDate)
+          return ymd ? wibStartUtc(ymd) : new Date()
+        })()
+        const kasKebunId = kebunIdNum > 0 ? kebunIdNum : null
+        const deskripsi = `Pembayaran Gaji Harian - ${karyawanExists?.name || karyawanId}`
+        const keterangan = `Periode ${periodeText}`
+
+        const kasTransaksi = await tx.kasTransaksi.create({
+          data: {
+            date: trxDate,
+            tipe: 'PENGELUARAN',
+            deskripsi,
+            keterangan,
+            jumlah: totalJumlah,
+            kategori: 'GAJI',
+            kebunId: kasKebunId,
+            karyawanId: karyawanIdNum,
+            userId: transactionUserId,
+            createdAt: batchCreatedAt,
+          },
+        })
+
+        await tx.jurnal.create({
+          data: {
+            date: trxDate,
+            keterangan: `${deskripsi} | ${keterangan}`,
+            refType: 'KasTransaksi',
+            refId: kasTransaksi.id,
+            detailJurnal: {
+              create: [
+                {
+                  akunId: 601,
+                  posisi: 'DEBIT',
+                  nominal: totalJumlah
+                },
+                {
+                  akunId: 101,
+                  posisi: 'KREDIT',
+                  nominal: totalJumlah
+                }
+              ]
+            }
+          } as any
+        })
+      }
+    })
 
     return NextResponse.json({ ok: true })
   } catch (error) {
@@ -785,57 +812,59 @@ export async function DELETE(request: Request) {
           return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
         }
       }
-      await prisma.jurnal.deleteMany({
-        where: {
-          refType: 'KasTransaksi',
-          refId: id,
-        },
-      })
-      await prisma.kasTransaksi.delete({
-        where: { id },
-      })
-      if (trx.karyawanId) {
-        await prisma.kasTransaksi.deleteMany({
+      await prisma.$transaction(async (tx) => {
+        await tx.jurnal.deleteMany({
           where: {
-            kebunId: trx.kebunId ?? null,
-            karyawanId: trx.karyawanId,
-            kategori: 'PEMBAYARAN_HUTANG',
-            createdAt: trx.createdAt,
+            refType: 'KasTransaksi',
+            refId: id,
           },
         })
-      }
-      if (trx.karyawanId) {
-        const absensiKebunId = trx.kebunId ?? 0
-        const dateKey = (() => {
-          const wib = new Date(trx.date.getTime() + 7 * 60 * 60 * 1000)
-          const y = wib.getUTCFullYear()
-          const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
-          const d = String(wib.getUTCDate()).padStart(2, '0')
-          return `${y}-${m}-${d}`
-        })()
-        const ymd = parseWibYmd(dateKey)
-        const dayStart = ymd ? wibStartUtc(ymd) : trx.date
-        const dayEnd = ymd ? wibEndUtcInclusive(ymd) : trx.date
-        const remaining = await prisma.kasTransaksi.count({
-          where: {
-            kebunId: trx.kebunId,
-            karyawanId: trx.karyawanId,
-            kategori: 'GAJI',
-            date: {
-              gte: dayStart,
-              lte: dayEnd,
+        await tx.kasTransaksi.delete({
+          where: { id },
+        })
+        if (trx.karyawanId) {
+          await tx.kasTransaksi.deleteMany({
+            where: {
+              kebunId: trx.kebunId ?? null,
+              karyawanId: trx.karyawanId,
+              kategori: 'PEMBAYARAN_HUTANG',
+              createdAt: trx.createdAt,
             },
-          },
-        })
-        if (remaining === 0) {
-          await prisma.$executeRaw`
-            DELETE FROM "AbsensiGajiHarian"
-            WHERE "kebunId" = ${absensiKebunId}
-              AND "karyawanId" = ${trx.karyawanId}
-              AND "date" = ${dateKey}::DATE
-          `
+          })
         }
-      }
+        if (trx.karyawanId) {
+          const absensiKebunId = trx.kebunId ?? 0
+          const dateKey = (() => {
+            const wib = new Date(trx.date.getTime() + 7 * 60 * 60 * 1000)
+            const y = wib.getUTCFullYear()
+            const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
+            const d = String(wib.getUTCDate()).padStart(2, '0')
+            return `${y}-${m}-${d}`
+          })()
+          const ymd = parseWibYmd(dateKey)
+          const dayStart = ymd ? wibStartUtc(ymd) : trx.date
+          const dayEnd = ymd ? wibEndUtcInclusive(ymd) : trx.date
+          const remaining = await tx.kasTransaksi.count({
+            where: {
+              kebunId: trx.kebunId,
+              karyawanId: trx.karyawanId,
+              kategori: 'GAJI',
+              date: {
+                gte: dayStart,
+                lte: dayEnd,
+              },
+            },
+          })
+          if (remaining === 0) {
+            await tx.$executeRaw`
+              DELETE FROM "AbsensiGajiHarian"
+              WHERE "kebunId" = ${absensiKebunId}
+                AND "karyawanId" = ${trx.karyawanId}
+                AND "date" = ${dateKey}::DATE
+            `
+          }
+        }
+      })
       return NextResponse.json({ ok: true })
     }
 
@@ -882,47 +911,47 @@ export async function DELETE(request: Request) {
         }
       }
       const ids = trxRows.map(r => r.id)
-      await prisma.jurnal.deleteMany({
-        where: { refType: 'KasTransaksi', refId: { in: ids } },
-      })
-      await prisma.kasTransaksi.deleteMany({
-        where: { id: { in: ids } },
-      })
-      await prisma.kasTransaksi.deleteMany({
-        where: {
-          kebunId: kasKebunId,
-          karyawanId,
-          kategori: 'PEMBAYARAN_HUTANG',
-          createdAt: paidAt,
-        },
-      })
       const period = parsePeriod(trxRows[0]?.keterangan)
-      if (period) {
-        const startDate = period.start
-        const endDate = period.end
-        await prisma.$executeRaw`
-          DELETE FROM "AbsensiGajiHarian"
-          WHERE "kebunId" = ${kebunId}
-            AND "karyawanId" = ${karyawanId}
-            AND "date" BETWEEN ${startDate}::DATE AND ${endDate}::DATE
-        `
-      } else {
-        const uniqueDateKeys = Array.from(new Set(trxRows.map(r => {
-          const wib = new Date(r.date.getTime() + 7 * 60 * 60 * 1000)
-          const y = wib.getUTCFullYear()
-          const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
-          const d = String(wib.getUTCDate()).padStart(2, '0')
-          return `${y}-${m}-${d}`
-        })))
-        if (uniqueDateKeys.length > 0) {
-          await prisma.$executeRaw`
+      const uniqueDateKeys = Array.from(new Set(trxRows.map(r => {
+        const wib = new Date(r.date.getTime() + 7 * 60 * 60 * 1000)
+        const y = wib.getUTCFullYear()
+        const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
+        const d = String(wib.getUTCDate()).padStart(2, '0')
+        return `${y}-${m}-${d}`
+      })))
+      await prisma.$transaction(async (tx) => {
+        await tx.jurnal.deleteMany({
+          where: { refType: 'KasTransaksi', refId: { in: ids } },
+        })
+        await tx.kasTransaksi.deleteMany({
+          where: { id: { in: ids } },
+        })
+        await tx.kasTransaksi.deleteMany({
+          where: {
+            kebunId: kasKebunId,
+            karyawanId,
+            kategori: 'PEMBAYARAN_HUTANG',
+            createdAt: paidAt,
+          },
+        })
+        if (period) {
+          const startDate = period.start
+          const endDate = period.end
+          await tx.$executeRaw`
+            DELETE FROM "AbsensiGajiHarian"
+            WHERE "kebunId" = ${kebunId}
+              AND "karyawanId" = ${karyawanId}
+              AND "date" BETWEEN ${startDate}::DATE AND ${endDate}::DATE
+          `
+        } else if (uniqueDateKeys.length > 0) {
+          await tx.$executeRaw`
             DELETE FROM "AbsensiGajiHarian"
             WHERE "kebunId" = ${kebunId}
               AND "karyawanId" = ${karyawanId}
               AND "date" IN (${Prisma.join(uniqueDateKeys.map(k => Prisma.sql`${k}::DATE`))})
           `
         }
-      }
+      })
       return NextResponse.json({ ok: true })
     }
     if (!dateParam) {
@@ -962,20 +991,22 @@ export async function DELETE(request: Request) {
       select: { id: true },
     })
     const ids = trxRows.map(r => r.id)
-    if (ids.length > 0) {
-      await prisma.jurnal.deleteMany({
-        where: { refType: 'KasTransaksi', refId: { in: ids } },
-      })
-      await prisma.kasTransaksi.deleteMany({
-        where: { id: { in: ids } },
-      })
-    }
-    await prisma.$executeRaw`
-      DELETE FROM "AbsensiGajiHarian"
-      WHERE "kebunId" = ${kebunId}
-        AND "karyawanId" = ${karyawanId}
-        AND "date" = ${dateKey}::DATE
-    `
+    await prisma.$transaction(async (tx) => {
+      if (ids.length > 0) {
+        await tx.jurnal.deleteMany({
+          where: { refType: 'KasTransaksi', refId: { in: ids } },
+        })
+        await tx.kasTransaksi.deleteMany({
+          where: { id: { in: ids } },
+        })
+      }
+      await tx.$executeRaw`
+        DELETE FROM "AbsensiGajiHarian"
+        WHERE "kebunId" = ${kebunId}
+          AND "karyawanId" = ${karyawanId}
+          AND "date" = ${dateKey}::DATE
+      `
+    })
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('DELETE /api/karyawan-kebun/absensi-payments error:', error)

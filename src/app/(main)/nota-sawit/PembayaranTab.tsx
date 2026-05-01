@@ -473,6 +473,9 @@ export function PembayaranTab(props: {
                               : '-'}{' '}
                             • {b?.pabrikSawit?.name || '-'}
                           </div>
+                          <div className="text-xs text-gray-400 truncate">
+                            Input oleh: {b?.createdBy?.name || '-'}
+                          </div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-gray-500">Nota</div>
