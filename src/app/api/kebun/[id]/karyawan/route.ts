@@ -23,8 +23,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const search = String(searchParams.get('search') || '').trim()
 
     const and: any[] = [
-      { kebunId },
-      { role: { in: ['KARYAWAN', 'MANDOR', 'MANAGER'] } },
+      {
+        OR: [
+          { kebunId },
+          { role: 'SUPIR' },
+        ],
+      },
+      { role: { in: ['KARYAWAN', 'MANDOR', 'MANAGER', 'SUPIR'] } },
       { OR: [{ status: 'AKTIF' }, { status: 'Aktif' }, { status: null }] },
     ]
 
@@ -45,4 +50,3 @@ export async function GET(request: Request, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Gagal mengambil data karyawan' }, { status: 500 })
   }
 }
-
