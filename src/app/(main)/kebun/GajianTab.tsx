@@ -23,6 +23,7 @@ type UnpaidKaryawan = {
 type BiayaLainItem = {
   deskripsi: string
   total: number
+  karyawan?: string
   jumlah?: number
   satuan?: string
   hargaSatuan?: number
@@ -200,6 +201,9 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           if (!Number.isFinite(total) || total <= 0) return
           const jenis = String(curr?.jenisPekerjaan || 'Borongan').trim() || 'Borongan'
           const deskripsi = jenis
+          const karyawan = Array.isArray(curr?.users)
+            ? curr.users.map((u: any) => String(u?.name || '').trim()).filter(Boolean).join(', ')
+            : (curr?.user?.name ? String(curr.user.name).trim() : '')
           const jumlah = Number(curr?.jumlah || 0)
           const hargaSatuan = Number(curr?.hargaSatuan || 0)
           const normalizedJumlah = Number.isFinite(jumlah) && jumlah > 0 ? jumlah : 1
@@ -208,6 +212,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
           mappedBiaya.push({
             deskripsi,
             total,
+            karyawan: karyawan || undefined,
             jumlah: normalizedJumlah,
             satuan,
             hargaSatuan: normalizedHarga,
@@ -237,11 +242,18 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
         })
       }
 
-      setBiayaLain(mappedBiaya.filter((item) => item.total > 0 || (item.deskripsi && !item.deskripsi.startsWith('Upah Borongan'))))
+      setBiayaLain(
+        mappedBiaya
+          .filter((item) => item.total > 0 || (item.deskripsi && !item.deskripsi.startsWith('Upah Borongan')))
+          .sort((a, b) => String(a?.deskripsi || '').localeCompare(String(b?.deskripsi || ''), 'id-ID', { sensitivity: 'base' })),
+      )
 
       if (unpaidRes.ok) {
         const json = await unpaidRes.json()
-        setUnpaidList(Array.isArray(json.data) ? json.data : [])
+        const list = Array.isArray(json.data) ? json.data : []
+        setUnpaidList(
+          [...list].sort((a: any, b: any) => String(a?.name || '').localeCompare(String(b?.name || ''), 'id-ID', { sensitivity: 'base' })),
+        )
       } else {
         setUnpaidList([])
       }
@@ -517,6 +529,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                 biayaLain.map((b, idx) => (
                   <div key={`${b.deskripsi}-${idx}`} className="rounded-2xl border border-gray-100 bg-white p-4">
                     <div className="text-sm font-semibold text-gray-900">{b.deskripsi}</div>
+                    {b.karyawan ? <div className="text-xs text-gray-500 mt-1 truncate">Karyawan: {b.karyawan}</div> : null}
                     {b.isAutoKg ? (
                       <div className="text-xs text-gray-500 mt-1">
                       {formatNumber(Number(b.jumlah || 0), 2)} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}
@@ -555,6 +568,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                       <tr key={`${b.deskripsi}-${idx}`}>
                         <td className="px-4 py-2">
                           <div className="font-medium text-gray-900">{b.deskripsi}</div>
+                          {b.karyawan ? <div className="text-xs text-gray-500 truncate">Karyawan: {b.karyawan}</div> : null}
                           {b.isAutoKg ? (
                             <div className="text-xs text-gray-500">
                               {formatNumber(Number(b.jumlah || 0), 2)} {b.satuan || ''} x {formatCurrency(Number(b.hargaSatuan || 0))}

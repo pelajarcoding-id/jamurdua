@@ -840,7 +840,7 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
 
   const filteredActivities = useMemo(() => {
     const q = String(searchQuery || '').trim().toLowerCase()
-    return activities.filter((item) => {
+    const filtered = activities.filter((item) => {
       if (activityFilter === 'upah' && !item.upahBorongan) return false
       if (activityFilter === 'aktivitas' && item.upahBorongan) return false
 
@@ -871,6 +871,19 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
       const haystack = `${kategoriText} ${item.jenisPekerjaan || ''} ${item.keterangan || ''} ${userNames} ${kendaraanText}`.toLowerCase()
       return haystack.includes(q)
     })
+    if (mode === 'borongan') {
+      return [...filtered].sort((a, b) => {
+        const aj = String(a?.jenisPekerjaan || '')
+        const bj = String(b?.jenisPekerjaan || '')
+        const cmp = aj.localeCompare(bj, 'id-ID', { sensitivity: 'base' })
+        if (cmp !== 0) return cmp
+        const ad = a?.date ? new Date(a.date).getTime() : 0
+        const bd = b?.date ? new Date(b.date).getTime() : 0
+        if (ad !== bd) return ad - bd
+        return Number(a?.id || 0) - Number(b?.id || 0)
+      })
+    }
+    return filtered
   }, [activities, activityFilter, kategoriFilter, mode, searchQuery, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredActivities.length / perView));
