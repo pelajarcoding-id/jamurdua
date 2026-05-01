@@ -1377,6 +1377,85 @@ export default function KaryawanKebunPage() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
+
+  const exportBiayaTagPdf = async () => {
+    try {
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+      const doc = new jsPDF({ orientation: 'landscape' })
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('BIAYA (TAG KARYAWAN)', 14, 18)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Karyawan: ${selectedUser?.name || '-'}`, 14, 26)
+      doc.text(`Periode: ${new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(absenMonth)}`, 14, 31)
+      const total = biayaKaryawanRows.reduce((acc, r: any) => acc + (Number(r?.jumlah) || 0), 0)
+      autoTable(doc, {
+        head: [['Tanggal', 'Deskripsi', 'Kategori', 'Sumber', 'Diinput Oleh', 'Jumlah']],
+        body: [
+          ...biayaKaryawanRows.map((r: any) => [
+            r?.date ? format(new Date(r.date), 'dd MMM yyyy', { locale: idLocale }) : '-',
+            String(r?.deskripsi || '-'),
+            String(r?.kategori || '-'),
+            String(r?.source || 'KAS'),
+            String(r?.user?.name || '-'),
+            `Rp ${Number(r?.jumlah || 0).toLocaleString('id-ID')}`,
+          ]),
+          ['', '', '', '', 'Total', `Rp ${Math.round(total).toLocaleString('id-ID')}`],
+        ],
+        startY: 38,
+        theme: 'grid',
+        headStyles: { fillColor: [15, 118, 110] },
+        styles: { fontSize: 9 },
+        columnStyles: { 5: { halign: 'right' }, 4: { cellWidth: 45 }, 1: { cellWidth: 90 } },
+      })
+      doc.save(`Biaya-Tag-Karyawan-${selectedUser?.name || 'Karyawan'}-${format(absenMonth, 'yyyy-MM')}.pdf`)
+    } catch {
+      toast.error('Gagal export PDF')
+    }
+  }
+
+  const exportAbsenPayHistoryPdf = async () => {
+    try {
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+      const doc = new jsPDF({ orientation: 'landscape' })
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('HISTORY PEMBAYARAN GAJI', 14, 18)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Karyawan: ${selectedUser?.name || '-'}`, 14, 26)
+      const totalJumlah = absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.jumlah) || 0), 0)
+      const totalPotong = absenPayHistoryRows.reduce((acc, r) => acc + (Number(r.potonganHutang) || 0), 0)
+      autoTable(doc, {
+        head: [['Periode Gaji', 'Dibayar Tanggal', 'Jumlah', 'Potongan Hutang', 'Dibayar Oleh', 'Keterangan']],
+        body: [
+          ...absenPayHistoryRows.map((r) => [
+            r.startDate === r.endDate
+              ? format(new Date(r.startDate), 'dd MMM yyyy', { locale: idLocale })
+              : `${format(new Date(r.startDate), 'dd MMM yyyy', { locale: idLocale })} - ${format(new Date(r.endDate), 'dd MMM yyyy', { locale: idLocale })}`,
+            format(new Date(r.paidAt), 'dd MMM yyyy', { locale: idLocale }),
+            `Rp ${Number(r.jumlah || 0).toLocaleString('id-ID')}`,
+            `Rp ${Number(r.potonganHutang || 0).toLocaleString('id-ID')}`,
+            String(r.userName || '-'),
+            String(r.deskripsi || '-'),
+          ]),
+          ['Total', '', `Rp ${Math.round(totalJumlah).toLocaleString('id-ID')}`, `Rp ${Math.round(totalPotong).toLocaleString('id-ID')}`, '', ''],
+        ],
+        startY: 32,
+        theme: 'grid',
+        headStyles: { fillColor: [88, 28, 135] },
+        styles: { fontSize: 9 },
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 5: { cellWidth: 90 } },
+      })
+      doc.save(`History-Pembayaran-Gaji-${selectedUser?.name || 'Karyawan'}-${format(new Date(), 'yyyyMMdd')}.pdf`)
+    } catch {
+      toast.error('Gagal export PDF')
+    }
+  }
+
   const exportSummaryPdf = async () => {
     try {
       const jsPDF = (await import('jspdf')).default
@@ -2702,15 +2781,27 @@ export default function KaryawanKebunPage() {
               <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b">
                   <div className="text-sm font-semibold text-gray-900">Biaya (Tag Karyawan)</div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-full text-gray-600 hover:text-gray-900"
-                    onClick={() => setBiayaKaryawanOpen(v => !v)}
-                  >
-                    {biayaKaryawanOpen ? 'Sembunyikan' : 'Tampilkan'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={exportBiayaTagPdf}
+                      disabled={biayaKaryawanLoading || biayaKaryawanRows.length === 0}
+                    >
+                      Export PDF
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full text-gray-600 hover:text-gray-900"
+                      onClick={() => setBiayaKaryawanOpen(v => !v)}
+                    >
+                      {biayaKaryawanOpen ? 'Sembunyikan' : 'Tampilkan'}
+                    </Button>
+                  </div>
                 </div>
                 {biayaKaryawanOpen ? (
                   biayaKaryawanLoading ? (
@@ -2726,6 +2817,7 @@ export default function KaryawanKebunPage() {
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deskripsi</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Diinput Oleh</th>
                             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Jumlah</th>
                           </tr>
                         </thead>
@@ -2736,6 +2828,7 @@ export default function KaryawanKebunPage() {
                               <td className="px-4 py-3 text-gray-900">{r.deskripsi || '-'}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-gray-700">{r.kategori || '-'}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-gray-700">{String(r.source || 'KAS')}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{r?.user?.name || '-'}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900">Rp {Number(r.jumlah || 0).toLocaleString('id-ID')}</td>
                             </tr>
                           ))}
@@ -2750,6 +2843,16 @@ export default function KaryawanKebunPage() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
                   <h3 className="text-sm font-semibold text-gray-700">History Pembayaran Gaji</h3>
                   <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={exportAbsenPayHistoryPdf}
+                      disabled={absenPayHistoryLoading || absenPayHistoryRows.length === 0}
+                    >
+                      Export PDF
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

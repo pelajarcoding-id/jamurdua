@@ -298,6 +298,19 @@ export default function KaryawanPageModals(props: any) {
                   {absenHourlyMap[absenSelectedDate] ? 'Per Jam' : 'Harian'}
                 </div>
               </div>
+              <div className="col-span-2 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Diinput Oleh</p>
+                <div className="flex items-center gap-1.5 text-sky-700 font-bold text-sm">
+                  <UserGroupIcon className="w-4 h-4" />
+                  {(() => {
+                    const src = String(absenSourceMap[absenSelectedDate] || '').toUpperCase()
+                    if (src === 'SELFIE') return 'Selfie (Karyawan)'
+                    if (src === 'MANUAL') return 'Manual'
+                    if (src) return src
+                    return '-'
+                  })()}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-3">
