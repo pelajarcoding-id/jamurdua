@@ -60,6 +60,7 @@ interface KpiData {
   totalPotongan: number;
   totalNetto: number;
   totalPembayaran: number;
+  totalBuahBalik: number;
   lunasCount: number;
   belumLunasCount: number;
   totalPembayaranLunas: number;
@@ -1443,6 +1444,14 @@ export default function LaporanNotaSawitPage() {
                         {kpi?.jumlahNota} Nota | Rata-rata {kpi ? new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.rataRataTonasePerNota || 0)) : 0} kg
                       </p>
                     </>
+                  )}
+                </div>
+                <div className="rounded-xl bg-indigo-50/60 px-3 py-2">
+                  <p className="text-xs text-indigo-700">Total Perkiraan Buah Balik</p>
+                  {isStatsLoading ? <Skeleton className="h-6 w-24 mt-1" /> : (
+                    <p className="text-lg font-semibold text-gray-900">
+                      {kpi ? new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(kpi.totalBuahBalik || 0)) : 0} kg
+                    </p>
                   )}
                 </div>
                 <div className="rounded-xl bg-amber-50/70 px-3 py-2">

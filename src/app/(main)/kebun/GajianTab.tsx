@@ -112,6 +112,19 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
   const formatNumber = useCallback((num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num), [])
 
   const handleSavePotongan = useCallback(async () => {
+    const startKey = String(startDate || '').trim()
+    const endKey = String(endDate || '').trim()
+    if (startKey && endKey) {
+      const invalid = potonganList.find((p) => {
+        const t = String((p as any)?.tanggal || '').trim()
+        if (!t) return false
+        return t < startKey || t > endKey
+      })
+      if (invalid) {
+        toast.error(`Tanggal potongan harus dalam periode ${startKey} s/d ${endKey}`)
+        return
+      }
+    }
     try {
       const res = await fetch(`/api/kebun/${kebunId}/gajian-potongan-draft`, {
         method: 'POST',
@@ -610,36 +623,49 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                   <div key={p.id} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-2">
                     {editingPotonganId === p.id ? (
                       <>
-                        <Input
-                          placeholder="Deskripsi"
-                          value={p.deskripsi}
-                          onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, deskripsi: e.target.value } : x)))}
-                          className="h-10 rounded-full"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            type="date"
-                            value={p.tanggal || ''}
-                            onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, tanggal: e.target.value } : x)))}
-                            className="h-10 bg-white !rounded-md pr-10"
-                          />
-                          <Input
-                            placeholder="Total"
-                            inputMode="numeric"
-                            value={formatNumber(Number(p.total || 0))}
-                            onChange={(e) => {
-                              const numericValue = Number(String(e.target.value || '').replace(/\D/g, '')) || 0
-                              setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, total: numericValue } : x)))
-                            }}
-                            className="h-10 rounded-full text-right"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">Deskripsi</Label>
+                            <Input
+                              value={p.deskripsi}
+                              onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, deskripsi: e.target.value } : x)))}
+                              className="h-10 rounded-full"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">Total</Label>
+                            <Input
+                              inputMode="numeric"
+                              value={formatNumber(Number(p.total || 0))}
+                              onChange={(e) => {
+                                const numericValue = Number(String(e.target.value || '').replace(/\D/g, '')) || 0
+                                setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, total: numericValue } : x)))
+                              }}
+                              className="h-10 rounded-full text-right"
+                            />
+                          </div>
                         </div>
-                        <Input
-                          placeholder="Keterangan (opsional)"
-                          value={p.keterangan || ''}
-                          onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, keterangan: e.target.value } : x)))}
-                          className="h-10 rounded-full"
-                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">Tanggal</Label>
+                            <Input
+                              type="date"
+                              min={startDate}
+                              max={endDate}
+                              value={p.tanggal || ''}
+                              onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, tanggal: e.target.value } : x)))}
+                              className="h-10 bg-white !rounded-md pr-10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">Keterangan</Label>
+                            <Input
+                              value={p.keterangan || ''}
+                              onChange={(e) => setPotonganList((prev) => prev.map((x) => (x.id === p.id ? { ...x, keterangan: e.target.value } : x)))}
+                              className="h-10 rounded-full"
+                            />
+                          </div>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button size="sm" variant="outline" className="rounded-full" onClick={handleSavePotongan}>
                             Simpan

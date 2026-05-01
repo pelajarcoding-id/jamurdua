@@ -112,6 +112,7 @@ export async function GET(request: Request) {
         pph25: true,
         pembayaranSetelahPph: true,
         pembayaranAktual: true,
+        ...( { buahBalik: true } as any ),
       },
     });
 
@@ -130,6 +131,7 @@ export async function GET(request: Request) {
     // @ts-ignore
     const totalPph25 = kpiData._sum?.pph25 || 0;
     const totalNet = kpiData._sum?.pembayaranSetelahPph || 0;
+    const totalBuahBalik = (kpiData as any)?._sum?.buahBalik || 0;
 
     const pembayaranByStatus = await prisma.notaSawit.groupBy({
       by: ['statusPembayaran'],
@@ -166,6 +168,7 @@ export async function GET(request: Request) {
       totalPotongan,
       totalNetto,
       totalPembayaran,
+      totalBuahBalik,
       lunasCount,
       belumLunasCount,
       totalPembayaranLunas,

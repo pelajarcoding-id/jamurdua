@@ -83,7 +83,7 @@ export const links: NavLink[] = [
         },
         {
             name: 'Laporan Kebun',
-            href: '/laporan-nota-sawit',
+            href: '/laporan-kebun',
             icon: DocumentTextIcon,
         },
         {

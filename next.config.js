@@ -49,6 +49,23 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = withPWA({
   output: 'standalone',
+  async redirects() {
+    return [
+      {
+        source: '/laporan-nota-sawit',
+        destination: '/laporan-kebun',
+        permanent: true,
+      },
+    ]
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/laporan-kebun',
+        destination: '/laporan-nota-sawit',
+      },
+    ]
+  },
   async headers() {
     return [
       {

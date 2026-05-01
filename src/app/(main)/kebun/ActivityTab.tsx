@@ -1060,48 +1060,30 @@ export default function ActivityTab({ kebunId, mode }: { kebunId: number; mode?:
             cursorY = headerHeight + 8
           }
 
-          const sectionPadding = 4
-          const sectionW = pageWidth - (marginX * 2)
-          const colGap = 4
-          const rowGap = 3
-          const cellH = 12
-          const titleH = 6
-          const sectionH = sectionPadding + titleH + (cellH * 2) + rowGap + sectionPadding
-
-          ensureSpace(sectionH)
-
-          const maxCols = Math.min(6, Math.max(2, Math.floor((sectionW - (sectionPadding * 2) + colGap) / (52 + colGap))))
-          const cols = Math.min(maxCols, Math.max(1, Math.ceil(kategoriTotals.length / 2)))
-          const maxItems = Math.min(kategoriTotals.length, cols * 2)
-          const shownItems = kategoriTotals.slice(0, maxItems)
-          const cellW = (sectionW - (sectionPadding * 2) - (colGap * (cols - 1))) / cols
-
-          doc.setFillColor(248, 250, 252)
-          doc.setDrawColor(226, 232, 240)
-          doc.roundedRect(marginX, cursorY, sectionW, sectionH, 3, 3, 'FD')
-
+          ensureSpace(10)
           doc.setTextColor(15, 23, 42)
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(10)
-          doc.text('Biaya per Kategori', marginX + sectionPadding, cursorY + sectionPadding + 4)
+          doc.text('Biaya per Kategori', marginX, cursorY)
+          cursorY += 4
 
-          const gridTop = cursorY + sectionPadding + titleH
-          doc.setFontSize(8)
-          shownItems.forEach((item, idx) => {
-            const row = Math.floor(idx / cols)
-            const col = idx % cols
-            const x = marginX + sectionPadding + col * (cellW + colGap)
-            const y = gridTop + row * (cellH + rowGap)
-
-            doc.setTextColor(15, 23, 42)
-            doc.setFont('helvetica', 'bold')
-            doc.setFontSize(7)
-            const lines = (doc as any).splitTextToSize(String(item.kategori || ''), cellW) as string[]
-            doc.text(String(lines?.[0] || ''), x, y + 4)
-
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(9)
-            doc.text(formatNumber(item.total), x + cellW, y + 10, { align: 'right' })
+          autoTable(doc, {
+            startY: cursorY,
+            head: [['NO', 'KATEGORI', 'TOTAL BIAYA']],
+            body: kategoriTotals.map((k, i) => [
+              i + 1,
+              String(k.kategori || ''),
+              k.total > 0 ? formatNumber(k.total) : '-',
+            ]) as any,
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2.2, textColor: [15, 23, 42] },
+            headStyles: { fillColor: headerBg as any, textColor: 255, fontStyle: 'bold' as const },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' as const },
+              1: { cellWidth: 90 },
+              2: { cellWidth: 30, halign: 'right' as const },
+            },
+            margin: { left: marginX, right: marginX, top: headerHeight + 8, bottom: footerHeight + 8 },
           })
         }
       } else {

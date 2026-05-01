@@ -181,7 +181,8 @@ export default function KaryawanKebunPage() {
   }, [karyawanLimit, karyawanPage, selectedJobType, selectedKebunId, selectedLocationFilterId, karyawanSearchApplied, selectedStatus])
   const { data: karyawanData, isLoading: loadingKaryawan, mutate: mutateKaryawan } = useSWR<{ data: User[]; total: number; page: number; limit: number }>(
     accessDenied ? null : karyawanUrl,
-    (url: string) => fetch(url).then(r => r.json())
+    (url: string) => fetch(url).then(r => r.json()),
+    { keepPreviousData: true }
   )
   const karyawanList = useMemo(() => {
     if (karyawanData && Array.isArray(karyawanData.data)) return karyawanData.data

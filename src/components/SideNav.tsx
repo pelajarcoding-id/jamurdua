@@ -269,10 +269,6 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
                   >
                     <LinkIcon className={clsx("w-6 h-6 flex-shrink-0", { "mr-3": !isMinimized, "text-white": isActive, "text-gray-700 group-hover:text-emerald-600": !isActive })} />
                     <span className={clsx("font-medium truncate", { 'hidden': isMinimized })}>{link.name}</span>
-                    {/* Add a notification badge for 'Nota Sawit' as an example if needed, similar to 'Messages' in the image */}
-                    {link.name === 'Nota Sawit' && !isMinimized && !isActive && (
-                         <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">New</span>
-                    )}
                   </Link>
                 );
               })}
