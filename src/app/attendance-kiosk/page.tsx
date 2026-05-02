@@ -430,6 +430,14 @@ export default function AttendanceKioskPage() {
         toast.error('Sudah absen pulang hari ini')
         return
       }
+      if (type === 'OUT' && s?.checkIn) {
+        const inDate = new Date(s.checkIn)
+        const inTime = inDate.getTime()
+        if (!Number.isNaN(inTime) && Date.now() - inTime < 30 * 60 * 1000) {
+          toast.error('Absen pulang minimal 30 menit setelah absen masuk')
+          return
+        }
+      }
 
       const dataUrl = lockedShot || captureFromCamera()
       if (!dataUrl) {
@@ -503,10 +511,20 @@ export default function AttendanceKioskPage() {
     return !!attendanceForActive?.checkIn
   }, [attendanceForActive?.checkIn, statusReadyForActive])
 
+  const outTooSoon = useMemo(() => {
+    if (!statusReadyForActive) return false
+    const raw = attendanceForActive?.checkIn
+    if (!raw) return false
+    const d = new Date(raw)
+    const t = d.getTime()
+    if (Number.isNaN(t)) return false
+    return Date.now() - t < 30 * 60 * 1000
+  }, [attendanceForActive?.checkIn, statusReadyForActive])
+
   const outBlocked = useMemo(() => {
     if (!statusReadyForActive) return true
-    return !attendanceForActive?.checkIn || !!attendanceForActive?.checkOut
-  }, [attendanceForActive?.checkIn, attendanceForActive?.checkOut, statusReadyForActive])
+    return !attendanceForActive?.checkIn || !!attendanceForActive?.checkOut || outTooSoon
+  }, [attendanceForActive?.checkIn, attendanceForActive?.checkOut, outTooSoon, statusReadyForActive])
 
   const todayWibLabel = useMemo(() => {
     return new Intl.DateTimeFormat('id-ID', {

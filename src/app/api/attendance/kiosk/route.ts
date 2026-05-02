@@ -159,7 +159,7 @@ async function syncSelfieToCalendarKerja(params: { userId: number; date: Date })
       update: {
         kerja: true,
         libur: false,
-        source: 'KIOSK',
+        source: 'KIOSK-SELFIE',
         updatedAt: new Date(),
       },
       create: {
@@ -168,7 +168,7 @@ async function syncSelfieToCalendarKerja(params: { userId: number; date: Date })
         date: params.date,
         kerja: true,
         libur: false,
-        source: 'KIOSK',
+        source: 'KIOSK-SELFIE',
       },
     })
   } catch {}
@@ -309,6 +309,12 @@ export async function POST(request: Request) {
       }
       if (existingAttendance?.checkOut) {
         return NextResponse.json({ error: 'Sudah absen pulang hari ini' }, { status: 400 })
+      }
+      if (existingAttendance?.checkIn) {
+        const inTime = new Date(existingAttendance.checkIn).getTime()
+        if (!Number.isNaN(inTime) && Date.now() - inTime < 30 * 60 * 1000) {
+          return NextResponse.json({ error: 'Absen pulang minimal 30 menit setelah absen masuk' }, { status: 400 })
+        }
       }
       attendance = await (prisma as any).attendanceSelfie.update({
         where: { id: existingAttendance.id },

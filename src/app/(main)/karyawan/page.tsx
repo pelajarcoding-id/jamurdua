@@ -487,7 +487,7 @@ export default function KaryawanKebunPage() {
             const noteTrim = noteText.trim()
             const noteUpper = noteTrim.toUpperCase()
             const srcUpper = String(src || '').trim().toUpperCase()
-            if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE'].includes(noteUpper)) nextNote[key] = noteTrim
+            if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE', 'KIOSK-SELFIE'].includes(noteUpper)) nextNote[key] = noteTrim
             if (src) nextSource[key] = src
             const isSelfieMasuk = String(r.source || '').toUpperCase() === 'SELFIE'
             if (isSelfieMasuk && !r.libur) nextWork[key] = true
@@ -603,7 +603,7 @@ export default function KaryawanKebunPage() {
           const noteTrim = noteText.trim()
           const noteUpper = noteTrim.toUpperCase()
           const srcUpper = String(parsedSource[date] || '').trim().toUpperCase()
-          if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE'].includes(noteUpper)) parsedNote[date] = noteTrim
+          if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE', 'KIOSK-SELFIE'].includes(noteUpper)) parsedNote[date] = noteTrim
         })
         const parsedWorkBase = parsed.work || {}
         const parsedWork = { ...parsedWorkBase }

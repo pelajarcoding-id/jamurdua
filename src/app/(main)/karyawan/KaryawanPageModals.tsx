@@ -305,6 +305,7 @@ export default function KaryawanPageModals(props: any) {
                   {(() => {
                     const src = String(absenSourceMap[absenSelectedDate] || '').toUpperCase()
                     if (src === 'SELFIE') return 'Selfie (Karyawan)'
+                    if (src === 'KIOSK') return 'KIOSK-SELFIE'
                     if (src === 'MANUAL') return 'Manual'
                     if (src) return src
                     return '-'

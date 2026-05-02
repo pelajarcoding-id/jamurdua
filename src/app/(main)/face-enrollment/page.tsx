@@ -64,7 +64,7 @@ export default function FaceEnrollmentPage() {
     const loadUsers = async () => {
       try {
         setUserOptionsLoading(true)
-        const res = await fetch('/api/users?page=1&limit=1000&status=AKTIF&role=KARYAWAN', { cache: 'no-store' })
+        const res = await fetch('/api/users?page=1&limit=2000&status=AKTIF', { cache: 'no-store' })
         const json = await res.json().catch(() => ({} as any))
         if (!res.ok) {
           setUserOptions([])
