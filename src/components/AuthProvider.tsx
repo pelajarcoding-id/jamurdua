@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pathname === '/login' ||
       pathname === '/forgot-password' ||
       pathname === '/reset-password' ||
+      pathname === '/attendance-kiosk' ||
       pathname === '/offline' ||
       pathname.startsWith('/tools')
     if (!isPublic) {

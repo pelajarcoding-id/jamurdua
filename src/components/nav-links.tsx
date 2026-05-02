@@ -19,12 +19,14 @@ import {
   ArchiveBoxXMarkIcon,
   CameraIcon,
   MapPinIcon,
-  BellAlertIcon
+  BellAlertIcon,
+  FingerPrintIcon
 } from '@heroicons/react/24/outline';
 
 export interface SubLink {
     name: string;
     href: string;
+    roles?: string[];
 }
 
 export interface NavLink {
@@ -44,11 +46,18 @@ export const links: NavLink[] = [
         name: 'Absensi',
         href: '/attendance',
         icon: CameraIcon,
-    },
-    {
-        name: 'Monitoring Absensi',
-        href: '/attendance-monitor',
-        icon: MapPinIcon,
+        subLinks: [
+            {
+                name: 'Monitoring Absensi',
+                href: '/attendance-monitor',
+                roles: ['ADMIN', 'PEMILIK', 'KASIR'],
+            },
+            {
+                name: 'Registrasi Wajah',
+                href: '/face-enrollment',
+                roles: ['ADMIN', 'PEMILIK'],
+            },
+        ],
     },
     {
         name: 'Kebun',
