@@ -717,7 +717,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                             <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={onClose} disabled={submitting}>Selesai</Button>
                         </>
                     ) : (
-                        <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={submitting}>Simpan</Button>
+                        <Button className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={submitting}>{isEditMode ? 'Simpan' : 'Lanjutkan'}</Button>
                     )}
                 </ModalFooter>
             </DialogContent>

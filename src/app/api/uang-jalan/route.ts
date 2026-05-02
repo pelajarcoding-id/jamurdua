@@ -10,6 +10,32 @@ import { getWibRangeUtcFromParams, parseWibYmd, wibStartUtc } from '@/lib/wib';
 
 export const dynamic = 'force-dynamic'
 
+async function resolveKendaraanPlatNomorOrThrow(input?: string | null) {
+  const raw = typeof input === 'string' ? input.trim() : ''
+  if (!raw) return null
+
+  const kendaraan = await prisma.kendaraan.findFirst({
+    where: { platNomor: { equals: raw, mode: 'insensitive' } },
+    select: { platNomor: true },
+  })
+  if (kendaraan?.platNomor) return kendaraan.platNomor
+
+  const normalized = raw.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (normalized) {
+    const rows = await prisma.$queryRaw<Array<{ platNomor: string }>>(
+      Prisma.sql`
+        SELECT "platNomor"
+        FROM "Kendaraan"
+        WHERE regexp_replace(lower("platNomor"), '[^a-z0-9]', '', 'g') = ${normalized}
+        LIMIT 1
+      `
+    )
+    if (rows.length > 0 && rows[0]?.platNomor) return rows[0].platNomor
+  }
+
+  throw new Error('KENDARAAN_NOT_FOUND')
+}
+
 // Define a type for the session object that includes relations
 type SesiWithDetails = SesiUangJalan & {
   supir: User;
@@ -191,18 +217,14 @@ export async function POST(request: Request) {
 
     // Create a new session and the first transaction within it
     const currentUserId = session?.user?.id ? Number(session.user.id) : null;
+    const resolvedKendaraanPlatNomor = kendaraanPlatNomor === undefined
+      ? undefined
+      : await resolveKendaraanPlatNomorOrThrow(kendaraanPlatNomor)
     const newSesi = await prisma.sesiUangJalan.create({
       data: {
         supirId: Number(supirId),
         keterangan,
-        kendaraanPlatNomor,
-        ...(kendaraanPlatNomor ? {
-          kendaraan: {
-            connect: {
-              platNomor: kendaraanPlatNomor
-            }
-          }
-        } : {}),
+        kendaraanPlatNomor: resolvedKendaraanPlatNomor,
         ...(currentUserId ? { createdById: currentUserId } : {}),
         tanggalMulai: (() => {
           const ymd = parseWibYmd(tanggalMulai)
@@ -232,6 +254,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newSesi);
   } catch (error) {
+    if ((error as any)?.message === 'KENDARAAN_NOT_FOUND') {
+      return NextResponse.json({ error: 'Plat kendaraan tidak ditemukan' }, { status: 400 })
+    }
     console.error("Error creating sesi uang jalan: ", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
