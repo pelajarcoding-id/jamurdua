@@ -74,7 +74,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         })()
       : null
 
-    const updatedSesi = await prisma.$transaction(async (tx) => {
+    const updatedSesi = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const updated = await tx.sesiUangJalan.update({
         where: { id },
         data: {
@@ -87,7 +87,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
       const nextKet = typeof keterangan === 'string' ? keterangan.trim() : ''
       if (nextTanggalMulai || nextKet) {
-        const first = await (tx as any).$queryRaw<Array<{ id: number; description: string | null }>>(
+        const first = await tx.$queryRaw<Array<{ id: number; description: string | null }>>(
           Prisma.sql`
             SELECT "id", "description"
             FROM "UangJalan"
