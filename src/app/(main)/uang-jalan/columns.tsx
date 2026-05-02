@@ -58,6 +58,14 @@ export const columns: ColumnDef<SesiUangJalanWithDetails>[] = [
         cell: ({ row }) => formatDate(row.original.tanggalMulai),
     },
     {
+        accessorKey: "keterangan",
+        header: "Deskripsi Awal",
+        cell: ({ row }) => {
+          const raw = String(row.original.keterangan || '').trim()
+          return raw ? <div className="max-w-[320px] truncate" title={raw}>{raw}</div> : '-'
+        },
+    },
+    {
         accessorKey: "totalDiberikan",
         header: "Total Diberikan",
         cell: ({ row }) => <div className="text-right">{formatCurrency(row.original.totalDiberikan)}</div>,

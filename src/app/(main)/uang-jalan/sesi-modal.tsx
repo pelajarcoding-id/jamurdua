@@ -330,7 +330,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
     return (
         <>
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="bg-white w-[95vw] sm:max-w-lg max-h-[92vh] rounded-2xl p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
+            <DialogContent className="bg-white w-[96vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[92vh] rounded-2xl p-0 overflow-hidden [&>button.absolute]:hidden flex flex-col">
                 <ModalHeader
                     title={title}
                     subtitle={createdSesi ? "Kelola rincian sesi uang jalan" : "Buat sesi uang jalan baru"}
@@ -422,13 +422,18 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                 <button
                                     type="button"
                                     onClick={() => setRincianExpanded((v) => !v)}
-                                    className="w-full px-3 py-2 bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-between"
+                                    className="w-full px-4 py-3 bg-emerald-50/70 text-sm font-semibold text-emerald-900 flex items-center justify-between hover:bg-emerald-100/70"
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <PlusCircleIcon className="h-4 w-4 text-emerald-600" />
-                                        <span>Tambah Rincian</span>
+                                    <div className="flex items-center gap-3">
+                                        <span className="h-9 w-9 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center">
+                                            <PlusCircleIcon className="h-6 w-6" />
+                                        </span>
+                                        <div className="text-left">
+                                            <div className="font-bold leading-tight">Tambah Rincian Uang Jalan</div>
+                                            <div className="text-xs font-medium text-emerald-700">Catat pemasukan/pengeluaran + bukti</div>
+                                        </div>
                                     </div>
-                                    <ChevronDownIcon className={`h-4 w-4 text-gray-500 transition-transform ${rincianExpanded ? 'rotate-180' : ''}`} />
+                                    <ChevronDownIcon className={`h-5 w-5 text-emerald-700 transition-transform ${rincianExpanded ? 'rotate-180' : ''}`} />
                                 </button>
                                 {rincianExpanded ? (
                                 <div className="p-3 space-y-3">
@@ -558,7 +563,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                     )}
                                 </div>
                                 ) : (
-                                    <div className="px-3 py-3 text-sm text-gray-500">Klik tombol + untuk menambah rincian transaksi.</div>
+                                    <div className="px-4 py-3 text-sm text-gray-600">Klik Tambah Rincian untuk input transaksi.</div>
                                 )}
                             </div>
                         </div>

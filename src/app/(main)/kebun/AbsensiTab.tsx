@@ -1379,7 +1379,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                   {(() => {
                     const cells = []
                     const firstDay = new Date(absenMonth.getFullYear(), absenMonth.getMonth(), 1)
-                    const startOffset = (firstDay.getDay() + 6) % 7
+                    const startOffset = firstDay.getDay()
                     for (let i = 0; i < startOffset; i++) cells.push(<div key={`pad-${i}`} />)
                     
                     const daysInMonth = new Date(absenMonth.getFullYear(), absenMonth.getMonth() + 1, 0).getDate()
