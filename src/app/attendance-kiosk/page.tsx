@@ -5,7 +5,7 @@ import Webcam from 'react-webcam'
 import { toast } from 'react-hot-toast'
 import { convertImageFileToWebp } from '@/lib/image-webp'
 import { countFacesFromVideo, detectSingleFaceFromVideo } from '@/lib/faceapi-client'
-import { RefreshCw, CheckCircle2, LogOut, Loader2, MapPin } from 'lucide-react'
+import { RefreshCw, CheckCircle2, LogOut, Loader2, MapPin, ArrowLeft } from 'lucide-react'
 
 const videoConstraints = {
   width: 720,
@@ -519,9 +519,18 @@ export default function AttendanceKioskPage() {
   }, [])
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] md:pb-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{`Absensi Karyawan · ${todayWibLabel}`}</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="min-w-0 flex-1 text-xl sm:text-2xl font-semibold tracking-tight text-gray-900 truncate whitespace-nowrap">{`Absensi Karyawan · ${todayWibLabel}`}</h1>
+          <a
+            href="/login"
+            className="self-start sm:self-auto inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Kembali
+          </a>
+        </div>
         <p className="text-sm text-gray-600">Kiosk responsif. Tanpa login. Kamera live mendeteksi nama.</p>
       </div>
 
@@ -548,7 +557,7 @@ export default function AttendanceKioskPage() {
                 {hkLoading
                   ? 'Memuat HK belum dibayar...'
                   : hkUnpaid != null
-                    ? `HK belum dibayar${hkRange ? ` (${hkRange.startDate} s/d ${hkRange.endDate})` : ''}: ${hkUnpaid} Hari`
+                    ? `HK belum dibayar: ${hkUnpaid} Hari`
                     : 'HK belum dibayar: -'}
               </p>
             ) : null}
@@ -669,7 +678,7 @@ export default function AttendanceKioskPage() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 pb-8 sm:pb-0">
         <button
           onClick={() => submitAttendance('IN')}
           disabled={
@@ -678,10 +687,10 @@ export default function AttendanceKioskPage() {
             inBlocked ||
             (activeUserId ? statusLoading && Number(statusUserId) !== Number(activeUserId) : false)
           }
-          className="flex flex-col items-center justify-center p-4 bg-green-600 disabled:bg-gray-200 text-white rounded-2xl shadow-md disabled:shadow-none transition-all active:scale-95"
+          className="flex flex-col items-center justify-center p-3 sm:p-4 bg-green-600 disabled:bg-gray-200 text-white rounded-2xl shadow-md disabled:shadow-none transition-all active:scale-95"
         >
           {submitting ? <Loader2 className="w-6 h-6 animate-spin mb-1" /> : <CheckCircle2 className="w-6 h-6 mb-1" />}
-          <span className="font-bold">Absen Masuk</span>
+          <span className="font-bold whitespace-nowrap">Absen Masuk</span>
         </button>
         <button
           onClick={() => submitAttendance('OUT')}
@@ -691,10 +700,10 @@ export default function AttendanceKioskPage() {
             outBlocked ||
             (activeUserId ? statusLoading && Number(statusUserId) !== Number(activeUserId) : false)
           }
-          className="flex flex-col items-center justify-center p-4 bg-blue-600 disabled:bg-gray-200 text-white rounded-2xl shadow-md disabled:shadow-none transition-all active:scale-95"
+          className="flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-600 disabled:bg-gray-200 text-white rounded-2xl shadow-md disabled:shadow-none transition-all active:scale-95"
         >
           {submitting ? <Loader2 className="w-6 h-6 animate-spin mb-1" /> : <LogOut className="w-6 h-6 mb-1" />}
-          <span className="font-bold">Absen Pulang</span>
+          <span className="font-bold whitespace-nowrap">Absen Pulang</span>
         </button>
       </div>
     </div>

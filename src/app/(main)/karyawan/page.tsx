@@ -482,8 +482,13 @@ export default function KaryawanKebunPage() {
             if (r.jumlah > 0) nextAmount[key] = String(r.jumlah)
             if (r.kerja) nextWork[key] = true
             if (r.libur) nextOff[key] = true
-            if (r.note) nextNote[key] = r.note
-            if (r.source) nextSource[key] = String(r.source)
+            const src = r.source == null ? '' : String(r.source)
+            const noteText = r.note == null ? '' : String(r.note)
+            const noteTrim = noteText.trim()
+            const noteUpper = noteTrim.toUpperCase()
+            const srcUpper = String(src || '').trim().toUpperCase()
+            if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE'].includes(noteUpper)) nextNote[key] = noteTrim
+            if (src) nextSource[key] = src
             const isSelfieMasuk = String(r.source || '').toUpperCase() === 'SELFIE'
             if (isSelfieMasuk && !r.libur) nextWork[key] = true
             if (r.useHourly) {
@@ -591,6 +596,15 @@ export default function KaryawanKebunPage() {
         const parsedAmount = parsed.amount || {}
         const parsedOff = parsed.off || {}
         const parsedSource = parsed.source || {}
+        const parsedNoteBase = parsed.note || {}
+        const parsedNote: Record<string, string> = {}
+        Object.entries(parsedNoteBase).forEach(([date, note]) => {
+          const noteText = note == null ? '' : String(note)
+          const noteTrim = noteText.trim()
+          const noteUpper = noteTrim.toUpperCase()
+          const srcUpper = String(parsedSource[date] || '').trim().toUpperCase()
+          if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE'].includes(noteUpper)) parsedNote[date] = noteTrim
+        })
         const parsedWorkBase = parsed.work || {}
         const parsedWork = { ...parsedWorkBase }
         Object.entries(parsedSource).forEach(([date, src]) => {
@@ -601,7 +615,7 @@ export default function KaryawanKebunPage() {
         setAbsenMap(prev => Object.keys(prev).length === 0 ? parsedAmount : prev)
         setAbsenWorkMap(prev => Object.keys(prev).length === 0 ? parsedWork : prev)
         setAbsenOffMap(prev => Object.keys(prev).length === 0 ? parsedOff : prev)
-        setAbsenNoteMap(prev => Object.keys(prev).length === 0 ? (parsed.note || {}) : prev)
+        setAbsenNoteMap(prev => Object.keys(prev).length === 0 ? parsedNote : prev)
         setAbsenSourceMap(prev => Object.keys(prev).length === 0 ? parsedSource : prev)
         setAbsenHourlyMap(prev => Object.keys(prev).length === 0 ? (parsed.hourly || {}) : prev)
         setAbsenHourMap(prev => Object.keys(prev).length === 0 ? (parsed.hour || {}) : prev)
