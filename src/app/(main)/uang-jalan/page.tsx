@@ -95,7 +95,7 @@ export default function UangJalanPage() {
 
     const [refreshToggle, setRefreshToggle] = useState(false);
     const [page, setPage] = useState(1);
-    const [limit, setLimit] = useState(10);
+    const [limit, setLimit] = useState(20);
     const [totalItems, setTotalItems] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -1088,7 +1088,7 @@ export default function UangJalanPage() {
                     </div>
 
                     <div className="hidden md:block overflow-hidden rounded-lg border border-gray-100">
-                        <DataTable columns={columns} data={data} meta={tableMeta} rowSelection={rowSelection} setRowSelection={setRowSelection} isLoading={isLoading} virtualize={{ enabled: true, rowHeight: 56, maxHeight: 70 }} />
+                        <DataTable columns={columns} data={data} meta={tableMeta} rowSelection={rowSelection} setRowSelection={setRowSelection} isLoading={isLoading} />
                     </div>
 
                     <div className="flex flex-col md:flex-row items-center justify-center md:justify-between gap-4 mt-6 pt-4 border-t border-gray-100">
