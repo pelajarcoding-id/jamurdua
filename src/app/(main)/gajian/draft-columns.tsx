@@ -19,7 +19,7 @@ export const createDraftColumns = (
   onContinue: (id: number) => void,
   onDelete: (id: number) => void,
   onDetail: (id: number) => void
-): ColumnDef<(Gajian & { kebun: Kebun })>[] => [
+): ColumnDef<(Gajian & { kebun: Kebun } & { totalGajiHarian?: number; totalJumlahGaji?: number })>[] => [
   {
     id: 'continue',
     header: '',
@@ -55,9 +55,14 @@ export const createDraftColumns = (
     header: 'Total Nota',
   },
   {
-    accessorKey: 'totalBiayaLain',
-    header: () => <div className="text-right">Total Gaji (Rp)</div>,
-    cell: ({ row }) => <div className="text-right">{formatNumber(row.original.totalBiayaLain || 0)}</div>,
+    accessorKey: 'totalGajiHarian',
+    header: () => <div className="text-right">Gaji Harian (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalGajiHarian) || 0)}</div>,
+  },
+  {
+    accessorKey: 'totalJumlahGaji',
+    header: () => <div className="text-right">Total Gajian (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalJumlahGaji) || 0)}</div>,
   },
   {
     accessorKey: 'totalPotongan',
@@ -66,7 +71,7 @@ export const createDraftColumns = (
   },
   {
     accessorKey: 'totalGaji',
-    header: () => <div className="text-right">Jumlah Gaji (Rp)</div>,
+    header: () => <div className="text-right">Gaji Bersih (Rp)</div>,
     cell: ({ row }) => <div className="text-right">{formatNumber(row.original.totalGaji || 0)}</div>,
   },
   {

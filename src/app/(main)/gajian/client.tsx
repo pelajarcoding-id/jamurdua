@@ -110,11 +110,13 @@ const buildGajiHarianDesc = (start?: Date, end?: Date) => {
   return `Biaya Gaji Harian (${formatDate(start)} - ${formatDate(end)})`
 }
 
+type GajianHistoryRow = (Gajian & { kebun: Kebun } & { totalGajiHarian?: number; totalJumlahGaji?: number })
+
 const createHistoryColumns = (
   onDelete: (id: number) => void,
   onDetail: (id: number) => void,
-  totals: { totalNota: number; totalBerat: number; totalGaji: number; totalPotongan: number; totalJumlahGaji: number }
-): ColumnDef<(Gajian & { kebun: Kebun })>[] => [
+  totals: { totalNota: number; totalBerat: number; totalGajiHarian: number; totalJumlahGaji: number; totalPotongan: number; totalGajiBersih: number }
+): ColumnDef<GajianHistoryRow>[] => [
   {
     accessorKey: 'kebun.name',
     header: 'Kebun',
@@ -147,10 +149,16 @@ const createHistoryColumns = (
     footer: () => <div className="text-right">{formatNumber(totals.totalBerat)}</div>,
   },
   {
-    accessorKey: 'totalBiayaLain',
-    header: () => <div className="text-right">Total Gaji (Rp)</div>,
-    cell: ({ row }) => <div className="text-right">{formatNumber(row.original.totalBiayaLain || 0)}</div>,
-    footer: () => <div className="text-right">{formatNumber(totals.totalGaji)}</div>,
+    accessorKey: 'totalGajiHarian',
+    header: () => <div className="text-right">Gaji Harian (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalGajiHarian) || 0)}</div>,
+    footer: () => <div className="text-right">{formatNumber(totals.totalGajiHarian)}</div>,
+  },
+  {
+    accessorKey: 'totalJumlahGaji',
+    header: () => <div className="text-right">Total Gajian (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalJumlahGaji) || 0)}</div>,
+    footer: () => <div className="text-right">{formatNumber(totals.totalJumlahGaji)}</div>,
   },
   {
     accessorKey: 'totalPotongan',
@@ -160,9 +168,9 @@ const createHistoryColumns = (
   },
   {
     accessorKey: 'totalGaji',
-    header: () => <div className="text-right">Jumlah Gaji (Rp)</div>,
+    header: () => <div className="text-right">Gaji Bersih (Rp)</div>,
     cell: ({ row }) => <div className="text-right">{formatNumber(row.original.totalGaji || 0)}</div>,
-    footer: () => <div className="text-right">{formatNumber(totals.totalJumlahGaji)}</div>,
+    footer: () => <div className="text-right">{formatNumber(totals.totalGajiBersih)}</div>,
   },
   {
     accessorKey: 'createdAt',
@@ -632,9 +640,10 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
     return {
       totalNota: gajianHistory.reduce((sum, item) => sum + (item.totalNota || 0), 0),
       totalBerat: gajianHistory.reduce((sum, item) => sum + (item.totalBerat || 0), 0),
-      totalGaji: gajianHistory.reduce((sum, item) => sum + (item.totalBiayaLain || 0), 0),
+      totalGajiHarian: gajianHistory.reduce((sum, item) => sum + (Number((item as any).totalGajiHarian) || 0), 0),
+      totalJumlahGaji: gajianHistory.reduce((sum, item) => sum + (Number((item as any).totalJumlahGaji) || 0), 0),
       totalPotongan: gajianHistory.reduce((sum, item) => sum + (item.totalPotongan || 0), 0),
-      totalJumlahGaji: gajianHistory.reduce((sum, item) => sum + (item.totalGaji || 0), 0),
+      totalGajiBersih: gajianHistory.reduce((sum, item) => sum + (item.totalGaji || 0), 0),
     };
   }, [gajianHistory]);
 
@@ -2298,15 +2307,19 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             <div className="font-semibold text-gray-900">{formatNumber(g.totalBerat || 0)} Kg</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">Total Gaji</div>
-                            <div className="font-semibold text-gray-900">{formatNumber(g.totalBiayaLain || 0)}</div>
+                            <div className="text-gray-400">Gaji Harian</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalGajiHarian) || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Total Gajian</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalJumlahGaji) || 0)}</div>
                           </div>
                           <div>
                             <div className="text-gray-400">Potongan</div>
                             <div className="font-semibold text-red-600">-{formatNumber(g.totalPotongan || 0)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">Jumlah Gaji</div>
+                            <div className="text-gray-400">Gaji Bersih</div>
                             <div className="font-semibold text-emerald-700">{formatNumber(g.totalGaji || 0)}</div>
                           </div>
                         </div>
@@ -2360,15 +2373,19 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             <div className="font-semibold text-gray-900">{formatNumber(g.totalNota || 0)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">Total Gaji</div>
-                            <div className="font-semibold text-gray-900">{formatNumber(g.totalBiayaLain || 0)}</div>
+                            <div className="text-gray-400">Gaji Harian</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalGajiHarian) || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Total Gajian</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalJumlahGaji) || 0)}</div>
                           </div>
                           <div>
                             <div className="text-gray-400">Potongan</div>
                             <div className="font-semibold text-red-600">-{formatNumber(g.totalPotongan || 0)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">Jumlah Gaji</div>
+                            <div className="text-gray-400">Gaji Bersih</div>
                             <div className="font-semibold text-emerald-700">{formatNumber(g.totalGaji || 0)}</div>
                           </div>
                         </div>

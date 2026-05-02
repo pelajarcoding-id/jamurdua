@@ -23,15 +23,17 @@ async function getInitialData() {
     const totalPotonganManual = (g.potongan || []).reduce((sum, p) => sum + (Number(p.total) || 0), 0)
     const totalPotonganHutang = (g.detailKaryawan || []).reduce((sum, d) => sum + (Number((d as any).potongan) || 0), 0)
     const totalPotongan = totalPotonganManual + totalPotonganHutang
-    const totalGajiPokokKaryawan = (g.detailKaryawan || []).reduce((sum, d) => sum + (Number((d as any).gajiPokok) || 0), 0)
-    const hasSalaryInBiaya = (g.biayaLain || []).some((b: any) => String(b?.deskripsi || '') === 'Total Gaji Karyawan')
-    const totalJumlahGaji = totalBiayaLain + (hasSalaryInBiaya ? 0 : totalGajiPokokKaryawan)
+    const totalGajiHarian = (g.detailKaryawan || []).reduce((sum, d) => sum + (Number((d as any).gajiPokok) || 0), 0)
+    const hasSalaryInBiaya = (g.biayaLain || []).some((b: any) => /^(total\s*gaji\s*karyawan|biaya\s*gaji\s*harian)/i.test(String(b?.deskripsi || '').trim()))
+    const totalJumlahGaji = totalBiayaLain + (hasSalaryInBiaya ? 0 : totalGajiHarian)
     const totalGaji = totalJumlahGaji - totalPotongan
     return {
       ...g,
       totalBiayaLain: totalBiayaLain || 0,
       totalPotongan: totalPotongan || 0,
       totalGaji: totalGaji || 0,
+      totalGajiHarian: totalGajiHarian || 0,
+      totalJumlahGaji: totalJumlahGaji || 0,
     }
   })
 

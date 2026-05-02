@@ -45,18 +45,63 @@ export async function GET(request: Request) {
         ];
       }
 
-      const [drafts, finalized] = await prisma.$transaction([
+      const hasSalaryInBiaya = (biaya: Array<{ deskripsi: string }> | null | undefined) => {
+        const list = Array.isArray(biaya) ? biaya : []
+        return list.some((b) => /^(total\s*gaji\s*karyawan|biaya\s*gaji\s*harian)/i.test(String(b?.deskripsi || '').trim()))
+      }
+
+      const [draftsRaw, finalizedRaw] = await prisma.$transaction([
         prisma.gajian.findMany({
           where: { ...where, status: 'DRAFT' },
           orderBy: { tanggalSelesai: 'desc' },
-          include: { kebun: true },
+          include: {
+            kebun: true,
+            biayaLain: { select: { deskripsi: true } },
+            detailKaryawan: { select: { gajiPokok: true } },
+          } as any,
         }),
         prisma.gajian.findMany({
           where: { ...where, status: 'FINALIZED' },
           orderBy: { tanggalSelesai: 'desc' },
-          include: { kebun: true },
+          include: {
+            kebun: true,
+            biayaLain: { select: { deskripsi: true } },
+            detailKaryawan: { select: { gajiPokok: true } },
+          } as any,
         }),
       ]);
+
+      const mapRow = (g: any) => {
+        const totalGajiHarian = (Array.isArray(g?.detailKaryawan) ? g.detailKaryawan : []).reduce(
+          (sum: number, d: any) => sum + (Number(d?.gajiPokok) || 0),
+          0
+        )
+        const totalBiayaLain = Number(g?.totalBiayaLain) || 0
+        const totalJumlahGaji = totalBiayaLain + (hasSalaryInBiaya(g?.biayaLain) ? 0 : totalGajiHarian)
+        return {
+          id: g.id,
+          kebunId: g.kebunId,
+          kebun: g.kebun,
+          tanggalMulai: g.tanggalMulai,
+          tanggalSelesai: g.tanggalSelesai,
+          totalBerat: Number(g?.totalBerat) || 0,
+          totalNota: Number(g?.totalNota) || 0,
+          totalBiayaLain,
+          totalPotongan: Number(g?.totalPotongan) || 0,
+          totalGaji: Number(g?.totalGaji) || 0,
+          totalGajiHarian,
+          totalJumlahGaji,
+          keterangan: g.keterangan || '',
+          status: g.status,
+          dibuatOlehName: g.dibuatOlehName ?? null,
+          disetujuiOlehName: g.disetujuiOlehName ?? null,
+          createdAt: g.createdAt,
+          updatedAt: g.updatedAt,
+        }
+      }
+
+      const drafts = (Array.isArray(draftsRaw) ? draftsRaw : []).map(mapRow)
+      const finalized = (Array.isArray(finalizedRaw) ? finalizedRaw : []).map(mapRow)
       return NextResponse.json({ drafts, finalized });
     }
 
