@@ -1155,6 +1155,7 @@ export default function UangJalanPage() {
                 onClose={handleCloseDetailModal}
                 data={selectedSesi}
                 onEdit={handleEditFromDetailModal}
+                onDelete={handleOpenConfirm}
             />
 
             <ConfirmationModal

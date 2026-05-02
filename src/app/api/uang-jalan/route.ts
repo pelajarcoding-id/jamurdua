@@ -145,6 +145,55 @@ export async function GET(request: Request) {
 
     const normalizeTipe = (val: any) => String(val || '').toUpperCase()
 
+    const repairs: Array<{ id: number; data: { date?: Date; description?: string | null } }> = []
+    for (const sesi of sesiUangJalan as SesiWithDetails[]) {
+      const tanggalMulai = sesi?.tanggalMulai ? new Date(sesi.tanggalMulai) : null
+      if (!tanggalMulai || Number.isNaN(tanggalMulai.getTime())) continue
+
+      const pemasukan = Array.isArray(sesi?.rincian)
+        ? sesi.rincian.filter((r: any) => normalizeTipe(r?.tipe) === 'PEMASUKAN' && !(r as any)?.deletedAt)
+        : []
+
+      pemasukan.sort((a: any, b: any) => {
+        const ca = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+        const cb = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+        if (ca !== cb) return ca - cb
+        return Number(a?.id || 0) - Number(b?.id || 0)
+      })
+
+      const first = pemasukan[0] as any
+      const firstDate = first?.date ? new Date(first.date) : null
+      if (!first || !Number(first?.id)) continue
+      const updateData: { date?: Date; description?: string | null } = {}
+
+      if (!firstDate || Number.isNaN(firstDate.getTime()) || firstDate.getTime() !== tanggalMulai.getTime()) {
+        updateData.date = tanggalMulai
+        first.date = tanggalMulai
+      }
+
+      const sesiKet = String((sesi as any)?.keterangan || '').trim()
+      const firstDesc = String(first?.description || '').trim()
+      if (!firstDesc && sesiKet) {
+        updateData.description = sesiKet
+        first.description = sesiKet
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        repairs.push({ id: Number(first.id), data: updateData })
+      }
+    }
+
+    if (repairs.length > 0) {
+      await prisma.$transaction(
+        repairs.map((r) =>
+          prisma.uangJalan.update({
+            where: { id: r.id },
+            data: r.data as any,
+          })
+        )
+      )
+    }
+
     const result = sesiUangJalan.map((sesi: SesiWithDetails) => {
       const totalPemasukan = sesi.rincian
         .filter((r: UangJalan) => normalizeTipe(r.tipe) === 'PEMASUKAN')
@@ -220,21 +269,27 @@ export async function POST(request: Request) {
     const resolvedKendaraanPlatNomor = kendaraanPlatNomor === undefined
       ? undefined
       : await resolveKendaraanPlatNomorOrThrow(kendaraanPlatNomor)
+    const tanggalMulaiDate = (() => {
+      const ymd = parseWibYmd(tanggalMulai)
+      return ymd ? wibStartUtc(ymd) : (tanggalMulai ? new Date(tanggalMulai) : new Date())
+    })()
+    const initialDescription = (() => {
+      const raw = String(description ?? keterangan ?? '').trim()
+      return raw ? raw : undefined
+    })()
     const newSesi = await prisma.sesiUangJalan.create({
       data: {
         supirId: Number(supirId),
         keterangan,
         kendaraanPlatNomor: resolvedKendaraanPlatNomor,
         ...(currentUserId ? { createdById: currentUserId } : {}),
-        tanggalMulai: (() => {
-          const ymd = parseWibYmd(tanggalMulai)
-          return ymd ? wibStartUtc(ymd) : (tanggalMulai ? new Date(tanggalMulai) : undefined)
-        })(),
+        tanggalMulai: tanggalMulaiDate,
         rincian: {
           create: {
             tipe: 'PEMASUKAN',
             amount: Number(amount),
-            description,
+            description: initialDescription,
+            date: tanggalMulaiDate,
           },
         },
       } as any,

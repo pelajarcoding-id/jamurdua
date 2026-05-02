@@ -133,10 +133,21 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
         if (isOpen) {
             const today = getTodayWIB();
             if (initialData) {
+                const normalizeTipe = (v: any) => String(v || '').toUpperCase()
+                const pemasukan = (initialData.rincian || [])
+                    .filter((r: any) => normalizeTipe(r?.tipe) === 'PEMASUKAN')
+                    .slice()
+                    .sort((a: any, b: any) => {
+                        const ca = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+                        const cb = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+                        if (ca !== cb) return ca - cb
+                        return Number(a?.id || 0) - Number(b?.id || 0)
+                    })
+                const firstPemasukan = pemasukan[0] as any
                 setFormData({
                     supirId: initialData.supirId ? initialData.supirId.toString() : '',
                     keterangan: initialData.keterangan || '',
-                    amount: initialData.rincian?.find((r: UangJalan) => r.tipe === 'DIBERIKAN')?.amount.toString() || '',
+                    amount: firstPemasukan?.amount != null ? String(firstPemasukan.amount) : '',
                     kendaraanPlatNomor: initialData.kendaraanPlatNomor || '',
                     tanggalMulai: initialData.tanggalMulai ? new Date(initialData.tanggalMulai).toISOString().split('T')[0] : today,
                 });
@@ -419,22 +430,22 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                             </div>
 
                             <div className="rounded-xl border overflow-hidden">
-                                <button
-                                    type="button"
-                                    onClick={() => setRincianExpanded((v) => !v)}
-                                    className="w-full px-4 py-3 bg-emerald-50/70 text-sm font-semibold text-emerald-900 flex items-center justify-between hover:bg-emerald-100/70"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className="h-9 w-9 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center">
-                                            <PlusCircleIcon className="h-6 w-6" />
-                                        </span>
-                                        <div className="text-left">
-                                            <div className="font-bold leading-tight">Tambah Rincian Uang Jalan</div>
-                                            <div className="text-xs font-medium text-emerald-700">Catat pemasukan/pengeluaran + bukti</div>
-                                        </div>
+                                <div className="px-4 py-3 bg-emerald-50/70 flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-bold text-emerald-900 leading-tight">Rincian Uang Jalan</div>
+                                        <div className="text-xs font-medium text-emerald-700">Catat pemasukan/pengeluaran + bukti</div>
                                     </div>
-                                    <ChevronDownIcon className={`h-5 w-5 text-emerald-700 transition-transform ${rincianExpanded ? 'rotate-180' : ''}`} />
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setRincianExpanded((v) => !v)}
+                                        className="inline-flex items-center gap-2 rounded-full bg-emerald-600 text-white px-3 py-2 text-xs font-semibold hover:bg-emerald-700 shrink-0"
+                                        aria-label="Tambah Rincian"
+                                        title="Tambah Rincian"
+                                    >
+                                        <PlusCircleIcon className="h-5 w-5" />
+                                        <span className="hidden sm:inline">{rincianExpanded ? 'Tutup' : 'Tambah Rincian'}</span>
+                                    </button>
+                                </div>
                                 {rincianExpanded ? (
                                 <div className="p-3 space-y-3">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -563,7 +574,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
                                     )}
                                 </div>
                                 ) : (
-                                    <div className="px-4 py-3 text-sm text-gray-600">Klik Tambah Rincian untuk input transaksi.</div>
+                                    <div className="px-4 py-3 text-sm text-gray-600">Klik tombol Tambah Rincian di kanan atas untuk input transaksi.</div>
                                 )}
                             </div>
                         </div>

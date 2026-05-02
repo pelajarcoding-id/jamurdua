@@ -9,7 +9,7 @@ import { useRef, useState } from 'react';
 import { PrintableUangJalan } from './printable-uang-jalan';
 import type { UangJalan } from '@prisma/client';
 import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/modal-elements";
-import { ArrowDownTrayIcon, DocumentTextIcon, PencilSquareIcon, PrinterIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, DocumentTextIcon, PencilSquareIcon, PrinterIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 type RincianUangJalan = UangJalan & { gambarUrl?: string | null };
 
@@ -18,13 +18,35 @@ interface ModalProps {
     onClose: () => void;
     data: SesiUangJalanWithDetails | null;
     onEdit?: (data: SesiUangJalanWithDetails) => void;
+    onDelete?: (data: SesiUangJalanWithDetails) => void;
 }
 
 const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 const formatDate = (date: string | Date) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(date));
 const stripTagMarkers = (text: string) => String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
+const parseTagMarkers = (text: string) => {
+    const kendaraanPlatNomor = (String(text || '').match(/\[KENDARAAN:([^\]]+)\]/)?.[1] || '').trim()
+    const kebunId = (String(text || '').match(/\[KEBUN:(\d+)\]/)?.[1] || '').trim()
+    const perusahaanId = (String(text || '').match(/\[PERUSAHAAN:(\d+)\]/)?.[1] || '').trim()
+    const karyawanId = (String(text || '').match(/\[KARYAWAN:(\d+)\]/)?.[1] || '').trim()
+    return {
+        kendaraanPlatNomor: kendaraanPlatNomor || '',
+        kebunId: kebunId || '',
+        perusahaanId: perusahaanId || '',
+        karyawanId: karyawanId || '',
+    }
+}
+const tagSummaryFromDescription = (text: string) => {
+    const tags = parseTagMarkers(text)
+    const parts: string[] = []
+    if (tags.kendaraanPlatNomor) parts.push(`Kendaraan: ${tags.kendaraanPlatNomor}`)
+    if (tags.kebunId) parts.push(`Kebun: #${tags.kebunId}`)
+    if (tags.perusahaanId) parts.push(`Perusahaan: #${tags.perusahaanId}`)
+    if (tags.karyawanId) parts.push(`Karyawan: #${tags.karyawanId}`)
+    return parts.length > 0 ? parts.join(' • ') : '-'
+}
 
-export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalProps) {
+export function DetailUangJalanModal({ isOpen, onClose, data, onEdit, onDelete }: ModalProps) {
     const componentRef = useRef<HTMLDivElement>(null);
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
@@ -110,27 +132,34 @@ export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalPro
                     <div>
                         <h3 className="font-semibold mb-2">Rincian Transaksi</h3>
                         <div className="border rounded-lg overflow-x-auto">
-                            <table className="min-w-[560px] w-full text-sm">
+                            <table className="min-w-[920px] w-full text-sm">
                                 <thead className="bg-gray-100">
                                     <tr>
                                         <th className="p-2 text-left">Tanggal</th>
+                                        <th className="p-2 text-right">Pemasukan</th>
+                                        <th className="p-2 text-right">Pengeluaran</th>
                                         <th className="p-2 text-left">Keterangan</th>
-                                        <th className="p-2 text-left">Tipe</th>
-                                        <th className="p-2 text-right">Nominal</th>
+                                        <th className="p-2 text-left">Tag Biaya</th>
                                         <th className="p-2 text-center">Gambar</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {data.rincian.map((r: RincianUangJalan) => (
                                         <tr key={r.id} className="border-b last:border-none">
+                                            {(() => {
+                                                const tipe = String(r.tipe || '').toUpperCase()
+                                                const isIn = tipe === 'PEMASUKAN'
+                                                const isOut = tipe === 'PENGELUARAN'
+                                                const descRaw = String(r.description || '').trim()
+                                                const cleanDesc = stripTagMarkers(descRaw) || '-'
+                                                const tagText = tagSummaryFromDescription(descRaw)
+                                                return (
+                                                    <>
                                             <td className="p-2">{formatDate(r.date)}</td>
-                                            <td className="p-2">{stripTagMarkers(r.description || '-') || '-'}</td>
-                                            <td className="p-2">
-                                                <Badge variant={r.tipe === 'PEMASUKAN' ? 'default' : 'destructive'} className={r.tipe === 'PEMASUKAN' ? 'bg-emerald-600' : 'bg-red-500'}>
-                                                    {r.tipe}
-                                                </Badge>
-                                            </td>
-                                            <td className="p-2 text-right">{formatCurrency(r.amount)}</td>
+                                            <td className="p-2 text-right text-emerald-700 font-semibold">{isIn ? formatCurrency(r.amount) : '-'}</td>
+                                            <td className="p-2 text-right text-red-600 font-semibold">{isOut ? formatCurrency(r.amount) : '-'}</td>
+                                            <td className="p-2">{cleanDesc}</td>
+                                            <td className="p-2 text-xs text-gray-600">{tagText}</td>
                                             <td className="p-2 text-center">
                                                 {r.gambarUrl ? (
                                                     <img
@@ -143,6 +172,9 @@ export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalPro
                                                     <span>-</span>
                                                 )}
                                             </td>
+                                                    </>
+                                                )
+                                            })()}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -178,6 +210,19 @@ export function DetailUangJalanModal({ isOpen, onClose, data, onEdit }: ModalPro
                             title="Edit"
                         >
                             <PencilSquareIcon className="h-4 w-4" />
+                        </Button>
+                    ) : null}
+                    {onDelete ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => onDelete(data)}
+                            className="rounded-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                            aria-label="Hapus"
+                            title="Hapus"
+                        >
+                            <TrashIcon className="h-4 w-4" />
                         </Button>
                     ) : null}
                     <Button variant="outline" onClick={onClose} className="rounded-full">Tutup</Button>
