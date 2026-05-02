@@ -112,6 +112,8 @@ export default function LaporanNotaSawitPage() {
   const [topGroups, setTopGroups] = useState<TopKebunData[]>([]);
   const [yearlyKebunMonthly, setYearlyKebunMonthly] = useState<MonthlyDataPerGroup[]>([]);
   const [isYearlyKebunLoading, setIsYearlyKebunLoading] = useState(true);
+  const [yearlyKebunGajiByMonth, setYearlyKebunGajiByMonth] = useState<Record<string, number>>({});
+  const [isYearlyKebunGajiLoading, setIsYearlyKebunGajiLoading] = useState(true);
   const [kpi, setKpi] = useState<KpiData | null>(null);
   const [kebunList, setKebunList] = useState<Kebun[]>([]);
   const [supirList, setSupirList] = useState<User[]>([]);
@@ -375,6 +377,55 @@ export default function LaporanNotaSawitPage() {
     }
     fetchYearlyKebun();
   }, [startDate, selectedKebun, selectedSupir, selectedPabrik, selectedKendaraan, selectedPerusahaan, selectedStatusPembayaran, searchQuery, toYmd]);
+
+  useEffect(() => {
+    async function fetchYearlyKebunGaji() {
+      const refDate = startDate || new Date();
+      const year = refDate.getFullYear();
+      const startOfYear = new Date(year, 0, 1);
+      const endOfYear = new Date(year, 11, 31);
+      const startDateString = toYmd(startOfYear);
+      const endDateString = toYmd(endOfYear);
+
+      if (!startDateString || !endDateString) {
+        setYearlyKebunGajiByMonth({})
+        setIsYearlyKebunGajiLoading(false)
+        return
+      }
+
+      setIsYearlyKebunGajiLoading(true)
+      try {
+        const params = new URLSearchParams({
+          fetchHistory: 'true',
+          startDate: startDateString,
+          endDate: endDateString,
+        })
+        if (selectedKebun) params.append('kebunId', selectedKebun)
+        const res = await fetch(`/api/gajian?${params.toString()}`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('Gagal mengambil data gajian kebun tahunan')
+        const data = await res.json().catch(() => ({} as any))
+        const finalized = Array.isArray((data as any)?.finalized) ? (data as any).finalized : []
+        const map: Record<string, number> = {}
+
+        const fmtMonthKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' })
+        for (const g of finalized) {
+          const d = g?.tanggalSelesai ? new Date(g.tanggalSelesai) : null
+          if (!d || Number.isNaN(d.getTime())) continue
+          const key = fmtMonthKey.format(d)
+          map[key] = (map[key] || 0) + (Number(g?.totalJumlahGaji || 0) || 0)
+        }
+
+        setYearlyKebunGajiByMonth(map)
+      } catch (e) {
+        console.error('Error fetching yearly kebun gaji:', e)
+        setYearlyKebunGajiByMonth({})
+      } finally {
+        setIsYearlyKebunGajiLoading(false)
+      }
+    }
+
+    fetchYearlyKebunGaji()
+  }, [startDate, selectedKebun, toYmd])
 
   const growthKebunOptions = useMemo(() => {
     const safeList = monthlyDataPerGroup || []
@@ -1160,6 +1211,20 @@ export default function LaporanNotaSawitPage() {
   }, [kebunProduksiTahunan])
 
   const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+  const produksiDanGajiPerBulan = useMemo(() => {
+    const refDate = startDate || new Date()
+    const year = refDate.getFullYear()
+    const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
+    return monthLabels.map((label, idx) => {
+      const key = monthKeys[idx]
+      return {
+        month: label,
+        monthKey: key,
+        totalKg: Number(produksiKebunFooter.monthTotals[idx] || 0) || 0,
+        totalGaji: Number(yearlyKebunGajiByMonth[key] || 0) || 0,
+      }
+    })
+  }, [monthLabels, produksiKebunFooter.monthTotals, startDate, yearlyKebunGajiByMonth])
   const kebunNames = useMemo(() => {
     return (kebunProduksiTahunan || []).map((r) => r.kebunName)
   }, [kebunProduksiTahunan])
@@ -1729,47 +1794,84 @@ export default function LaporanNotaSawitPage() {
               Tidak ada data produksi kebun
             </div>
           ) : (
-            <div className="overflow-x-hidden">
-              <table className="w-full table-fixed text-xs">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="py-2 px-2 text-left sticky left-0 bg-gray-50 w-20">Bulan</th>
-                    {kebunNames.map((name) => (
-                      <th key={name} className="py-2 px-2 text-right whitespace-normal break-words">{name}</th>
-                    ))}
-                    <th className="py-2 px-2 text-right w-24">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transposedKebunProduksi.map((row) => (
-                    <tr key={row.month} className="border-t">
-                      <td className="py-2 px-2 font-medium text-gray-900 sticky left-0 bg-white">{row.month}</td>
-                      {row.kebuns.map((k, idx) => (
-                        <td key={idx} className="py-2 px-2 text-right">
-                          <div className="text-gray-900">{(Number(k.kg) || 0).toLocaleString('id-ID')} kg</div>
-                          <div className={cn('text-[10px]', k.pct == null ? 'text-gray-400' : k.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
-                            {k.pct == null ? '-' : `${k.pct >= 0 ? '+' : ''}${k.pct.toFixed(2)}%`}
-                          </div>
-                        </td>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 text-sm font-semibold text-gray-700">Produksi per Kebun (kg)</div>
+                <div className="overflow-x-hidden">
+                  <table className="w-full table-fixed text-xs">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="py-2 px-2 text-left sticky left-0 bg-gray-50 w-20">Bulan</th>
+                        {kebunNames.map((name) => (
+                          <th key={name} className="py-2 px-2 text-right whitespace-normal break-words">{name}</th>
+                        ))}
+                        <th className="py-2 px-2 text-right w-24">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transposedKebunProduksi.map((row) => (
+                        <tr key={row.month} className="border-t">
+                          <td className="py-2 px-2 font-medium text-gray-900 sticky left-0 bg-white">{row.month}</td>
+                          {row.kebuns.map((k, idx) => (
+                            <td key={idx} className="py-2 px-2 text-right">
+                              <div className="text-gray-900">{(Number(k.kg) || 0).toLocaleString('id-ID')} kg</div>
+                              <div className={cn('text-[10px]', k.pct == null ? 'text-gray-400' : k.pct >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+                                {k.pct == null ? '-' : `${k.pct >= 0 ? '+' : ''}${k.pct.toFixed(2)}%`}
+                              </div>
+                            </td>
+                          ))}
+                          <td className="py-2 px-2 text-right font-semibold text-gray-900">{(Number(row.totalKg) || 0).toLocaleString('id-ID')} kg</td>
+                        </tr>
                       ))}
-                      <td className="py-2 px-2 text-right font-semibold text-gray-900">{(Number(row.totalKg) || 0).toLocaleString('id-ID')} kg</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t bg-emerald-50/60">
-                    <td className="py-2 px-2 font-semibold text-gray-900 sticky left-0 bg-emerald-50/60">Jumlah</td>
-                    {transposedFooter.kebunTotals.map((kt, idx) => (
-                      <td key={idx} className="py-2 px-2 text-right font-semibold text-gray-900">
-                        {Math.round(Number(kt.total) || 0).toLocaleString('id-ID')} kg
-                      </td>
-                    ))}
-                    <td className="py-2 px-2 text-right font-bold text-gray-900">
-                      {Math.round(Number(transposedFooter.grandTotal) || 0).toLocaleString('id-ID')} kg
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-emerald-50/60">
+                        <td className="py-2 px-2 font-semibold text-gray-900 sticky left-0 bg-emerald-50/60">Jumlah</td>
+                        {transposedFooter.kebunTotals.map((kt, idx) => (
+                          <td key={idx} className="py-2 px-2 text-right font-semibold text-gray-900">
+                            {Math.round(Number(kt.total) || 0).toLocaleString('id-ID')} kg
+                          </td>
+                        ))}
+                        <td className="py-2 px-2 text-right font-bold text-gray-900">
+                          {Math.round(Number(transposedFooter.grandTotal) || 0).toLocaleString('id-ID')} kg
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 text-sm font-semibold text-gray-700">Produksi vs Gaji Kebun (per Bulan)</div>
+                {isYearlyKebunGajiLoading ? (
+                  <div className="p-4">
+                    <Skeleton className="h-[220px] w-full" />
+                  </div>
+                ) : (
+                  <div className="overflow-x-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-2 px-3 text-left">Bulan</th>
+                          <th className="py-2 px-3 text-right">Produksi</th>
+                          <th className="py-2 px-3 text-right">Total Gaji Kebun</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {produksiDanGajiPerBulan.map((r) => (
+                          <tr key={r.monthKey} className="border-t">
+                            <td className="py-2 px-3 font-medium text-gray-900">{r.month}</td>
+                            <td className="py-2 px-3 text-right">{Math.round(Number(r.totalKg) || 0).toLocaleString('id-ID')} kg</td>
+                            <td className="py-2 px-3 text-right font-semibold text-gray-900">
+                              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(Number(r.totalGaji) || 0))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

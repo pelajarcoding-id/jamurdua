@@ -366,6 +366,7 @@ export default function KaryawanKebunPage() {
       setSelectedKebunId(k.kebunId)
     }
   }, [selectedKebunId])
+  const karyawanTableRef = useRef<HTMLDivElement | null>(null)
   const daftarHutangRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -388,6 +389,10 @@ export default function KaryawanKebunPage() {
     if (trimmed && trimmed.length < 2) return
     setKaryawanSearchApplied(trimmed)
     setKaryawanPage(1)
+    setOpenKaryawanTable(true)
+    setTimeout(() => {
+      karyawanTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
   }, [karyawanSearch])
 
   useEffect(() => {
@@ -2264,6 +2269,7 @@ export default function KaryawanKebunPage() {
             </div>
             {openKaryawanTable && (
               <>
+              <div ref={karyawanTableRef} />
               <div className="md:hidden space-y-3">
                 {loadingKaryawan ? (
                   Array.from({ length: 5 }).map((_, i) => (
