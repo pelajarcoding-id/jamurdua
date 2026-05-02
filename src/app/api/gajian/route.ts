@@ -47,12 +47,7 @@ export async function GET(request: Request) {
 
       const hasSalaryInBiaya = (biaya: Array<{ deskripsi: string; total?: any }> | null | undefined) => {
         const list = Array.isArray(biaya) ? biaya : []
-        return list.some((b) => {
-          const desc = String((b as any)?.deskripsi || '').trim()
-          const total = Number((b as any)?.total || 0)
-          if (!/^(total\s*gaji\s*karyawan|biaya\s*gaji\s*harian)/i.test(desc)) return false
-          return Number.isFinite(total) && total > 0
-        })
+        return list.some((b) => String((b as any)?.deskripsi || '') === 'Total Gaji Karyawan')
       }
 
       const [draftsRaw, finalizedRaw] = await prisma.$transaction([

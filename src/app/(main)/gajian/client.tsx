@@ -2214,9 +2214,21 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
 
         <div className={cn("transition-all duration-300 overflow-hidden", isHistoryExpanded ? "opacity-100" : "max-h-0 opacity-0")}>
           <Tabs defaultValue="drafts" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="history">Riwayat Gajian</TabsTrigger>
-              <TabsTrigger value="drafts">Draft Tersimpan ({draftsGajian.length})</TabsTrigger>
+            <TabsList className="w-full bg-gray-100 rounded-full p-1 gap-1 grid grid-cols-2 h-auto md:inline-flex md:w-auto md:h-10">
+              <TabsTrigger
+                value="history"
+                className="group rounded-full px-2 md:px-4 py-2 flex gap-2 items-center justify-center text-gray-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-emerald-600 data-[state=active]:[&>svg]:text-white"
+              >
+                <ClockIcon />
+                <span className="truncate">Riwayat</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="drafts"
+                className="group rounded-full px-2 md:px-4 py-2 flex gap-2 items-center justify-center text-gray-700 data-[state=active]:bg-amber-600 data-[state=active]:text-white data-[state=active]:shadow-md [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-amber-600 data-[state=active]:[&>svg]:text-white"
+              >
+                <PencilSquareIcon />
+                <span className="truncate">Draft ({draftsGajian.length})</span>
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="history">
               <div className="mt-4 space-y-4">
