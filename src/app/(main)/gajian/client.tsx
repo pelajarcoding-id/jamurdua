@@ -149,16 +149,16 @@ const createHistoryColumns = (
     footer: () => <div className="text-right">{formatNumber(totals.totalBerat)}</div>,
   },
   {
-    accessorKey: 'totalGajiHarian',
-    header: () => <div className="text-right">Gaji Harian (Rp)</div>,
-    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalGajiHarian) || 0)}</div>,
-    footer: () => <div className="text-right">{formatNumber(totals.totalGajiHarian)}</div>,
-  },
-  {
     accessorKey: 'totalJumlahGaji',
     header: () => <div className="text-right">Total Gajian (Rp)</div>,
     cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalJumlahGaji) || 0)}</div>,
     footer: () => <div className="text-right">{formatNumber(totals.totalJumlahGaji)}</div>,
+  },
+  {
+    accessorKey: 'totalGajiHarian',
+    header: () => <div className="text-right">Gaji Harian (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalGajiHarian) || 0)}</div>,
+    footer: () => <div className="text-right">{formatNumber(totals.totalGajiHarian)}</div>,
   },
   {
     accessorKey: 'totalPotongan',
@@ -2307,12 +2307,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             <div className="font-semibold text-gray-900">{formatNumber(g.totalBerat || 0)} Kg</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">Gaji Harian</div>
-                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalGajiHarian) || 0)}</div>
-                          </div>
-                          <div>
                             <div className="text-gray-400">Total Gajian</div>
                             <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalJumlahGaji) || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Gaji Harian</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalGajiHarian) || 0)}</div>
                           </div>
                           <div>
                             <div className="text-gray-400">Potongan</div>
@@ -2373,12 +2373,12 @@ export function GajianClient({ kebunList, initialGajianHistory }: GajianClientPr
                             <div className="font-semibold text-gray-900">{formatNumber(g.totalNota || 0)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-400">Gaji Harian</div>
-                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalGajiHarian) || 0)}</div>
-                          </div>
-                          <div>
                             <div className="text-gray-400">Total Gajian</div>
                             <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalJumlahGaji) || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400">Gaji Harian</div>
+                            <div className="font-semibold text-gray-900">{formatNumber(Number((g as any).totalGajiHarian) || 0)}</div>
                           </div>
                           <div>
                             <div className="text-gray-400">Potongan</div>

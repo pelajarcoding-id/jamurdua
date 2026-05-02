@@ -24,7 +24,12 @@ async function getInitialData() {
     const totalPotonganHutang = (g.detailKaryawan || []).reduce((sum, d) => sum + (Number((d as any).potongan) || 0), 0)
     const totalPotongan = totalPotonganManual + totalPotonganHutang
     const totalGajiHarian = (g.detailKaryawan || []).reduce((sum, d) => sum + (Number((d as any).gajiPokok) || 0), 0)
-    const hasSalaryInBiaya = (g.biayaLain || []).some((b: any) => /^(total\s*gaji\s*karyawan|biaya\s*gaji\s*harian)/i.test(String(b?.deskripsi || '').trim()))
+    const hasSalaryInBiaya = (g.biayaLain || []).some((b: any) => {
+      const desc = String(b?.deskripsi || '').trim()
+      const total = Number(b?.total || 0)
+      if (!/^(total\s*gaji\s*karyawan|biaya\s*gaji\s*harian)/i.test(desc)) return false
+      return Number.isFinite(total) && total > 0
+    })
     const totalJumlahGaji = totalBiayaLain + (hasSalaryInBiaya ? 0 : totalGajiHarian)
     const totalGaji = totalJumlahGaji - totalPotongan
     return {

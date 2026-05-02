@@ -798,12 +798,12 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <div className="text-gray-400">Gaji Harian</div>
-                    <div className="font-semibold text-gray-900">{formatCurrency(Number((g as any).totalGajiHarian) || 0)}</div>
-                  </div>
-                  <div>
                     <div className="text-gray-400">Total Gajian</div>
                     <div className="font-semibold text-gray-900">{formatCurrency(Number((g as any).totalJumlahGaji) || 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Gaji Harian</div>
+                    <div className="font-semibold text-gray-900">{formatCurrency(Number((g as any).totalGajiHarian) || 0)}</div>
                   </div>
                   <div>
                     <div className="text-gray-400">Potongan</div>
@@ -870,8 +870,8 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
               <tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Periode</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Gaji Harian</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Total Gajian</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">Gaji Harian</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Potongan</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Gaji Bersih</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Dibuat</th>
@@ -902,8 +902,8 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
                         {g.status === 'FINALIZED' ? 'FINAL' : 'DRAFT'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold">{formatCurrency(Number((g as any).totalGajiHarian) || 0)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatCurrency(Number((g as any).totalJumlahGaji) || 0)}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatCurrency(Number((g as any).totalGajiHarian) || 0)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-red-600">-{formatCurrency(Number(g.totalPotongan) || 0)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatCurrency(Number(g.totalGaji) || 0)}</td>
                     <td className="px-4 py-3 text-right text-gray-500">{format(new Date(g.createdAt), 'dd MMM yyyy', { locale: localeId })}</td>

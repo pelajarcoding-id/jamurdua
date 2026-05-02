@@ -55,14 +55,14 @@ export const createDraftColumns = (
     header: 'Total Nota',
   },
   {
-    accessorKey: 'totalGajiHarian',
-    header: () => <div className="text-right">Gaji Harian (Rp)</div>,
-    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalGajiHarian) || 0)}</div>,
-  },
-  {
     accessorKey: 'totalJumlahGaji',
     header: () => <div className="text-right">Total Gajian (Rp)</div>,
     cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalJumlahGaji) || 0)}</div>,
+  },
+  {
+    accessorKey: 'totalGajiHarian',
+    header: () => <div className="text-right">Gaji Harian (Rp)</div>,
+    cell: ({ row }) => <div className="text-right">{formatNumber(Number((row.original as any).totalGajiHarian) || 0)}</div>,
   },
   {
     accessorKey: 'totalPotongan',
