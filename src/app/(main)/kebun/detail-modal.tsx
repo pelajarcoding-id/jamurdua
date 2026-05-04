@@ -18,6 +18,7 @@ import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import toast from "react-hot-toast"
 import { ArrowPathIcon, PlusIcon, TrashIcon, MapPinIcon, XMarkIcon } from "@heroicons/react/24/outline"
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
+import { formatIdCurrency } from '@/lib/utils'
 
 interface DetailModalProps {
     isOpen: boolean
@@ -190,9 +191,7 @@ export function DetailKebunModal({ isOpen, onClose, kebun, onUpdated }: DetailMo
     const totalGross = panenList.reduce((sum, p) => sum + (Number(p.grossKg) || 0), 0)
     const totalPekerjaan = pekerjaanList.reduce((sum, p) => sum + (Number(p.biaya) || 0), 0)
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount)
-    }
+    const formatCurrency = (amount: number) => formatIdCurrency(amount)
 
     if (!kebun) return null
 
@@ -233,7 +232,7 @@ export function DetailKebunModal({ isOpen, onClose, kebun, onUpdated }: DetailMo
                         </div>
                         <div className="p-3 border rounded-md bg-gray-50">
                             <div className="text-xs text-gray-500">Total Biaya Pekerjaan</div>
-                            <div className="text-lg font-semibold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totalPekerjaan)}</div>
+                            <div className="text-lg font-semibold">{formatCurrency(totalPekerjaan)}</div>
                         </div>
                     </div>
                 </div>

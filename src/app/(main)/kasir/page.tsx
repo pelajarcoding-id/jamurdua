@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -23,22 +23,38 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+import { cn, formatIdCurrency } from '@/lib/utils';
 import KasirPageModals from './KasirPageModals';
 import { useKasirModalsState } from './useKasirModalsState';
 import { createWIBDate, formatWIBDateDisplay, formatWIBDateForInput, getCurrentWIBDateParts, parseWIBDateFromInput } from '@/lib/wib-date';
 
 import { KasirData, KasTransaksi } from '@/types/kasir';
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
+const formatCurrency = (value: number) => formatIdCurrency(value)
 
 const formatDateDisplay = formatWIBDateDisplay;
+
+function buildKasirUrl(params: {
+  startDate: Date
+  endDate: Date
+  page: number
+  limit: number
+  search: string
+  filterUserId: string
+  kategori: string
+  tipe: 'all' | 'PEMASUKAN' | 'PENGELUARAN'
+}) {
+  const sp = new URLSearchParams()
+  sp.set('startDate', params.startDate.toISOString())
+  sp.set('endDate', params.endDate.toISOString())
+  sp.set('page', String(params.page))
+  sp.set('limit', String(params.limit))
+  if (params.search) sp.set('search', params.search)
+  if (params.filterUserId !== 'all') sp.set('filterUserId', params.filterUserId)
+  if (params.kategori !== 'all') sp.set('kategori', params.kategori)
+  if (params.tipe !== 'all') sp.set('tipe', params.tipe)
+  return `/api/kasir?${sp.toString()}`
+}
 
 type KasTransaksiUI = KasTransaksi & {
   __optimistic?: boolean
@@ -104,28 +120,34 @@ const KasirPage = () => {
 
   useEffect(() => {
     if (isAdmin) {
-      fetch('/api/users?limit=1000')
-        .then(res => res.json())
-        .then(data => {
-          if (data.data) {
-            // Filter only ADMIN, PEMILIK, and KASIR roles
-            const allowedRoles = ['ADMIN', 'PEMILIK', 'KASIR'];
-            const filteredUsers = data.data.filter((u: any) => allowedRoles.includes(u.role));
-            setUsers(filteredUsers);
-          }
-        })
-        .catch(err => console.error('Failed to fetch users', err));
+      const load = async () => {
+        try {
+          const res = await fetch('/api/users?limit=1000')
+          const json = await res.json().catch(() => ({} as any))
+          if (!res.ok) throw new Error('Failed')
+          const list = Array.isArray(json?.data) ? json.data : []
+          const allowedRoles = ['ADMIN', 'PEMILIK', 'KASIR']
+          setUsers(list.filter((u: any) => allowedRoles.includes(String(u?.role || ''))))
+        } catch {
+          setUsers([])
+        }
+      }
+      load()
     }
   }, [isAdmin]);
 
   useEffect(() => {
-    fetch('/api/perusahaan?limit=1000')
-      .then(res => res.json())
-      .then(json => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/perusahaan?limit=1000')
+        const json = await res.json().catch(() => ({} as any))
         const data = Array.isArray(json?.data) ? json.data : []
         setPerusahaanList(data)
-      })
-      .catch(() => setPerusahaanList([]))
+      } catch {
+        setPerusahaanList([])
+      }
+    }
+    load()
   }, [])
 
   // Pagination state
@@ -180,6 +202,7 @@ const KasirPage = () => {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+  const fetchAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const q = searchParams.get('search') || '';
@@ -231,19 +254,21 @@ const KasirPage = () => {
     if (!startDate || !endDate) return;
 
     setIsLoading(true);
+    fetchAbortRef.current?.abort()
+    const controller = new AbortController()
+    fetchAbortRef.current = controller
     try {
-      let url = `/api/kasir?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}`;
-      if (selectedUserId !== 'all') {
-        url += `&filterUserId=${selectedUserId}`;
-      }
-      if (selectedCategory !== 'all') {
-        url += `&kategori=${selectedCategory}`;
-      }
-      if (selectedTipe !== 'all') {
-        url += `&tipe=${selectedTipe}`;
-      }
-      
-      const response = await fetch(url);
+      const url = buildKasirUrl({
+        startDate,
+        endDate,
+        page,
+        limit,
+        search: searchQuery ? String(searchQuery) : '',
+        filterUserId: selectedUserId || 'all',
+        kategori: selectedCategory || 'all',
+        tipe: selectedTipe || 'all',
+      })
+      const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
         throw new Error('Gagal mengambil data kasir');
       }
@@ -251,7 +276,7 @@ const KasirPage = () => {
       setData(result);
       setErrorMessage(null);
     } catch (error) {
-      console.error(error);
+      if (error instanceof DOMException && error.name === 'AbortError') return
       const msg = error instanceof Error ? error.message : 'Gagal mengambil data kasir.';
       toast.error(msg);
       setErrorMessage(msg);
@@ -398,7 +423,6 @@ const KasirPage = () => {
             fetchData();
 
         } catch (error) {
-            console.error(error);
             const message =
               error instanceof Error
                 ? error.message
@@ -456,7 +480,6 @@ const KasirPage = () => {
         toast.success('Transaksi dihapus');
         fetchData();
     } catch (err) {
-        console.error(err);
         toast.error(err instanceof Error ? err.message : 'Gagal menghapus transaksi');
         setData(previousData);
     } finally {
@@ -473,16 +496,16 @@ const KasirPage = () => {
       }
       toast.loading('Mempersiapkan PDF...');
       // Fetch all data for the selected range (ignoring pagination limits for export)
-      let url = `/api/kasir?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&page=1&limit=10000&search=${searchQuery}`;
-      if (selectedUserId !== 'all') {
-        url += `&filterUserId=${selectedUserId}`;
-      }
-      if (selectedCategory !== 'all') {
-        url += `&kategori=${selectedCategory}`;
-      }
-      if (selectedTipe !== 'all') {
-        url += `&tipe=${selectedTipe}`;
-      }
+      const url = buildKasirUrl({
+        startDate,
+        endDate,
+        page: 1,
+        limit: 10000,
+        search: searchQuery ? String(searchQuery) : '',
+        filterUserId: selectedUserId || 'all',
+        kategori: selectedCategory || 'all',
+        tipe: selectedTipe || 'all',
+      })
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -557,7 +580,7 @@ const KasirPage = () => {
               imgData = canvas.toDataURL('image/jpeg');
             }
           } catch (error) {
-            console.error('Gagal memuat gambar untuk PDF:', error);
+            // ignore
           }
         }
 
@@ -634,7 +657,6 @@ const KasirPage = () => {
       toast.dismiss();
       toast.success('PDF berhasil diunduh');
     } catch (error) {
-      console.error(error);
       toast.dismiss();
       toast.error('Gagal mengekspor PDF');
     }

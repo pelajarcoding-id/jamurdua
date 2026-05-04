@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
+import { useEffect, useRef, useState, ChangeEvent, FormEvent } from 'react'
 import ImageUpload from '@/components/ui/ImageUpload';
 import toast from 'react-hot-toast';
 import {
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/modal-elements";
+import { formatWIBDateForInput } from '@/lib/wib-date';
 import {
     Select,
     SelectContent,
@@ -48,12 +49,15 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const previewUrlRef = useRef<string | null>(null)
     
     const [izinTrayekFile, setIzinTrayekFile] = useState<File | null>(null);
     const [previewIzinTrayekUrl, setPreviewIzinTrayekUrl] = useState<string | null>(null);
+    const previewIzinTrayekUrlRef = useRef<string | null>(null)
 
     const [speksiFile, setSpeksiFile] = useState<File | null>(null);
     const [previewSpeksiUrl, setPreviewSpeksiUrl] = useState<string | null>(null);
+    const previewSpeksiUrlRef = useRef<string | null>(null)
 
     const [uploading, setUploading] = useState(false);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -66,16 +70,22 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                 platNomor: initialData.platNomor,
                 merk: initialData.merk,
                 jenis: initialData.jenis,
-                tanggalMatiStnk: initialData.tanggalMatiStnk ? new Date(initialData.tanggalMatiStnk).toISOString().split('T')[0] : '',
-                tanggalPajakTahunan: initialData.tanggalPajakTahunan ? new Date(initialData.tanggalPajakTahunan).toISOString().split('T')[0] : '',
-                tanggalIzinTrayek: izinTrayekDate ? new Date(izinTrayekDate).toISOString().split('T')[0] : '',
-                speksi: initialData.speksi ? new Date(initialData.speksi).toISOString().split('T')[0] : '',
+                tanggalMatiStnk: initialData.tanggalMatiStnk ? formatWIBDateForInput(new Date(initialData.tanggalMatiStnk)) : '',
+                tanggalPajakTahunan: initialData.tanggalPajakTahunan ? formatWIBDateForInput(new Date(initialData.tanggalPajakTahunan)) : '',
+                tanggalIzinTrayek: izinTrayekDate ? formatWIBDateForInput(new Date(izinTrayekDate)) : '',
+                speksi: initialData.speksi ? formatWIBDateForInput(new Date(initialData.speksi)) : '',
                 imageUrl: initialData.imageUrl || '',
                 fotoStnkUrl: initialData.fotoStnkUrl || '',
                 fotoIzinTrayekUrl: izinTrayekUrl,
                 fotoSpeksiUrl: initialData.fotoSpeksiUrl || '',
                 beratKosong: (initialData as any).beratKosong?.toString() || '',
             });
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = null
+            if (previewIzinTrayekUrlRef.current) URL.revokeObjectURL(previewIzinTrayekUrlRef.current)
+            previewIzinTrayekUrlRef.current = null
+            if (previewSpeksiUrlRef.current) URL.revokeObjectURL(previewSpeksiUrlRef.current)
+            previewSpeksiUrlRef.current = null
             setPreviewUrl(initialData.imageUrl || initialData.fotoStnkUrl || null);
             setPreviewIzinTrayekUrl(izinTrayekUrl || null);
             setPreviewSpeksiUrl(initialData.fotoSpeksiUrl || null);
@@ -99,6 +109,12 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
                 fotoSpeksiUrl: '',
                 beratKosong: '',
             });
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = null
+            if (previewIzinTrayekUrlRef.current) URL.revokeObjectURL(previewIzinTrayekUrlRef.current)
+            previewIzinTrayekUrlRef.current = null
+            if (previewSpeksiUrlRef.current) URL.revokeObjectURL(previewSpeksiUrlRef.current)
+            previewSpeksiUrlRef.current = null
             setPreviewUrl(null);
             setPreviewIzinTrayekUrl(null);
             setPreviewSpeksiUrl(null);
@@ -136,8 +152,12 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
         setImageFile(file);
         if (file) {
             const objectUrl = URL.createObjectURL(file);
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = objectUrl
             setPreviewUrl(objectUrl);
         } else {
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = null
             setPreviewUrl(null);
             setFormData(prev => ({ ...prev, imageUrl: '', fotoStnkUrl: '' }));
         }
@@ -147,8 +167,12 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
         setIzinTrayekFile(file);
         if (file) {
             const objectUrl = URL.createObjectURL(file);
+            if (previewIzinTrayekUrlRef.current) URL.revokeObjectURL(previewIzinTrayekUrlRef.current)
+            previewIzinTrayekUrlRef.current = objectUrl
             setPreviewIzinTrayekUrl(objectUrl);
         } else {
+            if (previewIzinTrayekUrlRef.current) URL.revokeObjectURL(previewIzinTrayekUrlRef.current)
+            previewIzinTrayekUrlRef.current = null
             setPreviewIzinTrayekUrl(null);
             setFormData(prev => ({ ...prev, fotoIzinTrayekUrl: '' }));
         }
@@ -158,8 +182,12 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
         setSpeksiFile(file);
         if (file) {
             const objectUrl = URL.createObjectURL(file);
+            if (previewSpeksiUrlRef.current) URL.revokeObjectURL(previewSpeksiUrlRef.current)
+            previewSpeksiUrlRef.current = objectUrl
             setPreviewSpeksiUrl(objectUrl);
         } else {
+            if (previewSpeksiUrlRef.current) URL.revokeObjectURL(previewSpeksiUrlRef.current)
+            previewSpeksiUrlRef.current = null
             setPreviewSpeksiUrl(null);
             setFormData(prev => ({ ...prev, fotoSpeksiUrl: '' }));
         }
@@ -216,7 +244,6 @@ export function KendaraanModal({ isOpen, onClose, onConfirm, title, initialData 
 
             onConfirm(dataToSubmit);
         } catch (error) {
-            console.error('Error uploading image:', error);
             toast.error('Gagal mengupload gambar');
         } finally {
             setUploading(false);

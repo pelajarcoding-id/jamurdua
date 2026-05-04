@@ -11,6 +11,7 @@ import ImageUpload from '@/components/ui/ImageUpload'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
+import { parseIdThousandInt } from '@/lib/utils'
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -270,7 +271,7 @@ export default function KaryawanPageModals(props: any) {
                 <p className="font-bold text-emerald-600 text-lg">
                   Rp {(() => {
                     const val = absenMap[absenSelectedDate] || '0'
-                    return Number(val.replace(/\./g, '').replace(/,/g, '')).toLocaleString('id-ID')
+                    return parseIdThousandInt(val).toLocaleString('id-ID')
                   })()}
                 </p>
               </div>
@@ -318,14 +319,14 @@ export default function KaryawanPageModals(props: any) {
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-gray-500 font-medium">Upah Harian:</span>
                 <span className="font-bold text-gray-900">
-                  {!absenHourlyMap[absenSelectedDate] ? `Rp ${Number(absenMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}
+                  {!absenHourlyMap[absenSelectedDate] ? `Rp ${parseIdThousandInt(absenMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-gray-500 font-medium">Upah Per Jam:</span>
                 <span className="font-bold text-gray-900">
                   {absenHourlyMap[absenSelectedDate] ? (
-                    `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${Number(absenRateMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}`
+                    `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${parseIdThousandInt(absenRateMap[absenSelectedDate]).toLocaleString('id-ID')}`
                   ) : '-'}
                 </span>
               </div>
@@ -333,7 +334,7 @@ export default function KaryawanPageModals(props: any) {
                 <span className="text-gray-500 font-medium">Uang Makan:</span>
                 <span className="font-bold text-gray-900">
                   {absenMealEnabledMap[absenSelectedDate] ? (
-                    `Rp ${Number(absenMealMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}`
+                    `Rp ${parseIdThousandInt(absenMealMap[absenSelectedDate]).toLocaleString('id-ID')}`
                   ) : '-'}
                 </span>
               </div>
@@ -368,7 +369,7 @@ export default function KaryawanPageModals(props: any) {
                   const dateStr = absenSelectedDate ? format(new Date(absenSelectedDate), 'EEEE, dd MMMM yyyy', { locale: idLocale }) : ''
                   const totalGaji = (() => {
                     const val = absenMap[absenSelectedDate] || '0'
-                    return Number(val.replace(/\./g, '').replace(/,/g, '')).toLocaleString('id-ID')
+                    return parseIdThousandInt(val).toLocaleString('id-ID')
                   })()
 
                   pdfContainer.innerHTML = `
@@ -418,15 +419,15 @@ export default function KaryawanPageModals(props: any) {
                         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                           <tr style="background-color: #f3f4f6;">
                             <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Upah Harian</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${!absenHourlyMap[absenSelectedDate] ? `Rp ${Number(absenMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${!absenHourlyMap[absenSelectedDate] ? `Rp ${parseIdThousandInt(absenMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}</td>
                           </tr>
                           <tr>
                             <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Upah Per Jam</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${absenHourlyMap[absenSelectedDate] ? `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${Number(absenRateMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${absenHourlyMap[absenSelectedDate] ? `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${parseIdThousandInt(absenRateMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}</td>
                           </tr>
                           <tr style="background-color: #f3f4f6;">
                             <td style="padding: 10px;">Uang Makan</td>
-                            <td style="padding: 10px; text-align: right; font-weight: bold;">${absenMealEnabledMap[absenSelectedDate] ? `Rp ${Number(absenMealMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}</td>
+                            <td style="padding: 10px; text-align: right; font-weight: bold;">${absenMealEnabledMap[absenSelectedDate] ? `Rp ${parseIdThousandInt(absenMealMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}</td>
                           </tr>
                         </table>
                       </div>
@@ -756,7 +757,7 @@ export default function KaryawanPageModals(props: any) {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Input Rupiah</span>
                     <span className="font-semibold text-gray-900">Rp {(() => {
-                      const manual = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                      const manual = parseIdThousandInt(absenValue)
                       return manual ? manual.toLocaleString('id-ID') : 0
                     })()}</span>
                   </div>
@@ -764,23 +765,23 @@ export default function KaryawanPageModals(props: any) {
                     <span className="text-gray-500">Hitung Per Jam</span>
                     <span className="font-semibold text-gray-900">Rp {(() => {
                       if (!absenUseHourly) return 0
-                      const hourly = (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * (Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0)
+                      const hourly = (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseIdThousandInt(absenRate)
                       return Math.round(hourly).toLocaleString('id-ID')
                     })()}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Uang Makan</span>
                     <span className="font-semibold text-gray-900">Rp {(() => {
-                      const meal = !absenMealEnabled ? 0 : Number((absenMealAmount || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                      const meal = !absenMealEnabled ? 0 : parseIdThousandInt(absenMealAmount)
                       return Math.round(meal).toLocaleString('id-ID')
                     })()}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
                     <span className="text-gray-900 font-bold">TOTAL AKHIR</span>
                     <span className="font-bold text-emerald-600 text-lg">Rp {(() => {
-                      const manual = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
-                      const hourly = !absenUseHourly ? 0 : (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * (Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0)
-                      const meal = !absenMealEnabled ? 0 : Number((absenMealAmount || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                      const manual = parseIdThousandInt(absenValue)
+                      const hourly = !absenUseHourly ? 0 : (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseIdThousandInt(absenRate)
+                      const meal = !absenMealEnabled ? 0 : parseIdThousandInt(absenMealAmount)
                       return Math.round(manual + hourly + meal).toLocaleString('id-ID')
                     })()}</span>
                   </div>
@@ -834,12 +835,12 @@ export default function KaryawanPageModals(props: any) {
                   return
                 }
                 const kebunKey = selectedKebunId ?? 0
-                const baseManual = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                const baseManual = parseIdThousandInt(absenValue)
                 const hours = parseFloat((absenHour || '').toString().replace(',', '.')) || 0
-                const rate = Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                const rate = parseIdThousandInt(absenRate)
                 const baseHourly = hours * rate
                 const useHourly = absenUseHourly && hours > 0 && rate > 0
-                const mealVal = absenMealEnabled ? (Number((absenMealAmount || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0) : 0
+                const mealVal = absenMealEnabled ? parseIdThousandInt(absenMealAmount) : 0
                 const totalAmount = Math.round(((useHourly ? baseHourly : 0) + baseManual) + mealVal)
                 const totalFormatted = totalAmount ? formatRibuanId(String(totalAmount)) : ''
                 const nextAmount = { ...absenMap, [absenSelectedDate]: totalFormatted }
@@ -899,7 +900,7 @@ export default function KaryawanPageModals(props: any) {
                   setAbsenSaving(false)
                 }
                 if (absenSetDefault && selectedKebunId && absenUserId) {
-                  const num = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                  const num = parseIdThousandInt(absenValue)
                   if (num > 0) {
                     fetch('/api/karyawan/operasional/absensi-default', {
                       method: 'POST',
@@ -1649,7 +1650,7 @@ export default function KaryawanPageModals(props: any) {
                 <Input className="rounded-full mt-1" value={massNominal} onChange={(e) => setMassNominal(formatRibuanId(e.target.value))} placeholder="contoh: 100.000" />
                 <div className="mt-2">
                   <Button className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 w-full md:w-auto" onClick={() => {
-                    const val = Number(massNominal.toString().replace(/\D/g, '')) || 0
+                    const val = parseIdThousandInt(massNominal)
                     const next: Record<number, string> = {}
                     rows.forEach((r: any) => {
                       const saldo = Math.max(0, Math.round(r.hutangSaldo || 0))
@@ -1706,7 +1707,7 @@ export default function KaryawanPageModals(props: any) {
                             onBlur={() => {
                               setPotongMap((prev: any) => {
                                 const raw = prev[r.karyawan.id] || ''
-                                const num = Number(raw.toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                                const num = parseIdThousandInt(raw)
                                 const amount = safeSaldo <= 0 ? 0 : Math.min(Math.max(0, num), safeSaldo)
                                 const nextVal = amount > 0 ? formatRibuanId(String(amount)) : ''
                                 if ((prev[r.karyawan.id] || '') === nextVal) return prev

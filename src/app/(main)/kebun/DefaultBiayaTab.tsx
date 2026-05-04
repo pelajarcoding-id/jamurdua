@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PencilSquareIcon, TrashIcon, PlusIcon, BanknotesIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
+import { formatIdCurrency } from '@/lib/utils'
 
 interface KebunDefaultBiaya {
   id: number
@@ -49,7 +50,6 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
         setData(json.data || [])
       }
     } catch (error) {
-      console.error(error)
       toast.error('Gagal mengambil data biaya default')
     } finally {
       setLoading(false)
@@ -127,7 +127,7 @@ export default function DefaultBiayaTab({ kebunId }: { kebunId: number }) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const formatCurrency = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
+  const formatCurrency = (num: number) => formatIdCurrency(num)
 
   return (
     <div className="space-y-6">

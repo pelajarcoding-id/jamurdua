@@ -25,6 +25,7 @@ import Link from 'next/link'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/components/AuthProvider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { formatIdCurrency } from '@/lib/utils'
 
 export default function KebunPage() {
   const { role: currentUserRole, kebunId: currentUserKebunId } = useAuth();
@@ -188,8 +189,7 @@ export default function KebunPage() {
   }, [pathname, router, searchDraft, searchParams]);
 
   const totalPages = Math.ceil(totalItems / limit);
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value)
+  const formatCurrency = (value: number) => formatIdCurrency(value)
   const dateDisplay = useMemo(() => {
     if (!startDate || !endDate) return 'Semua waktu'
     const formatter = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' })

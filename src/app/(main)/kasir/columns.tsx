@@ -4,6 +4,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import { KasTransaksi } from '@/types/kasir';
 import { Button } from '@/components/ui/button';
 import { EllipsisHorizontalIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { formatIdCurrency } from '@/lib/utils';
+import { formatWIBDateDisplay } from '@/lib/wib-date';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,27 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (value: string) => {
-  try {
-    const d = new Date(value);
-    return new Intl.DateTimeFormat('id-ID', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta'
-    }).format(d);
-  } catch {
-    return value;
-  }
-};
+const formatCurrency = formatIdCurrency
+const formatDate = formatWIBDateDisplay
 
 type KasTransaksiRow = KasTransaksi & {
   __optimistic?: boolean

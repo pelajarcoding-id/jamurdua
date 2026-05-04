@@ -4,7 +4,7 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
-  buildExcludes: [/app-build-manifest\.json$/],
+  buildExcludes: [/app-build-manifest\.json$/, /_buildManifest\.js$/, /_ssgManifest\.js$/],
   runtimeCaching: [
     {
       urlPattern: ({ url }) => {
@@ -40,11 +40,6 @@ const withPWA = require('next-pwa')({
       },
     },
   ],
-  fallbacks: {
-    document: '/offline',
-  },
-  // Add custom service worker logic
-  importScripts: ['/custom-sw.js'],
 });
 
 const nextConfig = withPWA({

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { formatIdCurrency } from '@/lib/utils';
 
 export default async function ServiceSummary({ startDateISO, endDateISO }: { startDateISO?: string; endDateISO?: string }) {
   const start = startDateISO ? new Date(startDateISO) : undefined;
@@ -22,7 +23,7 @@ export default async function ServiceSummary({ startDateISO, endDateISO }: { sta
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
       <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
-        Jumlah Pengeluaran: Rp {new Intl.NumberFormat('id-ID').format(sum)}
+        Jumlah Pengeluaran: {formatIdCurrency(sum)}
       </div>
       <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
         Total Entri: {total}

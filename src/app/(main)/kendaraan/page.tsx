@@ -30,6 +30,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import Image from 'next/image';
 import ImageViewer from '@/components/ui/ImageViewer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatIdCurrency, formatIdNumber } from '@/lib/utils'
+import { createWIBDate, formatWIBDateForInput, getCurrentWIBDateParts, parseWIBDateFromInput } from '@/lib/wib-date'
 
 export default function KendaraanPage() {
   const [data, setData] = useState<KendaraanData[]>([]);
@@ -48,6 +50,7 @@ export default function KendaraanPage() {
   const [jenisFilter, setJenisFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [jenisOptions, setJenisOptions] = useState<string[]>([])
+  const fetchAbortRef = useRef<AbortController | null>(null)
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -81,26 +84,41 @@ export default function KendaraanPage() {
     load()
   }, [])
 
+  const buildKendaraanUrl = useCallback((params: { page: number; limit: number; search: string; jenis: string; status: string }) => {
+    const sp = new URLSearchParams()
+    sp.set('page', String(params.page))
+    sp.set('limit', String(params.limit))
+    if (params.search) sp.set('search', params.search)
+    if (params.jenis && params.jenis !== 'all') sp.set('jenis', params.jenis)
+    if (params.status && params.status !== 'all') sp.set('status', params.status)
+    return `/api/kendaraan?${sp.toString()}`
+  }, [])
+
   const fetchData = useCallback(async () => {
     setLoading(true);
+    fetchAbortRef.current?.abort()
+    const controller = new AbortController()
+    fetchAbortRef.current = controller
     try {
-      const params = new URLSearchParams()
-      params.set('page', String(page))
-      params.set('limit', String(limit))
-      if (searchQuery) params.set('search', searchQuery)
-      if (jenisFilter && jenisFilter !== 'all') params.set('jenis', jenisFilter)
-      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter)
-      const res = await fetch(`/api/kendaraan?${params.toString()}`, { cache: 'no-store' });
+      const url = buildKendaraanUrl({
+        page,
+        limit,
+        search: searchQuery,
+        jenis: jenisFilter,
+        status: statusFilter,
+      })
+      const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
       if (!res.ok) throw new Error('Gagal mengambil data');
       const kendaraanData = await res.json();
       setData(kendaraanData.data);
       setTotalItems(kendaraanData.total);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
       toast.error('Gagal memuat data. Coba lagi nanti.');
     } finally {
       setLoading(false);
     }
-  }, [page, limit, searchQuery, jenisFilter, statusFilter]);
+  }, [page, limit, searchQuery, jenisFilter, statusFilter, buildKendaraanUrl]);
 
   useEffect(() => {
     fetchData();
@@ -325,8 +343,8 @@ export default function KendaraanPage() {
     const now = new Date();
     const s = new Date(now.getFullYear(), 0, 1);
     const e2 = new Date(now.getFullYear(), 11, 31);
-    setStartDate(s.toISOString().split('T')[0]);
-    setEndDate(e2.toISOString().split('T')[0]);
+    setStartDate(formatWIBDateForInput(s));
+    setEndDate(formatWIBDateForInput(e2));
   }, []);
   const dateDisplay = useMemo(() => {
     if (quickRange && quickRange !== 'custom') {
@@ -352,6 +370,31 @@ export default function KendaraanPage() {
     return 'Pilih Rentang Waktu';
   }, [quickRange, startDate, endDate]);
 
+  const applyQuickRange = useCallback((val: string) => {
+    const { year, month, day } = getCurrentWIBDateParts()
+    setQuickRange(val);
+
+    if (val === 'today') {
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
+    } else if (val === 'yesterday') {
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 1)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day - 1)))
+    } else if (val === 'last_7_days') {
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 6)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
+    } else if (val === 'last_30_days') {
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 29)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
+    } else if (val === 'this_month') {
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, 1)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month + 1, 0)))
+    } else if (val === 'this_year') {
+      setStartDate(formatWIBDateForInput(createWIBDate(year, 0, 1)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, 11, 31)))
+    }
+  }, []);
+
   const [servicePage, setServicePage] = useState(1);
   const [serviceLimit, setServiceLimit] = useState(10);
   const [serviceTotal, setServiceTotal] = useState(0);
@@ -368,8 +411,10 @@ export default function KendaraanPage() {
 
   const serviceLogsUrl = useMemo(() => {
     const params = new URLSearchParams();
-    if (startDate) params.set('startDate', new Date(startDate).toISOString());
-    if (endDate) params.set('endDate', new Date(endDate).toISOString());
+    const s = startDate ? parseWIBDateFromInput(startDate) : undefined
+    const e = endDate ? parseWIBDateFromInput(endDate, true) : undefined
+    if (s) params.set('startDate', s.toISOString());
+    if (e) params.set('endDate', e.toISOString());
     if (debouncedServiceSearch) params.set('search', debouncedServiceSearch);
     if (serviceCursor != null) {
       params.set('cursorId', String(serviceCursor));
@@ -474,7 +519,7 @@ export default function KendaraanPage() {
       const costInfo = document.createElement('div');
       costInfo.style.fontWeight = '700';
       costInfo.style.color = '#000';
-      costInfo.innerText = `Jumlah Pengeluaran: Rp ${new Intl.NumberFormat('id-ID').format(totalServiceCost)}`;
+      costInfo.innerText = `Jumlah Pengeluaran: ${formatIdCurrency(totalServiceCost)}`;
       subinfo.appendChild(costInfo);
       header.appendChild(subinfo);
       clone.insertBefore(header, clone.firstChild);
@@ -630,7 +675,7 @@ export default function KendaraanPage() {
           <h2 className="text-xl font-semibold mb-4">Riwayat Servis Semua Kendaraan</h2>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
-              Jumlah Pengeluaran: Rp {new Intl.NumberFormat('id-ID').format(totalServiceCost)}
+              Jumlah Pengeluaran: {formatIdCurrency(totalServiceCost)}
             </div>
             <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
               Total Entri: {serviceTotal}
@@ -670,12 +715,12 @@ export default function KendaraanPage() {
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('today'); const t=new Date(); const s=new Date(t); s.setHours(0,0,0,0); const e=new Date(t); e.setHours(23,59,59,999); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'today' ? 'bg-accent' : ''}>Hari Ini</Button>
-                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('yesterday'); const t=new Date(); t.setDate(t.getDate()-1); const s=new Date(t); s.setHours(0,0,0,0); const e=new Date(t); e.setHours(23,59,59,999); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'yesterday' ? 'bg-accent' : ''}>Kemarin</Button>
-                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('last_7_days'); const t=new Date(); const s=new Date(t); s.setDate(s.getDate()-6); const e=new Date(t); e.setHours(23,59,59,999); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'last_7_days' ? 'bg-accent' : ''}>7 Hari</Button>
-                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('last_30_days'); const t=new Date(); const s=new Date(t); s.setDate(s.getDate()-29); const e=new Date(t); e.setHours(23,59,59,999); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
-                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('this_month'); const t=new Date(); const s=new Date(t.getFullYear(), t.getMonth(), 1); const e=new Date(t.getFullYear(), t.getMonth()+1, 0); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
-                    <Button variant="outline" size="sm" onClick={() => { setQuickRange('this_year'); const t=new Date(); const s=new Date(t.getFullYear(), 0, 1); const e=new Date(t.getFullYear(), 11, 31); setStartDate(s.toISOString().split('T')[0]); setEndDate(e.toISOString().split('T')[0]); }} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('today')} className={quickRange === 'today' ? 'bg-accent' : ''}>Hari Ini</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('yesterday')} className={quickRange === 'yesterday' ? 'bg-accent' : ''}>Kemarin</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_7_days')} className={quickRange === 'last_7_days' ? 'bg-accent' : ''}>7 Hari</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('last_30_days')} className={quickRange === 'last_30_days' ? 'bg-accent' : ''}>30 Hari</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_month')} className={quickRange === 'this_month' ? 'bg-accent' : ''}>Bulan Ini</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyQuickRange('this_year')} className={quickRange === 'this_year' ? 'bg-accent' : ''}>Tahun Ini</Button>
                   </div>
                   <div className="border-t pt-4 space-y-2">
                     <h4 className="font-medium leading-none">Kustom</h4>
@@ -779,10 +824,10 @@ export default function KendaraanPage() {
                           <TableCell className="whitespace-nowrap">{log.kendaraanPlat}</TableCell>
                           <TableCell className="max-w-[250px] truncate" title={log.description}>{log.description}</TableCell>
                           <TableCell className="whitespace-nowrap">
-                            Rp {new Intl.NumberFormat('id-ID').format(Number(log.cost || 0))}
+                            {formatIdCurrency(Number(log.cost || 0))}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
-                            {log.odometer ? `${log.odometer} km` : '-'}
+                            {log.odometer ? `${formatIdNumber(log.odometer)} km` : '-'}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {log.fotoUrl ? (
@@ -813,7 +858,7 @@ export default function KendaraanPage() {
                 <TableRow>
                   <TableCell colSpan={3} />
                   <TableCell className="whitespace-nowrap font-semibold">
-                    Total: Rp {new Intl.NumberFormat('id-ID').format(totalServiceCost)}
+                    Total: {formatIdCurrency(totalServiceCost)}
                   </TableCell>
                   <TableCell colSpan={2} />
                 </TableRow>

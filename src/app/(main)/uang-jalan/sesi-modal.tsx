@@ -13,6 +13,8 @@ import { SesiUangJalanWithDetails } from "./page";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/modal-elements";
 import { convertImageFileToWebp } from "@/lib/image-webp";
+import { formatIdCurrency, formatIdThousands } from "@/lib/utils";
+import { formatWIBDateForInput } from "@/lib/wib-date";
 
 const stripTagMarkers = (text: string) => {
     return String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
@@ -89,22 +91,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
         return parts.length > 0 ? parts.join(' • ') : 'Tanpa tag'
     }
 
-    const formatRupiah = (angka: string) => {
-        if (typeof angka !== 'string') return '';
-        const number_string = angka.replace(/[^,\d]/g, '').toString();
-        const split = number_string.split(',');
-        const sisa = split[0].length % 3;
-        let rupiah = split[0].substr(0, sisa);
-        const ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-        if (ribuan) {
-            const separator = sisa ? '.' : '';
-            rupiah += separator + ribuan.join('.');
-        }
-
-        rupiah = split[1] !== undefined ? rupiah + ',' + split[1] : rupiah;
-        return rupiah;
-    };
+    const formatRupiah = (angka: string) => formatIdThousands(angka);
 
     const parseRupiah = (rupiah: string) => {
         if (typeof rupiah !== 'string') return '';
@@ -121,12 +108,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
     const isEditMode = !!(initialData && initialData.id);
 
     const getTodayWIB = () => {
-        return new Intl.DateTimeFormat('en-CA', { 
-            timeZone: 'Asia/Jakarta',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).format(new Date());
+        return formatWIBDateForInput(new Date())
     };
 
     useEffect(() => {
@@ -221,7 +203,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
     };
 
     const fmtCurrency = (n: number) => {
-        return `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
+        return formatIdCurrency(Math.round(Number(n || 0)));
     };
 
     const handleAddRincian = async (mode: 'keep' | 'close') => {
@@ -282,7 +264,7 @@ export function SesiUangJalanModal({ isOpen, onClose, onConfirm, title, initialD
             tipe: String(r.tipe || 'PENGELUARAN'),
             amount: String(Math.round(Number(r.amount || 0))),
             description: stripTagMarkers(rawDesc),
-            date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date),
+            date: formatWIBDateForInput(date),
         })
         setRincianTag(tags)
         setRincianFile(null)

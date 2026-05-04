@@ -60,6 +60,11 @@ export const links: NavLink[] = [
         ],
     },
     {
+        name: 'Tanya Ai',
+        href: '/ai',
+        icon: FingerPrintIcon,
+    },
+    {
         name: 'Kebun',
         href: '/kebun',
         icon: ArchiveBoxIcon,

@@ -12,6 +12,8 @@ import 'react-image-crop/dist/ReactCrop.css';
 import ImageUpload from '@/components/ui/ImageUpload';
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/modal-elements";
+import { formatIdThousands } from "@/lib/utils";
+import { formatWIBDateForInput } from "@/lib/wib-date";
 
 interface ModalProps {
     isOpen: boolean;
@@ -30,22 +32,7 @@ export function RincianUangJalanModal({ isOpen, onClose, onConfirm, sesiId }: Mo
     const [submitting, setSubmitting] = useState(false);
     const imgRef = useRef<HTMLImageElement>(null);
 
-    const formatRupiah = (angka: string) => {
-        if (typeof angka !== 'string') return '';
-        const number_string = angka.replace(/[^,\d]/g, '').toString();
-        const split = number_string.split(',');
-        const sisa = split[0].length % 3;
-        let rupiah = split[0].substr(0, sisa);
-        const ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-        if (ribuan) {
-            const separator = sisa ? '.' : '';
-            rupiah += separator + ribuan.join('.');
-        }
-
-        rupiah = split[1] !== undefined ? rupiah + ',' + split[1] : rupiah;
-        return rupiah;
-    };
+    const formatRupiah = (angka: string) => formatIdThousands(angka);
 
     const parseRupiah = (rupiah: string) => {
         if (typeof rupiah !== 'string') return '';
@@ -61,7 +48,7 @@ export function RincianUangJalanModal({ isOpen, onClose, onConfirm, sesiId }: Mo
 
     useEffect(() => {
         if (isOpen) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatWIBDateForInput(new Date())
             setFormData({ tipe: '', amount: '', description: '', date: today });
             setGambar(null);
             setPreview(null);
@@ -250,7 +237,6 @@ export function RincianUangJalanModal({ isOpen, onClose, onConfirm, sesiId }: Mo
         } catch (err) {
             toast.dismiss();
             toast.error('Gagal memindai gambar.');
-            console.error(err);
         }
     };
 

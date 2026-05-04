@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast';
 import {
     Dialog,
@@ -21,6 +21,7 @@ import {
 import { ChevronDownIcon, ChevronUpIcon, RectangleStackIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
 import ImageUpload from '@/components/ui/ImageUpload';
 import { useSWRConfig } from 'swr';
+import { formatIdThousands } from '@/lib/utils';
 
 interface CollapsibleSectionProps {
     title: string;
@@ -66,36 +67,21 @@ export function DocumentRenewalModal({ isOpen, onClose, platNomor }: DocumentRen
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const previewUrlRef = useRef<string | null>(null)
     const [uploading, setUploading] = useState(false);
-
-    // Format helpers
-    const formatRupiah = (angka: string) => {
-        if (typeof angka !== 'string') return '';
-        const number_string = angka.replace(/[^,\d]/g, '').toString();
-        const split = number_string.split(',');
-        const sisa = split[0].length % 3;
-        let rupiah = split[0].substr(0, sisa);
-        const ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-        if (ribuan) {
-            const separator = sisa ? '.' : '';
-            rupiah += separator + ribuan.join('.');
-        }
-
-        rupiah = split[1] !== undefined ? rupiah + ',' + split[1] : rupiah;
-        return rupiah ? 'Rp ' + rupiah : '';
-    };
 
     const parseRupiah = (rupiah: string) => {
         if (typeof rupiah !== 'string') return 0;
-        return parseInt(rupiah.replace(/[^0-9]/g, '')) || 0;
+        const digits = rupiah.replace(/\D/g, '')
+        return digits ? Number(digits) : 0
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         if (name === 'biaya') {
             const rawValue = value.replace(/[^0-9]/g, ''); // Keep only numbers
-            const formattedValue = formatRupiah(rawValue);
+            const formatted = formatIdThousands(rawValue)
+            const formattedValue = formatted ? `Rp ${formatted}` : ''
             setFormData(prev => ({ ...prev, [name]: formattedValue }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
@@ -106,12 +92,24 @@ export function DocumentRenewalModal({ isOpen, onClose, platNomor }: DocumentRen
         setImageFile(file);
         if (file) {
             const objectUrl = URL.createObjectURL(file);
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = objectUrl
             setPreviewUrl(objectUrl);
         } else {
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = null
             setPreviewUrl(null);
             setFormData(prev => ({ ...prev, fotoUrl: '' }));
         }
     };
+
+    useEffect(() => {
+        if (!isOpen) return
+        return () => {
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = null
+        }
+    }, [isOpen])
 
     const uploadFile = async (file: File) => {
         const uploadData = new FormData();
@@ -170,7 +168,6 @@ export function DocumentRenewalModal({ isOpen, onClose, platNomor }: DocumentRen
             setPreviewUrl(null);
 
         } catch (error) {
-            console.error(error);
             toast.error('Gagal menyimpan riwayat dokumen');
         } finally {
             setUploading(false);

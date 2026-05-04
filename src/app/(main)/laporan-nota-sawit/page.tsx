@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import toast from 'react-hot-toast';
 import ModalDetailNota from '@/app/(main)/nota-sawit/detail-modal';
 import type { NotaSawitData } from '@/app/(main)/nota-sawit/columns';
+import { createWIBDate, getCurrentWIBDateParts } from '@/lib/wib-date';
 
 import { Kebun, User, PabrikSawit, Kendaraan, Perusahaan } from '@prisma/client';
 
@@ -93,12 +94,9 @@ export default function LaporanNotaSawitPage() {
   const [quickRange, setQuickRange] = useState('this_year');
 
   useEffect(() => {
-    // Initialize dates on client side to avoid hydration mismatch
-    const today = new Date();
-    const start = new Date(today.getFullYear(), 0, 1);
-    const end = new Date(today);
-    end.setHours(0, 0, 0, 0);
-    
+    const { year, month, day } = getCurrentWIBDateParts()
+    const start = createWIBDate(year, 0, 1)
+    const end = createWIBDate(year, month, day, true)
     setQuickRange('this_year');
     setStartDate(start);
     setEndDate(end);
@@ -197,36 +195,27 @@ export default function LaporanNotaSawitPage() {
   }, [quickRange, startDate, endDate]);
 
   const applyQuickRange = useCallback((val: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { year, month, day } = getCurrentWIBDateParts()
     setQuickRange(val);
     
     if (val === 'today') {
-      setStartDate(today);
-      setEndDate(today);
+      setStartDate(createWIBDate(year, month, day))
+      setEndDate(createWIBDate(year, month, day, true))
     } else if (val === 'yesterday') {
-      const y = new Date(today);
-      y.setDate(today.getDate() - 1);
-      setStartDate(y);
-      setEndDate(y);
+      setStartDate(createWIBDate(year, month, day - 1))
+      setEndDate(createWIBDate(year, month, day - 1, true))
     } else if (val === 'last_week') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 7);
-      setStartDate(start);
-      setEndDate(today);
+      setStartDate(createWIBDate(year, month, day - 7))
+      setEndDate(createWIBDate(year, month, day, true))
     } else if (val === 'last_30_days') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 30);
-      setStartDate(start);
-      setEndDate(today);
+      setStartDate(createWIBDate(year, month, day - 30))
+      setEndDate(createWIBDate(year, month, day, true))
     } else if (val === 'this_month') {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      setStartDate(start);
-      setEndDate(today);
+      setStartDate(createWIBDate(year, month, 1))
+      setEndDate(createWIBDate(year, month, day, true))
     } else if (val === 'this_year') {
-      const start = new Date(today.getFullYear(), 0, 1);
-      setStartDate(start);
-      setEndDate(today);
+      setStartDate(createWIBDate(year, 0, 1))
+      setEndDate(createWIBDate(year, month, day, true))
     }
   }, []);
 

@@ -12,6 +12,8 @@ import { ArrowDownTrayIcon, ClipboardDocumentListIcon, UserIcon, BanknotesIcon, 
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import ImageUpload from '@/components/ui/ImageUpload';
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
+import { formatWIBDateForInput } from '@/lib/wib-date'
+import { formatIdCurrency, formatIdNumber, parseIdNumber } from '@/lib/utils'
 
 type Pekerjaan = {
   id: number;
@@ -49,13 +51,7 @@ type Kendaraan = {
   jenis: string
 }
 
-const formatWibYmd = (date: Date) =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
+const formatWibYmd = (date: Date) => formatWIBDateForInput(date)
 
 const formatWibYm = (date: Date) => formatWibYmd(date).slice(0, 7)
 
@@ -79,18 +75,9 @@ const stripGajianManualMarker = (value: any) => {
   return raw
 }
 
-const formatNumber = (value: number | string, maxFractionDigits = 0) => {
-  const numeric = typeof value === 'string' ? parseNumber(value) : value;
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(numeric || 0);
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
-}
-
-const parseNumber = (value: string) => {
-  return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
-};
+const formatNumber = (value: number | string, maxFractionDigits = 0) => formatIdNumber(value, maxFractionDigits)
+const formatCurrency = (value: number) => formatIdCurrency(value)
+const parseNumber = (value: string) => parseIdNumber(value)
 
 const FormattedNumberInput = ({
   value,

@@ -4,6 +4,8 @@ import { uploadFile } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
+const MIN_OUT_AFTER_IN_MS = 30 * 60 * 1000
+
 function getWibTodayYmd() {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta',
@@ -312,7 +314,7 @@ export async function POST(request: Request) {
       }
       if (existingAttendance?.checkIn) {
         const inTime = new Date(existingAttendance.checkIn).getTime()
-        if (!Number.isNaN(inTime) && Date.now() - inTime < 30 * 60 * 1000) {
+        if (!Number.isNaN(inTime) && Date.now() - inTime < MIN_OUT_AFTER_IN_MS) {
           return NextResponse.json({ error: 'Absen pulang minimal 30 menit setelah absen masuk' }, { status: 400 })
         }
       }

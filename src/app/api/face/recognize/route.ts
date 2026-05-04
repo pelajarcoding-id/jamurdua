@@ -33,14 +33,15 @@ function requireKioskSecret(request: Request) {
 
 function normalizeDescriptor(value: unknown): number[] | null {
   if (!Array.isArray(value)) return null
-  const nums = value.map((x) => Number(x)).filter((x) => Number.isFinite(x))
-  if (nums.length < 64) return null
-  if (nums.length > 1024) return null
+  if (value.length !== 128) return null
+  const nums = value.map((x) => Number(x))
+  if (!nums.every((x) => Number.isFinite(x))) return null
   return nums
 }
 
 function distanceL2(a: number[], b: number[]) {
-  const n = Math.min(a.length, b.length)
+  const n = a.length
+  if (n <= 0 || b.length !== n) return Number.NaN
   let sum = 0
   for (let i = 0; i < n; i++) {
     const d = a[i] - b[i]

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { DataTable } from "@/components/data-table"
 import { Button } from '@/components/ui/button'
 import { columns } from './columns'
@@ -99,56 +99,80 @@ export default function UangJalanPage() {
     const [totalItems, setTotalItems] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const lookupsAbortRef = useRef<AbortController | null>(null)
+    const sesiAbortRef = useRef<AbortController | null>(null)
 
     const fetchData = useCallback(async (background = false) => {
         setRowSelection({}); // Reset row selection
         if (!background) setIsLoading(true);
+        sesiAbortRef.current?.abort()
+        const controller = new AbortController()
+        sesiAbortRef.current = controller
         try {
             const startDateString = startDate?.toISOString();
             const endDateString = endDate?.toISOString();
 
-            let url = `/api/uang-jalan?page=${page}&limit=${limit}`;
-            
-            if (startDateString) url += `&startDate=${startDateString}`;
-            if (endDateString) url += `&endDate=${endDateString}`;
-            if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-
+            const sp = new URLSearchParams()
+            sp.set('page', String(page))
+            sp.set('limit', String(limit))
+            if (startDateString) sp.set('startDate', startDateString)
+            if (endDateString) sp.set('endDate', endDateString)
+            if (searchQuery) sp.set('search', searchQuery)
             if (role === 'SUPIR' && userId) {
-                url += `&supirId=${userId}`;
+                sp.set('supirId', String(userId))
             } else if (selectedSupirId && selectedSupirId !== 'all') {
-                url += `&supirId=${selectedSupirId}`;
+                sp.set('supirId', selectedSupirId)
             }
-
-            const [sesiRes, supirRes, karyawanRes, kendaraanRes, kebunRes, perusahaanRes] = await Promise.all([
-                fetch(url, { cache: 'no-store' }),
-                fetch('/api/users?role=SUPIR&limit=1000', { cache: 'no-store' }),
-                fetch('/api/karyawan/tag-list?limit=1000', { cache: 'no-store' }),
-                fetch('/api/kendaraan?limit=1000', { cache: 'no-store' }),
-                fetch('/api/kebun?limit=1000', { cache: 'no-store' }),
-                fetch('/api/perusahaan?limit=1000', { cache: 'no-store' }),
-            ]);
-            const sesiData = await sesiRes.json();
-            const supirData = await supirRes.json();
-            const karyawanData = karyawanRes ? await karyawanRes.json() : { data: [] }
-            const kendaraanData = await kendaraanRes.json();
-            const kebunData = await kebunRes.json();
-            const perusahaanData = await perusahaanRes.json();
-
-            setData(sesiData.data);
-            setTotalItems(sesiData.total);
-            setSupirList(supirData.data || []);
-            setKaryawanList(karyawanData.data || []);
-            setKendaraanList(kendaraanData.data || []);
-            setKebunList(kebunData.data || []);
-            setPerusahaanList(perusahaanData.data || []);
-            setSummary(sesiData.summary);
+            const url = `/api/uang-jalan?${sp.toString()}`
+            const sesiRes = await fetch(url, { cache: 'no-store', signal: controller.signal })
+            if (!sesiRes.ok) throw new Error('Gagal memuat data.')
+            const sesiData = await sesiRes.json()
+            setData(sesiData.data || []);
+            setTotalItems(sesiData.total || 0);
+            setSummary(sesiData.summary || null);
         } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') return
             toast.error('Gagal memuat data.')
-            console.error(error)
         } finally {
             setIsLoading(false);
         }
     }, [startDate, endDate, page, limit, role, userId, searchQuery, selectedSupirId])
+
+    useEffect(() => {
+        lookupsAbortRef.current?.abort()
+        const controller = new AbortController()
+        lookupsAbortRef.current = controller
+        const load = async () => {
+            try {
+                const [supirRes, karyawanRes, kendaraanRes, kebunRes, perusahaanRes] = await Promise.all([
+                    fetch('/api/users?role=SUPIR&limit=1000', { cache: 'no-store', signal: controller.signal }),
+                    fetch('/api/karyawan/tag-list?limit=1000', { cache: 'no-store', signal: controller.signal }),
+                    fetch('/api/kendaraan?limit=1000', { cache: 'no-store', signal: controller.signal }),
+                    fetch('/api/kebun?limit=1000', { cache: 'no-store', signal: controller.signal }),
+                    fetch('/api/perusahaan?limit=1000', { cache: 'no-store', signal: controller.signal }),
+                ])
+                const supirData = await supirRes.json().catch(() => ({} as any))
+                const karyawanData = await karyawanRes.json().catch(() => ({} as any))
+                const kendaraanData = await kendaraanRes.json().catch(() => ({} as any))
+                const kebunData = await kebunRes.json().catch(() => ({} as any))
+                const perusahaanData = await perusahaanRes.json().catch(() => ({} as any))
+                setSupirList(supirData.data || [])
+                setKaryawanList(karyawanData.data || [])
+                setKendaraanList(kendaraanData.data || [])
+                setKebunList(kebunData.data || [])
+                setPerusahaanList(perusahaanData.data || [])
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') return
+                setSupirList([])
+                setKaryawanList([])
+                setKendaraanList([])
+                setKebunList([])
+                setPerusahaanList([])
+            }
+        }
+        load()
+        return () => controller.abort()
+    }, [])
 
     useEffect(() => {
         const paramsSearch = searchParams.get('search') || '';

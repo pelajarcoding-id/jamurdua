@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { formatIdCurrency } from '@/lib/utils';
 
 export default async function VehicleServiceSummary({
   platNomor,
@@ -31,7 +32,7 @@ export default async function VehicleServiceSummary({
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
       <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
-        Pengeluaran Servis: Rp {new Intl.NumberFormat('id-ID').format(sum)}
+        Pengeluaran Servis: {formatIdCurrency(sum)}
       </div>
       <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
         Total Entri: {total}

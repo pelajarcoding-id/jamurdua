@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import ImageUpload from '@/components/ui/ImageUpload';
 import { convertImageFileToWebp } from '@/lib/image-webp';
+import { formatIdThousands } from '@/lib/utils';
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { KasTransaksi } from '@/types/kasir';
@@ -50,25 +51,13 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
   const [kategoriOptions, setKategoriOptions] = useState<Array<{ code: string; label: string; tipe: string }>>([])
   const [tagLoadErrors, setTagLoadErrors] = useState<{ kendaraan?: string; kebun?: string; karyawan?: string; perusahaan?: string }>({})
 
-  const formatRupiah = (value: string) => {
-    const numberString = value.replace(/[^0-9]/g, '');
-    const split = numberString.split(',');
-    const sisa = split[0].length % 3;
-    let rupiah = split[0].substr(0, sisa);
-    const ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-    if (ribuan) {
-      const separator = sisa ? '.' : '';
-      rupiah += separator + ribuan.join('.');
-    }
-
-    rupiah = split[1] !== undefined ? rupiah + ',' + split[1] : rupiah;
-    return rupiah ? 'Rp ' + rupiah : '';
-  };
+  const formatRupiahInput = (value: string) => {
+    const formatted = formatIdThousands(value)
+    return formatted ? `Rp ${formatted}` : ''
+  }
 
   const handleJumlahChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatRupiah(e.target.value);
-    setJumlah(formatted);
+    setJumlah(formatRupiahInput(e.target.value))
   };
 
   // Image Upload & Crop State
@@ -84,7 +73,7 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
         if (initialData) {
             setTipe(initialData.tipe);
             setDeskripsi(initialData.deskripsi);
-            setJumlah(formatRupiah(initialData.jumlah.toString()));
+            setJumlah(formatRupiahInput(String(initialData.jumlah ?? '')));
             setKeterangan(initialData.keterangan || '');
             setPreview(initialData.gambarUrl || null);
             setSelectedFile(null); // Reset file selection
@@ -416,7 +405,6 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
               reader.readAsDataURL(croppedImageFile);
               setIsCropping(false);
           } catch (e) {
-              console.error('Error cropping image:', e);
               setIsCropping(false);
           }
       } else {
@@ -434,7 +422,7 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
         return;
     }
 
-    const cleanJumlah = jumlah.replace(/[^0-9]/g, '');
+    const cleanJumlah = String(jumlah || '').replace(/\D/g, '');
     const jumlahFloat = parseFloat(cleanJumlah);
     if (isNaN(jumlahFloat)) {
         toast.error('Jumlah harus berupa angka yang valid.');
@@ -469,12 +457,10 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
               if (uploadData.success) {
                   finalGambarUrl = uploadData.url;
               } else {
-                  console.error('Upload failed:', uploadData.error);
                   toast.error(`Gagal upload gambar: ${uploadData.error}`);
               }
           } else {
              const errText = await uploadRes.text().catch(() => '')
-             console.error('Upload request failed:', uploadRes.status, errText || uploadRes.statusText);
              toast.error(`Gagal upload gambar (${uploadRes.status}): ${errText || uploadRes.statusText || 'Server Error'}`);
           }
       }
@@ -601,7 +587,6 @@ const AddTransaksiForm: React.FC<AddTransaksiFormProps> = ({ isOpen, onClose, on
       onClose();
 
     } catch (error) {
-      console.error(error);
       const message =
         error instanceof Error
           ? error.message

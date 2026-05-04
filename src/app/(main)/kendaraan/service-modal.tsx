@@ -16,6 +16,8 @@ import { id as idLocale } from 'date-fns/locale';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import ImageUpload from '@/components/ui/ImageUpload';
 import { ModalFooter, ModalHeader } from '@/components/ui/modal-elements';
+import { formatIdCurrency, formatIdNumber, formatIdThousands, parseIdThousandInt } from '@/lib/utils';
+import { createWIBDate, formatWIBDateForInput, getCurrentWIBDateParts } from '@/lib/wib-date';
  
 
 interface ImagePreviewModalProps {
@@ -146,6 +148,7 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewObjectUrlRef = useRef<string | null>(null)
   const [isExporting, setIsExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -154,9 +157,14 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
   useEffect(() => {
     setTableHeight(tableScrollRef.current?.clientHeight ?? 0);
   }, []);
+  useEffect(() => {
+    if (isOpen) return
+    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current)
+    previewObjectUrlRef.current = null
+  }, [isOpen])
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: formatWIBDateForInput(new Date()),
     description: '',
     cost: '',
     odometer: '',
@@ -224,28 +232,24 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
     (url: string) => fetch(url).then(res => res.json()).then((d) => d?.data ?? d)
   );
 
-  const formatNumber = (value: string | number) => {
-    // Remove non-digit characters if string
-    const number = typeof value === 'string' ? value.replace(/\D/g, '') : value.toString();
-    if (!number) return '';
-    // Format with dots
-    return new Intl.NumberFormat('id-ID').format(Number(number));
-  };
+  const formatThousand = (value: string | number) => {
+    const raw = typeof value === 'number' ? String(Math.round(value)) : String(value ?? '')
+    return formatIdThousands(raw)
+  }
 
-  const parseNumber = (value: string) => {
-    // Remove dots and convert to number
-    return value ? Number(value.replace(/\./g, '')) : 0;
-  };
+  const parseThousand = (value: string) => parseIdThousandInt(value)
 
   const handleEdit = (log: ServiceLog) => {
     setEditingId(log.id);
     setFormData({
-      date: new Date(log.date).toISOString().split('T')[0],
+      date: formatWIBDateForInput(new Date(log.date)),
       description: log.description,
-      cost: formatNumber(log.cost),
-      odometer: log.odometer ? formatNumber(log.odometer) : '',
-      nextServiceDate: log.nextServiceDate ? new Date(log.nextServiceDate).toISOString().split('T')[0] : ''
+      cost: formatThousand(log.cost),
+      odometer: log.odometer ? formatThousand(log.odometer) : '',
+      nextServiceDate: log.nextServiceDate ? formatWIBDateForInput(new Date(log.nextServiceDate)) : ''
     });
+    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current)
+    previewObjectUrlRef.current = null
     setPreviewUrl(log.fotoUrl);
     setSelectedFile(null);
     setSelectedItems(log.items?.map(i => ({
@@ -263,8 +267,12 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
     setSelectedFile(file);
     if (file) {
         const objectUrl = URL.createObjectURL(file);
+        if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current)
+        previewObjectUrlRef.current = objectUrl
         setPreviewUrl(objectUrl);
     } else {
+        if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current)
+        previewObjectUrlRef.current = null
         setPreviewUrl(null);
     }
   };
@@ -292,7 +300,7 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
     setIsAdding(false);
     setEditingId(null);
     setFormData({
-        date: new Date().toISOString().split('T')[0],
+        date: formatWIBDateForInput(new Date()),
         description: '',
         cost: '',
         odometer: '',
@@ -300,6 +308,8 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
     });
     setSelectedFile(null);
     setPreviewUrl(null);
+    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current)
+    previewObjectUrlRef.current = null
     setSelectedItems([]);
     setFieldErrors({});
     setItemErrors([]);
@@ -379,8 +389,8 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
       const payload = {
         date: formData.date,
         description: formData.description,
-        cost: formData.cost ? parseNumber(formData.cost) : 0,
-        odometer: formData.odometer ? parseNumber(formData.odometer) : null,
+        cost: formData.cost ? parseThousand(formData.cost) : 0,
+        odometer: formData.odometer ? parseThousand(formData.odometer) : null,
         nextServiceDate: formData.nextServiceDate || null,
         fotoUrl: fotoUrl,
         items: validItems,
@@ -410,43 +420,26 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
 
   const applyQuickRange = (val: string) => {
     setQuickRange(val);
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { year, month, day } = getCurrentWIBDateParts()
 
     if (val === 'today') {
-      setStartDate(startOfDay.toISOString().split('T')[0]);
-      setEndDate(endOfDay.toISOString().split('T')[0]);
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
     } else if (val === 'yesterday') {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      const yStart = new Date(y); yStart.setHours(0,0,0,0);
-      const yEnd = new Date(y); yEnd.setHours(23,59,59,999);
-      setStartDate(yStart.toISOString().split('T')[0]);
-      setEndDate(yEnd.toISOString().split('T')[0]);
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 1)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day - 1)))
     } else if (val === 'last_7_days') {
-      const start = new Date(today);
-      start.setDate(start.getDate() - 6);
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(endOfDay.toISOString().split('T')[0]);
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 6)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
     } else if (val === 'last_week') {
-      const start = new Date(today);
-      start.setDate(start.getDate() - 7);
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(endOfDay.toISOString().split('T')[0]);
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 7)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
     } else if (val === 'last_30_days') {
-      const start = new Date(today);
-      start.setDate(start.getDate() - 29);
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(endOfDay.toISOString().split('T')[0]);
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, day - 29)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
     } else if (val === 'this_month') {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(endOfDay.toISOString().split('T')[0]);
-    } else if (val === 'custom') {
-      // Do nothing; user will set dates manually
+      setStartDate(formatWIBDateForInput(createWIBDate(year, month, 1)))
+      setEndDate(formatWIBDateForInput(createWIBDate(year, month, day)))
     }
   };
 
@@ -505,7 +498,7 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
         costInfo.style.color = '#000';
         if (Array.isArray(logs) && logs.length > 0) {
           const total = logs.reduce((sum, l) => sum + Number(l.cost ?? 0), 0);
-          costInfo.innerText = `Jumlah Pengeluaran: Rp ${formatNumber(total)}`;
+          costInfo.innerText = `Jumlah Pengeluaran: ${formatIdCurrency(total)}`;
         } else {
           costInfo.innerText = `Jumlah Pengeluaran: -`;
         }
@@ -627,7 +620,6 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
 
       pdf.save(`Riwayat-Servis-${platNomor}.pdf`);
     } catch (error) {
-      console.error(error);
       toast.error('Gagal export PDF');
     } finally {
       setIsExporting(false);
@@ -772,10 +764,10 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
                                       {log.description}
                                   </TableCell>
                                   <TableCell className="whitespace-nowrap">
-                                    Rp {new Intl.NumberFormat('id-ID').format(log.cost)}
+                                    {formatIdCurrency(log.cost)}
                                   </TableCell>
                                   <TableCell className="whitespace-nowrap">
-                                    {log.odometer ? `${log.odometer} km` : '-'}
+                                    {log.odometer ? `${formatIdNumber(log.odometer)} km` : '-'}
                                   </TableCell>
                                   <TableCell className="whitespace-nowrap">
                                     <div className="flex space-x-2">
@@ -819,7 +811,7 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
                         <TableRow className="bg-gray-100 font-bold">
                           <TableCell colSpan={2} className="text-right">Total Biaya</TableCell>
                           <TableCell className="whitespace-nowrap">
-                            Rp {new Intl.NumberFormat('id-ID').format(logs.reduce((acc, log) => acc + log.cost, 0))}
+                            {formatIdCurrency(logs.reduce((acc, log) => acc + log.cost, 0))}
                           </TableCell>
                           <TableCell colSpan={2}></TableCell>
                         </TableRow>
@@ -912,7 +904,7 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
                             id="cost" 
                             type="text" 
                             value={formData.cost}
-                            onChange={(e) => setFormData({...formData, cost: formatNumber(e.target.value)})}
+                            onChange={(e) => setFormData({...formData, cost: formatThousand(e.target.value)})}
                             placeholder="0"
                             className="rounded-xl"
                         />
@@ -923,7 +915,7 @@ export function ServiceModal({ isOpen, onClose, platNomor }: ServiceModalProps) 
                             id="odometer" 
                             type="text" 
                             value={formData.odometer}
-                            onChange={(e) => setFormData({...formData, odometer: formatNumber(e.target.value)})}
+                            onChange={(e) => setFormData({...formData, odometer: formatThousand(e.target.value)})}
                             placeholder="0"
                             className="rounded-xl"
                         />

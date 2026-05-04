@@ -61,6 +61,10 @@ export const authConfig = {
         return true;
       }
 
+      if (isLoggedIn && nextUrl.pathname.startsWith('/ai') && userRole !== 'ADMIN') {
+        return buildRedirect('/')
+      }
+
       if (isLoggedIn && userRole === 'MANDOR') {
         const allowedRoutes = ['/kebun', '/timbangan', '/profile', '/logout'];
         const isAllowed = allowedRoutes.some(route => nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`));

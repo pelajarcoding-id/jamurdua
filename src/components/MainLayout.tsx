@@ -23,6 +23,39 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (process.env.NODE_ENV !== 'development' && window.location.hostname !== 'localhost') return
+    try {
+      if (sessionStorage.getItem('swCleanupDone') === '1') return
+      sessionStorage.setItem('swCleanupDone', '1')
+    } catch {}
+
+    ;(async () => {
+      if (!('serviceWorker' in navigator)) return
+      const regs = await navigator.serviceWorker.getRegistrations().catch(() => [])
+      let removed = 0
+      for (const reg of regs) {
+        const script =
+          reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || ''
+        if (!script) continue
+        if (script.includes('/custom-sw.js')) continue
+        if (!script.includes('/sw.js')) continue
+        const ok = await reg.unregister().catch(() => false)
+        if (ok) removed += 1
+      }
+      if (removed > 0 && 'caches' in window) {
+        const keys = await caches.keys().catch(() => [])
+        await Promise.all(
+          keys
+            .filter((k) => k === 'pages' || k === 'uploads-images' || k.startsWith('workbox-') || k.startsWith('next-pwa'))
+            .map((k) => caches.delete(k).catch(() => false)),
+        )
+      }
+      if (removed > 0) window.location.reload()
+    })()
+  }, [])
+
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setIsProfileMenuOpen(false);

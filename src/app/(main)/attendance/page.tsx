@@ -7,22 +7,13 @@ import { Camera, MapPin, RefreshCw, CheckCircle2, LogOut, Loader2 } from 'lucide
 import { toast } from 'react-hot-toast'
 import Image from 'next/image'
 import { convertImageFileToWebp } from '@/lib/image-webp'
+import { dataUrlToFile } from '@/lib/utils'
+import { formatWibTime } from '@/lib/wib-date'
 
 const videoConstraints = {
   width: 720,
   height: 720,
   facingMode: "user"
-}
-
-const formatWibTime = (value: string | null | undefined) => {
-  if (!value) return '--:--'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '--:--'
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d)
 }
 
 const formatWibDateFromYmd = (ymd: string | null | undefined) => {
@@ -35,24 +26,6 @@ const formatWibDateFromYmd = (ymd: string | null | undefined) => {
   if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return String(ymd)
   const dt = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0))
   return new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium' }).format(dt)
-}
-
-function dataUrlToFile(dataUrl: string, filename: string) {
-  const parts = dataUrl.split(',')
-  if (parts.length < 2) {
-    throw new Error('Format foto tidak valid')
-  }
-
-  const mimeMatch = parts[0].match(/data:(.*?);base64/)
-  const mime = mimeMatch?.[1] || 'image/jpeg'
-  const binary = atob(parts[1])
-  const bytes = new Uint8Array(binary.length)
-
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-
-  return new File([bytes], filename, { type: mime })
 }
 
 function getCurrentPosition(options?: PositionOptions) {

@@ -53,3 +53,13 @@ export function formatWIBDateDisplay(value: string) {
   }
 }
 
+export function formatWibTime(value: string | Date | null | undefined) {
+  if (!value) return '--:--'
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return '--:--'
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+}

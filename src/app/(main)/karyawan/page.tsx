@@ -19,6 +19,7 @@ import { useKaryawanModalsState } from './useKaryawanModalsState'
 import { KaryawanHeader } from './KaryawanHeader'
 import { KaryawanSummaryCards } from './KaryawanSummaryCards'
 import { KaryawanTabs } from './KaryawanTabs'
+import { formatIdThousands, parseIdThousandInt } from '@/lib/utils'
 
 type Kebun = { id: number; name: string }
 type WorkLocation = { id: number; name: string; type: string; kebunId?: number | null }
@@ -142,9 +143,7 @@ export default function KaryawanKebunPage() {
   const [massDesc, setMassDesc] = useState<string>('') // override deskripsi
   const [activeTab, setActiveTab] = useState('karyawan')
   const formatRibuanId = useCallback((s: string) => {
-    const digits = s.replace(/\D/g, '')
-    if (!digits) return ''
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    return formatIdThousands(s)
   }, [])
   const [karyawanPage, setKaryawanPage] = useState(1)
   const [karyawanLimit, setKaryawanLimit] = useState(10)
@@ -867,7 +866,7 @@ export default function KaryawanKebunPage() {
   useEffect(() => {
     if (!absenOpen || !absenUseHourly) return
     const hours = parseFloat((absenHour || '').toString().replace(',', '.')) || 0
-    const rate = Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+    const rate = parseIdThousandInt(absenRate)
     if (hours > 0 && rate > 0) {
       setAbsenWork(true)
       setAbsenOff(false)
@@ -1005,7 +1004,7 @@ export default function KaryawanKebunPage() {
     rows.forEach(r => {
       const saldo = Math.max(0, Math.round(r.hutangSaldo || 0))
       const raw = potongMap[r.karyawan.id] || ''
-      const num = Number(raw.toString().replace(/\./g, '').replace(/,/g, '')) || 0
+      const num = parseIdThousandInt(raw)
       const eff = saldo <= 0 ? 0 : Math.min(Math.max(0, num), saldo)
       next[r.karyawan.id] = eff
     })
@@ -1030,7 +1029,7 @@ export default function KaryawanKebunPage() {
     })
     Object.entries(absenMap).forEach(([date, val]) => {
       if (!date.startsWith(ym)) return
-      const num = Number((val || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+      const num = parseIdThousandInt(val)
       totalGaji += num
     })
     const gajiBerjalan = selectedUser ? Math.round(Number(summaryData?.gaji?.unpaid || 0)) : 0
@@ -1060,7 +1059,7 @@ export default function KaryawanKebunPage() {
     return Object.entries(absenMap)
       .filter(([date, val]) => date.startsWith(ym) && val && !absenPaidMap[date])
       .map(([date, val]) => {
-        const amount = Number((val || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+        const amount = parseIdThousandInt(val)
         return { date, amount }
       })
       .filter(x => x.amount > 0)
@@ -1073,7 +1072,7 @@ export default function KaryawanKebunPage() {
     return Math.max(0, Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0))
   }, [rows, selectedUser])
   const potongHutangValue = useMemo(() => {
-    return Number((absenPayPotong || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+    return parseIdThousandInt(absenPayPotong)
   }, [absenPayPotong])
   const potongHutangEffective = useMemo(() => {
     if (hutangBeforePay <= 0) return 0
@@ -1111,7 +1110,7 @@ export default function KaryawanKebunPage() {
     const payloads = rows.map(r => {
       const saldo = Math.max(0, Math.round(r.hutangSaldo || 0))
       const raw = potongMap[r.karyawan.id] || ''
-      const num = Number(raw.toString().replace(/\./g, '').replace(/,/g, '')) || 0
+      const num = parseIdThousandInt(raw)
       const amount = saldo <= 0 ? 0 : Math.min(Math.max(0, num), saldo)
       const nextVal = amount > 0 ? formatRibuanId(String(amount)) : ''
       if ((nextMap[r.karyawan.id] || '') !== nextVal) {
@@ -1170,7 +1169,7 @@ export default function KaryawanKebunPage() {
       
       const tableBody = rows.map((r, idx) => {
         const raw = potongMap[r.karyawan.id] || ''
-        const potong = Number(raw.toString().replace(/\./g, '').replace(/,/g, '')) || 0
+        const potong = parseIdThousandInt(raw)
         const saldo = Math.round(r.hutangSaldo) || 0
         const sisa = Math.max(0, saldo - potong)
         return [
@@ -1202,8 +1201,7 @@ export default function KaryawanKebunPage() {
       )
 
       doc.save(`Daftar-Hutang-Periode-${format(new Date(), 'yyyyMMdd')}.pdf`)
-    } catch (error) {
-      console.error(error)
+    } catch {
       toast.error('Gagal export PDF')
     }
   }
@@ -1212,7 +1210,7 @@ export default function KaryawanKebunPage() {
       const headers = ['NO', 'NAMA', 'TANGGAL', 'SALDO', 'POTONG', 'SISA', 'KETERANGAN']
       const rowsCsv = rows.map((r, idx) => {
         const raw = potongMap[r.karyawan.id] || ''
-        const potong = Number(raw.toString().replace(/\./g, '').replace(/,/g, '')) || 0
+        const potong = parseIdThousandInt(raw)
         const saldo = Math.round(r.hutangSaldo) || 0
         const sisa = Math.max(0, saldo - potong)
         const tanggal = format(new Date(endDate || new Date()), 'dd-MMM-yy', { locale: idLocale })
@@ -1245,8 +1243,7 @@ export default function KaryawanKebunPage() {
       a.download = `Daftar-Hutang-Periode-${format(new Date(), 'yyyyMMdd')}.csv`
       a.click()
       URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error(error)
+    } catch {
       toast.error('Gagal export CSV')
     }
   }
@@ -1658,7 +1655,7 @@ export default function KaryawanKebunPage() {
       const payload = {
         id: editDetailId,
         date: editDetailDate || undefined,
-        jumlah: Number(editDetailJumlah.toString().replace(/\D/g, '')) || undefined,
+        jumlah: parseIdThousandInt(editDetailJumlah) || undefined,
         deskripsi: editDetailDeskripsi,
       }
       const res = await fetch('/api/karyawan/operasional/detail', {
@@ -1737,7 +1734,7 @@ export default function KaryawanKebunPage() {
         body: JSON.stringify({
           kebunId: selectedKebunId || null,
           karyawanId: hutangModalUser.id,
-          jumlah: Number(hutangJumlah.toString().replace(/\./g, '').replace(/,/g, '')),
+          jumlah: parseIdThousandInt(hutangJumlah),
           date: hutangTanggal || undefined,
           deskripsi: hutangDeskripsi,
         }),
@@ -1774,7 +1771,7 @@ export default function KaryawanKebunPage() {
         body: JSON.stringify({
           kebunId: selectedKebunId || null,
           karyawanId: hutangModalUser.id,
-          jumlah: Number(potongJumlah.toString().replace(/\./g, '').replace(/,/g, '')),
+          jumlah: parseIdThousandInt(potongJumlah),
           date: potongTanggal || undefined,
           deskripsi: potongDeskripsi,
         }),

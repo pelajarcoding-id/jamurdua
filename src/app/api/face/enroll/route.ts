@@ -36,21 +36,21 @@ async function ensureFaceProfileTable() {
 
 function normalizeDescriptor(value: unknown): number[] | null {
   if (!Array.isArray(value)) return null
-  const nums = value.map((x) => Number(x)).filter((x) => Number.isFinite(x))
-  if (nums.length < 64) return null
-  if (nums.length > 1024) return null
+  if (value.length !== 128) return null
+  const nums = value.map((x) => Number(x))
+  if (!nums.every((x) => Number.isFinite(x))) return null
   return nums
 }
 
 function distanceL2(a: number[], b: number[]) {
-  const n = Math.min(a.length, b.length)
-  if (n <= 0) return Number.NaN
+  const n = a.length
+  if (n <= 0 || b.length !== n) return Number.NaN
   let sum = 0
   for (let i = 0; i < n; i++) {
     const d = a[i] - b[i]
     sum += d * d
   }
-  return Math.sqrt(sum / n)
+  return Math.sqrt(sum)
 }
 
 export async function GET(request: Request) {
@@ -169,8 +169,8 @@ export async function POST(request: Request) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    const dupThresholdRaw = Number(process.env.FACE_DUPLICATE_THRESHOLD || process.env.FACE_MATCH_THRESHOLD || '0.5')
-    const dupThreshold = Number.isFinite(dupThresholdRaw) ? dupThresholdRaw : 0.5
+    const dupThresholdRaw = Number(process.env.FACE_DUPLICATE_THRESHOLD || process.env.FACE_MATCH_THRESHOLD || '0.55')
+    const dupThreshold = Number.isFinite(dupThresholdRaw) ? dupThresholdRaw : 0.55
     const others = await prisma.$queryRaw<Array<{ userId: number; name: string; descriptor: any }>>`
       SELECT f."userId", u."name", f."descriptor"
       FROM "FaceProfile" f
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
     if (best && best.distance <= dupThreshold) {
       return NextResponse.json(
         {
-          error: `Wajah sudah terdaftar untuk karyawan lain: ${best.name || '-'} (${best.userId})`,
+          error: `Wajah sangat mirip dengan karyawan lain: ${best.name || '-'} (${best.userId}). Coba ulang: ambil foto lebih dekat, terang, dan menghadap kamera.`,
           duplicate: { userId: best.userId, name: best.name || null, distance: best.distance },
           threshold: dupThreshold,
         },

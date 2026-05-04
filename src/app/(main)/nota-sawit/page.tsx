@@ -26,6 +26,7 @@ import { NotaSawitTabs } from './NotaSawitTabs'
 import { NotaSawitSummary } from './NotaSawitSummary'
 import { NotaSawitBulkActionsBar } from './NotaSawitBulkActionsBar'
 import { NotaSawitToolbar } from './NotaSawitToolbar'
+import { createWIBDate, getCurrentWIBDateParts } from '@/lib/wib-date'
 
 interface SummaryData {
   totalBerat: number;
@@ -187,15 +188,9 @@ export default function NotaSawitPage() {
   const [quickRange, setQuickRange] = useState('this_year');
 
   useEffect(() => {
-    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-    const now = new Date()
-    const wibNow = new Date(now.getTime() + WIB_OFFSET_MS)
-    const year = wibNow.getUTCFullYear()
-    const month = wibNow.getUTCMonth()
-    const day = wibNow.getUTCDate()
-
-    const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0) - WIB_OFFSET_MS)
-    const end = new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - WIB_OFFSET_MS)
+    const { year, month, day } = getCurrentWIBDateParts()
+    const start = createWIBDate(year, 0, 1)
+    const end = createWIBDate(year, month, day, true)
     setStartDate(start)
     setEndDate(end)
     setQuickRange('this_year')

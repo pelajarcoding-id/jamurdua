@@ -7,6 +7,8 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
  import { KasTransaksi } from '@/types/kasir';
 import { ArrowDownTrayIcon, DocumentTextIcon, PencilSquareIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { ModalContentWrapper, ModalFooter, ModalHeader } from '@/components/ui/modal-elements';
+import { formatIdCurrency } from '@/lib/utils';
+import { formatWIBDateDisplay } from '@/lib/wib-date';
  
  interface DetailTransaksiModalProps {
   isOpen: boolean;
@@ -18,27 +20,8 @@ import { ModalContentWrapper, ModalFooter, ModalHeader } from '@/components/ui/m
   onDelete?: (trx: KasTransaksi) => void;
 }
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (value: string) => {
-  try {
-    const d = new Date(value);
-    return new Intl.DateTimeFormat('id-ID', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta'
-    }).format(d);
-  } catch {
-    return value;
-  }
-};
+const formatCurrency = formatIdCurrency
+const formatDate = formatWIBDateDisplay
 
 const DetailTransaksiModal: React.FC<DetailTransaksiModalProps> = ({ isOpen, onClose, transaksi, formatKeterangan, getPerusahaanTags, onEdit, onDelete }) => {
   const [exporting, setExporting] = useState(false)

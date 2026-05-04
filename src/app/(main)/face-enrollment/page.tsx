@@ -11,6 +11,7 @@ import { ModalContentWrapper, ModalHeader } from '@/components/ui/modal-elements
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import { convertImageFileToWebp } from '@/lib/image-webp'
 import { getFaceCountFromFile, getFaceDescriptorFromFile } from '@/lib/faceapi-client'
+import { dataUrlToFile } from '@/lib/utils'
 import RoleGate from '@/components/RoleGate'
 import { Camera, Eye, RefreshCw, Trash2 } from 'lucide-react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -21,16 +22,7 @@ const videoConstraints = {
   facingMode: 'user',
 }
 
-function dataUrlToFile(dataUrl: string, filename: string) {
-  const parts = dataUrl.split(',')
-  if (parts.length < 2) throw new Error('Format foto tidak valid')
-  const mimeMatch = parts[0].match(/data:(.*?);base64/)
-  const mime = mimeMatch?.[1] || 'image/jpeg'
-  const binary = atob(parts[1])
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new File([bytes], filename, { type: mime })
-}
+const EMERALD_BUTTON_CLASS = 'rounded-xl w-fit bg-emerald-600 text-white hover:bg-emerald-700'
 
 type UserOption = { id: number; name: string; role: string; status: string | null }
 
@@ -147,6 +139,15 @@ export default function FaceEnrollmentPage() {
     applyProfilesSearch('')
   }, [applyProfilesSearch])
 
+  const pickUser = useCallback((u: { id: number; name: string } | null) => {
+    if (!u?.id || !Number.isFinite(u.id)) return
+    setUserId(String(u.id))
+    setUserQuery(`${u.name} (${u.id})`)
+    setImgSrc(null)
+    setIsCapturing(true)
+    setCameraOpen(false)
+  }, [])
+
   const openCamera = useCallback(() => {
     setImgSrc(null)
     setIsCapturing(true)
@@ -197,16 +198,11 @@ export default function FaceEnrollmentPage() {
         return
       }
 
-      const res = await fetch('/api/face/enroll', {
-        method: 'POST',
-        body: (() => {
-          const fd = new FormData()
-          fd.append('userId', String(id))
-          fd.append('descriptor', JSON.stringify(descriptor))
-          fd.append('photo', file)
-          return fd
-        })(),
-      })
+      const fd = new FormData()
+      fd.append('userId', String(id))
+      fd.append('descriptor', JSON.stringify(descriptor))
+      fd.append('photo', file)
+      const res = await fetch('/api/face/enroll', { method: 'POST', body: fd })
       const json = await res.json().catch(() => ({} as any))
       if (!res.ok) throw new Error(json?.error || 'Gagal enroll')
 
@@ -300,13 +296,7 @@ export default function FaceEnrollmentPage() {
                         <button
                           key={u.id}
                           type="button"
-                          onClick={() => {
-                            setUserId(String(u.id))
-                            setUserQuery(`${u.name} (${u.id})`)
-                            setImgSrc(null)
-                            setIsCapturing(true)
-                            setCameraOpen(false)
-                          }}
+                        onClick={() => pickUser(u)}
                           className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${picked ? 'bg-emerald-50 text-emerald-700' : ''}`}
                         >
                           {u.name} ({u.id}){u.role ? ` - ${u.role}` : ''}
@@ -340,7 +330,7 @@ export default function FaceEnrollmentPage() {
                   <Button
                     onClick={openCamera}
                     disabled={saving || !selectedUser}
-                    className="rounded-xl w-fit bg-emerald-600 text-white hover:bg-emerald-700"
+                    className={EMERALD_BUTTON_CLASS}
                   >
                     <Camera className="h-5 w-5 mr-2" />
                     Buka Kamera
@@ -386,7 +376,7 @@ export default function FaceEnrollmentPage() {
                         <Button
                           onClick={capture}
                           disabled={saving || !selectedUser}
-                          className="rounded-xl w-fit bg-emerald-600 text-white hover:bg-emerald-700"
+                          className={EMERALD_BUTTON_CLASS}
                         >
                           Ambil foto
                         </Button>
@@ -491,9 +481,7 @@ export default function FaceEnrollmentPage() {
                             size="icon"
                             className="rounded-xl"
                             onClick={() => {
-                              setUserId(String(p.userId))
-                              setUserQuery(`${p.name} (${p.userId})`)
-                              retake()
+                              pickUser({ id: p.userId, name: p.name })
                               window.scrollTo({ top: 0, behavior: 'smooth' })
                             }}
                             aria-label="Update wajah"

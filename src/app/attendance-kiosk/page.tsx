@@ -5,6 +5,8 @@ import Webcam from 'react-webcam'
 import { toast } from 'react-hot-toast'
 import { convertImageFileToWebp } from '@/lib/image-webp'
 import { countFacesFromVideo, detectSingleFaceFromVideo } from '@/lib/faceapi-client'
+import { dataUrlToFile } from '@/lib/utils'
+import { formatWibTime } from '@/lib/wib-date'
 import { RefreshCw, CheckCircle2, LogOut, Loader2, MapPin, ArrowLeft } from 'lucide-react'
 
 const videoConstraints = {
@@ -15,27 +17,7 @@ const videoConstraints = {
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
-const formatWibTime = (value: string | null | undefined) => {
-  if (!value) return '--:--'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '--:--'
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d)
-}
-
-function dataUrlToFile(dataUrl: string, filename: string) {
-  const parts = dataUrl.split(',')
-  if (parts.length < 2) throw new Error('Format foto tidak valid')
-  const mimeMatch = parts[0].match(/data:(.*?);base64/)
-  const mime = mimeMatch?.[1] || 'image/jpeg'
-  const binary = atob(parts[1])
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new File([bytes], filename, { type: mime })
-}
+const MIN_OUT_AFTER_IN_MS = 30 * 60 * 1000
 
 function captureDataUrlFromVideo(video: HTMLVideoElement, mirrored: boolean) {
   const w = Number(video.videoWidth || 0)
@@ -433,7 +415,7 @@ export default function AttendanceKioskPage() {
       if (type === 'OUT' && s?.checkIn) {
         const inDate = new Date(s.checkIn)
         const inTime = inDate.getTime()
-        if (!Number.isNaN(inTime) && Date.now() - inTime < 30 * 60 * 1000) {
+        if (!Number.isNaN(inTime) && Date.now() - inTime < MIN_OUT_AFTER_IN_MS) {
           toast.error('Absen pulang minimal 30 menit setelah absen masuk')
           return
         }
@@ -518,7 +500,7 @@ export default function AttendanceKioskPage() {
     const d = new Date(raw)
     const t = d.getTime()
     if (Number.isNaN(t)) return false
-    return Date.now() - t < 30 * 60 * 1000
+    return Date.now() - t < MIN_OUT_AFTER_IN_MS
   }, [attendanceForActive?.checkIn, statusReadyForActive])
 
   const outBlocked = useMemo(() => {
@@ -678,14 +660,7 @@ export default function AttendanceKioskPage() {
         {locked ? (
           <button
             onClick={() => {
-              setLocked(null)
-              setLockedShot(null)
-              setRecognized(null)
-              setTodayAttendance(null)
-              setStatusUserId(null)
-              setHkUnpaid(null)
-              setHkRange(null)
-              streakRef.current = null
+              resetForNextAttendance()
             }}
             disabled={submitting}
             className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full backdrop-blur-md"

@@ -4,7 +4,12 @@ import { auth } from '@/auth'
 export type AllowedRole = 'ADMIN' | 'PEMILIK' | 'MANAGER' | 'MANDOR' | 'KASIR' | 'GUDANG' | 'KEUANGAN' | 'SUPIR' | 'KARYAWAN'
 
 export async function getAuthUser() {
-  const session = await auth()
+  let session: any = null
+  try {
+    session = await auth()
+  } catch {
+    session = null
+  }
   const idRaw = session?.user?.id
   const roleRaw = session?.user?.role
   const id = idRaw ? Number(idRaw) : null

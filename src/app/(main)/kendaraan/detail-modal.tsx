@@ -21,6 +21,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useSWR from 'swr';
 import { KendaraanData } from "./columns";
+import { formatIdCurrency, formatIdNumber } from "@/lib/utils";
 
 interface DetailModalProps {
     isOpen: boolean;
@@ -329,7 +330,6 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
             
             pdf.save(`Kendaraan-${kendaraan.platNomor}.pdf`);
         } catch (error) {
-            console.error('Export PDF failed:', error);
         } finally {
             setIsExporting(false);
         }
@@ -349,7 +349,6 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
             document.body.removeChild(link);
             window.URL.revokeObjectURL(blobUrl);
         } catch (error) {
-            console.error('Gagal mengunduh gambar:', error);
             // Fallback method
             window.open(url, '_blank');
         }
@@ -395,7 +394,7 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-gray-600">Berat Kosong</span>
-                                                <span className="font-medium">{(kendaraan as any).beratKosong ? `${(kendaraan as any).beratKosong.toLocaleString('id-ID')} kg` : '-'}</span>
+                                                <span className="font-medium">{(kendaraan as any).beratKosong ? `${formatIdNumber((kendaraan as any).beratKosong)} kg` : '-'}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -556,7 +555,7 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
                                                                 {format(new Date(doc.berlakuHingga), 'dd MMM yyyy', { locale: idLocale })}
                                                             </TableCell>
                                                             <TableCell>
-                                                                Rp {doc.biaya.toLocaleString('id-ID')}
+                                                                {formatIdCurrency(Number(doc.biaya || 0))}
                                                             </TableCell>
                                                             <TableCell className="max-w-[200px] truncate" title={doc.keterangan}>
                                                                 {doc.keterangan || '-'}
@@ -634,10 +633,10 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
                                                                 {log.description}
                                                             </TableCell>
                                                             <TableCell>
-                                                                Rp {log.cost.toLocaleString('id-ID')}
+                                                                {formatIdCurrency(Number(log.cost || 0))}
                                                             </TableCell>
                                                             <TableCell>
-                                                                {log.odometer ? `${log.odometer.toLocaleString('id-ID')} km` : '-'}
+                                                                {log.odometer ? `${formatIdNumber(log.odometer)} km` : '-'}
                                                             </TableCell>
                                                             <TableCell>
                                                                 {log.nextServiceDate ? format(new Date(log.nextServiceDate), 'dd MMM yyyy', { locale: idLocale }) : '-'}

@@ -32,12 +32,12 @@ export function usePembayaranNotaSawit(args: {
 
   const toWibYmd = useCallback((dt?: Date) => {
     if (!dt) return ''
-    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-    const wib = new Date(dt.getTime() + WIB_OFFSET_MS)
-    const y = wib.getUTCFullYear()
-    const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
-    const d = String(wib.getUTCDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(dt)
   }, [])
 
   const wibStartFromYmd = useCallback((ymd: string) => new Date(`${ymd}T00:00:00+07:00`), [])

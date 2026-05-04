@@ -51,6 +51,33 @@ type HutangDetailRow = {
   deskripsi: string | null
 }
 
+function formatMonthKey(month: Date) {
+  return `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`
+}
+
+function normalizeDateKey(raw: unknown) {
+  const value = raw == null ? '' : String(raw).trim()
+  if (!value) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const dateObj = new Date(value)
+  if (Number.isNaN(dateObj.getTime())) return null
+  const year = dateObj.getUTCFullYear()
+  const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getAbsensiStorageKey(kebunId: number, karyawanId: number, month: Date) {
+  return `absensi:v2:${kebunId}:${karyawanId}:${formatMonthKey(month)}`
+}
+
+function parseThousandInt(value: unknown) {
+  const raw = value == null ? '' : String(value)
+  const normalized = raw.replace(/\./g, '').replace(/,/g, '')
+  const num = Number(normalized)
+  return Number.isFinite(num) ? num : 0
+}
+
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 export default function AbsensiTab({ kebunId }: { kebunId: number }) {
@@ -411,18 +438,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
           const nextNote: Record<string, string> = {}
           
           records.forEach((r: any) => {
-            const raw = r?.date ? String(r.date).trim() : ''
-            if (!raw) return
-            const key = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-              ? raw
-              : (() => {
-                  const dateObj = new Date(raw)
-                  if (Number.isNaN(dateObj.getTime())) return null
-                  const year = dateObj.getUTCFullYear()
-                  const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
-                  const day = String(dateObj.getUTCDate()).padStart(2, '0')
-                  return `${year}-${month}-${day}`
-                })()
+            const key = normalizeDateKey(r?.date)
             if (!key) return
             
             if (r.jumlah > 0) nextAmount[key] = String(r.jumlah)
@@ -437,8 +453,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
           setAbsenNoteMap(nextNote)
           
           // Also update localStorage to keep it in sync
-          const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-          const storageKey = `absensi:v2:${kebunId}:${absenUserId}:${ym}`
+          const storageKey = getAbsensiStorageKey(kebunId, absenUserId, absenMonth)
           localStorage.setItem(storageKey, JSON.stringify({
             amount: nextAmount,
             work: nextWork,
@@ -457,8 +472,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   // Load attendance from localStorage (as fallback or initial)
   useEffect(() => {
     if (!kebunId || !absenUserId) return
-    const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-    const key = `absensi:v2:${kebunId}:${absenUserId}:${ym}`
+    const key = getAbsensiStorageKey(kebunId, absenUserId, absenMonth)
     try {
       const raw = localStorage.getItem(key)
       if (raw) {
@@ -494,17 +508,8 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     const next: Record<string, boolean> = {}
     ;(json.data || []).forEach((r: { date: string }) => { 
       if (r.date) {
-        const raw = String(r.date).trim()
-        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-          next[raw] = true
-          return
-        }
-        const d = new Date(raw)
-        if (Number.isNaN(d.getTime())) return
-        const year = d.getUTCFullYear()
-        const month = String(d.getUTCMonth() + 1).padStart(2, '0')
-        const day = String(d.getUTCDate()).padStart(2, '0')
-        const key = `${year}-${month}-${day}`
+        const key = normalizeDateKey(r.date)
+        if (!key) return
         next[key] = true
       }
     })
@@ -576,13 +581,13 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     })
     Object.entries(absenMap).forEach(([date, val]) => {
       if (!date.startsWith(ym)) return
-      const num = Number((val || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+      const num = parseThousandInt(val)
       if (!absenPaidMap[date]) totalGaji += num
     })
     Object.entries(absenMealMap).forEach(([date, val]) => {
       if (!date.startsWith(ym)) return
       if (!absenMealEnabledMap[date]) return
-      const num = Number((val || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+      const num = parseThousandInt(val)
       totalMeal += num
     })
     const hutang = selectedUser ? Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0) : 0
@@ -594,7 +599,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     return Object.entries(absenMap)
       .filter(([date, val]) => date.startsWith(ym) && val && !absenPaidMap[date])
       .map(([date, val]) => {
-        const amount = Number((val || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+        const amount = parseThousandInt(val)
         return { date, amount }
       })
       .filter(x => x.amount > 0)
@@ -604,7 +609,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     if (!selectedUser) return 0
     return Math.max(0, Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0))
   }, [rows, selectedUser])
-  const potongPayValue = useMemo(() => Number((absenPayPotong || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0, [absenPayPotong])
+  const potongPayValue = useMemo(() => parseThousandInt(absenPayPotong), [absenPayPotong])
   const potongPayEffective = useMemo(() => {
     if (hutangBeforePay <= 0) return 0
     return Math.min(potongPayValue, hutangBeforePay)
@@ -627,7 +632,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     }
     setAbsenSaving(true)
     try {
-      const num = Number(absenValue.replace(/\./g, '').replace(/,/g, '')) || 0
+      const num = parseThousandInt(absenValue)
       const entry = {
         date: absenSelectedDate,
         amount: num,
@@ -674,8 +679,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
         setAbsenMealMap(nextMeal)
 
         // Persist to localStorage
-        const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-        const key = `absensi:v2:${kebunId}:${absenUserId}:${ym}`
+        const key = getAbsensiStorageKey(kebunId, absenUserId, absenMonth)
         localStorage.setItem(key, JSON.stringify({
           amount: nextAmount,
           work: nextWork,
@@ -1784,7 +1788,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                 <p className="font-bold text-emerald-600 text-lg">
                   Rp {(() => {
                     const val = absenMap[absenSelectedDate] || '0'
-                    return Number(val.replace(/\./g, '').replace(/,/g, '')).toLocaleString('id-ID')
+                    return parseThousandInt(val).toLocaleString('id-ID')
                   })()}
                 </p>
               </div>
@@ -1818,14 +1822,14 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-gray-500 font-medium">Upah Harian:</span>
                 <span className="font-bold text-gray-900">
-                  {!absenHourlyMap[absenSelectedDate] ? `Rp ${Number(absenMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}
+                  {!absenHourlyMap[absenSelectedDate] ? `Rp ${parseThousandInt(absenMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-gray-500 font-medium">Upah Per Jam:</span>
                 <span className="font-bold text-gray-900">
                   {absenHourlyMap[absenSelectedDate] ? (
-                    `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${Number(absenRateMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}`
+                    `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${parseThousandInt(absenRateMap[absenSelectedDate]).toLocaleString('id-ID')}`
                   ) : '-'}
                 </span>
               </div>
@@ -1833,7 +1837,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                 <span className="text-gray-500 font-medium">Uang Makan:</span>
                 <span className="font-bold text-gray-900">
                   {absenMealEnabledMap[absenSelectedDate] ? (
-                    `Rp ${Number(absenMealMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}`
+                    `Rp ${parseThousandInt(absenMealMap[absenSelectedDate]).toLocaleString('id-ID')}`
                   ) : '-'}
                 </span>
               </div>
@@ -1868,7 +1872,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                   const dateStr = absenSelectedDate ? format(new Date(absenSelectedDate), 'EEEE, dd MMMM yyyy', { locale: idLocale }) : '';
                   const totalGaji = (() => {
                     const val = absenMap[absenSelectedDate] || '0';
-                    return Number(val.replace(/\./g, '').replace(/,/g, '')).toLocaleString('id-ID');
+                    return parseThousandInt(val).toLocaleString('id-ID');
                   })();
 
                   pdfContainer.innerHTML = `
@@ -2023,8 +2027,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               setAbsenOffMap(nextOff);
               setAbsenNoteMap(nextNote);
               
-              const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
-              const storageKey = `absensi:v2:${kebunId}:${absenUserId}:${ym}`
+              const storageKey = getAbsensiStorageKey(kebunId, absenUserId, absenMonth)
               localStorage.setItem(storageKey, JSON.stringify({
                 amount: nextAmount,
                 work: nextWork,
@@ -2189,7 +2192,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Input Rupiah</span>
                     <span className="font-semibold text-gray-900">Rp {(() => {
-                      const manual = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                      const manual = parseThousandInt(absenValue)
                       return manual ? manual.toLocaleString('id-ID') : 0
                     })()}</span>
                   </div>
@@ -2197,23 +2200,23 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                     <span className="text-gray-500">Hitung Per Jam</span>
                     <span className="font-semibold text-gray-900">Rp {(() => {
                       if (!absenUseHourly) return 0
-                      const hourly = (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * (Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0)
+                      const hourly = (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseThousandInt(absenRate)
                       return Math.round(hourly).toLocaleString('id-ID')
                     })()}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Uang Makan</span>
                     <span className="font-semibold text-gray-900">Rp {(() => {
-                      const meal = !absenMealEnabled ? 0 : Number((absenMealAmount || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                      const meal = !absenMealEnabled ? 0 : parseThousandInt(absenMealAmount)
                       return Math.round(meal).toLocaleString('id-ID')
                     })()}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
                     <span className="text-gray-900 font-bold">TOTAL AKHIR</span>
                     <span className="font-bold text-emerald-600 text-lg">Rp {(() => {
-                      const manual = Number((absenValue || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
-                      const hourly = !absenUseHourly ? 0 : (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * (Number((absenRate || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0)
-                      const meal = !absenMealEnabled ? 0 : Number((absenMealAmount || '').toString().replace(/\./g, '').replace(/,/g, '')) || 0
+                      const manual = parseThousandInt(absenValue)
+                      const hourly = !absenUseHourly ? 0 : (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseThousandInt(absenRate)
+                      const meal = !absenMealEnabled ? 0 : parseThousandInt(absenMealAmount)
                       return Math.round(manual + hourly + meal).toLocaleString('id-ID')
                     })()}</span>
                   </div>

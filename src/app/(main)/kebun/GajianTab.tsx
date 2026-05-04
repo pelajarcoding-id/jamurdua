@@ -12,6 +12,7 @@ import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import { DetailGajianModal } from '../gajian/detail-modal'
 import type { BiayaLainGajian, DetailGajian, DetailGajianKaryawan, Gajian, Kebun as KebunEntity, Kendaraan, NotaSawit, PotonganGajian, Timbangan, User } from '@prisma/client'
 import { getCurrentWIBDateParts } from '@/lib/wib-date'
+import { formatIdCurrency, formatIdNumber } from '@/lib/utils'
 
 type UnpaidKaryawan = {
   karyawanId: number
@@ -105,11 +106,8 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
   const [selectedGajian, setSelectedGajian] = useState<GajianWithDetails | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  const formatCurrency = useCallback(
-    (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num),
-    [],
-  )
-  const formatNumber = useCallback((num: number, maxFractionDigits = 0) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: maxFractionDigits }).format(num), [])
+  const formatCurrency = useCallback((num: number) => formatIdCurrency(num), [])
+  const formatNumber = useCallback((num: number, maxFractionDigits = 0) => formatIdNumber(num, maxFractionDigits), [])
 
   const handleSavePotongan = useCallback(async () => {
     const startKey = String(startDate || '').trim()

@@ -10,6 +10,8 @@ import { PrintableUangJalan } from './printable-uang-jalan';
 import type { UangJalan } from '@prisma/client';
 import { ModalContentWrapper, ModalFooter, ModalHeader } from "@/components/ui/modal-elements";
 import { ArrowDownTrayIcon, DocumentTextIcon, PencilSquareIcon, PrinterIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { formatIdCurrency } from "@/lib/utils";
+import { formatWIBDateDisplay } from "@/lib/wib-date";
 
 type RincianUangJalan = UangJalan & { gambarUrl?: string | null };
 
@@ -21,8 +23,8 @@ interface ModalProps {
     onDelete?: (data: SesiUangJalanWithDetails) => void;
 }
 
-const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
-const formatDate = (date: string | Date) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(date));
+const formatCurrency = formatIdCurrency
+const formatDate = (date: string | Date) => formatWIBDateDisplay(date instanceof Date ? date.toISOString() : date)
 const stripTagMarkers = (text: string) => String(text || '').replace(/\s*\[(KENDARAAN|KEBUN|PERUSAHAAN|KARYAWAN):[^\]]+\]/g, '').trim()
 const parseTagMarkers = (text: string) => {
     const kendaraanPlatNomor = (String(text || '').match(/\[KENDARAAN:([^\]]+)\]/)?.[1] || '').trim()

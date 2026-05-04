@@ -13,16 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { SesiUangJalanWithDetails } from "./page"
+import { formatIdCurrency } from "@/lib/utils"
+import { formatWIBDateDisplay } from "@/lib/wib-date"
 
 
 
-const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
-const formatDate = (date: Date) => new Intl.DateTimeFormat('id-ID', { 
-    day: '2-digit', 
-    month: 'long', 
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta'
-}).format(new Date(date));
+const formatCurrency = formatIdCurrency
+const formatDate = (date: string | Date) => formatWIBDateDisplay(date instanceof Date ? date.toISOString() : String(date))
 
 export const columns: ColumnDef<SesiUangJalanWithDetails>[] = [
     {

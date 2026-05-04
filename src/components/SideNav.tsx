@@ -45,6 +45,10 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
       return userRole === 'ADMIN' || userRole === 'PEMILIK';
     }
 
+    if (link.href === '/ai' || link.name === 'Tanya Ai' || link.name === 'AI') {
+      return userRole === 'ADMIN';
+    }
+
     if (link.name === 'Audit Trail' || link.name === 'Recycle Bin') {
       return userRole === 'ADMIN';
     }

@@ -22,6 +22,7 @@ import {
 
 import { format, differenceInDays } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
+import { formatIdNumber } from '@/lib/utils'
 
 export type KendaraanData = Kendaraan;
 
@@ -55,7 +56,10 @@ export const columns = (
   {
     accessorKey: 'beratKosong',
     header: () => <span className="font-semibold">Berat Kosong</span>,
-    cell: ({ row }) => <span>{(row.original as any).beratKosong ? `${(row.original as any).beratKosong.toLocaleString('id-ID')} kg` : '-'}</span>,
+    cell: ({ row }) => {
+      const val = (row.original as any).beratKosong
+      return <span>{val ? `${formatIdNumber(val)} kg` : '-'}</span>
+    },
   },
   {
     accessorKey: 'tanggalMatiStnk',
