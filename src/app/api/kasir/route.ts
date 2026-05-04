@@ -426,12 +426,15 @@ export async function DELETE(request: Request) {
           where: { id: existingTrx.gajianId },
           select: { id: true, status: true },
         })
-        if (linked) {
-          return NextResponse.json(
-            { error: 'Transaksi gaji tidak bisa dihapus karena masih terhubung ke data gajian. Batalkan/ubah dari menu Gajian terlebih dahulu.' },
-            { status: 400 },
-          )
-        }
+        const gajianId = Number(existingTrx.gajianId)
+        const gajianStatus = linked?.status ? String(linked.status) : null
+        return NextResponse.json(
+          {
+            error: `Transaksi gaji tidak bisa dihapus karena masih terhubung ke gajian periode. gajianId=${gajianId}${gajianStatus ? ` (status=${gajianStatus})` : ''}. Ubah/batalkan dari menu Gajian.`,
+            relations: { kasTransaksiId: trxId, gajianId, gajianStatus, kebunId: existingTrx.kebunId, karyawanId: existingTrx.karyawanId || null },
+          },
+          { status: 409 },
+        )
       }
     }
     if (existingTrx.kategori === 'PENJUALAN_SAWIT') {
@@ -439,9 +442,17 @@ export async function DELETE(request: Request) {
       const keterangan = String((existingTrx as any).keterangan || '')
       const isUangNotaSawit = deskripsi.startsWith('Uang Nota Sawit -') || keterangan.startsWith('Batch ID:')
       if (isUangNotaSawit) {
+        const batchFromField = Number((existingTrx as any).notaSawitPembayaranBatchId || 0)
+        const m = keterangan.match(/Batch ID:\s*(\d+)/i)
+        const batchFromText = m?.[1] ? Number(m[1]) : 0
+        const batchId = Number.isFinite(batchFromField) && batchFromField > 0 ? batchFromField : Number.isFinite(batchFromText) && batchFromText > 0 ? batchFromText : null
+        const notaSawitId = (existingTrx as any).notaSawitId ? Number((existingTrx as any).notaSawitId) : null
         return NextResponse.json(
-          { error: 'Transaksi Uang Nota Sawit tidak bisa dihapus dari menu Kasir. Hapus dari menu Nota Sawit > Pembayaran.' },
-          { status: 400 },
+          {
+            error: `Transaksi Uang Nota Sawit tidak bisa dihapus dari menu Kasir. ${batchId ? `batchId=#${batchId}. ` : ''}${notaSawitId ? `notaSawitId=${notaSawitId}. ` : ''}Hapus/ubah dari menu Nota Sawit > Pembayaran.`,
+            relations: { kasTransaksiId: trxId, notaSawitId, batchId },
+          },
+          { status: 409 },
         )
       }
     }

@@ -1394,6 +1394,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                       const num = Number((val || '').toString().replace(/\D/g, '')) || 0
                       const isOff = !!absenOffMap[key]
                       const isWork = !!absenWorkMap[key]
+                      const isWorkEffective = isWork || num > 0 || (!!val && String(val).trim() !== '' && String(val).trim() !== '0')
                       const isPaid = !!absenPaidMap[key]
                       const isFilled = !!val || isOff || isWork || !!absenNoteMap[key]
                       
@@ -1419,7 +1420,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                           className={`h-20 sm:h-24 md:h-28 rounded-xl sm:rounded-2xl border p-1.5 sm:p-2 text-left transition-all hover:ring-2 hover:ring-gray-200 relative group
                             ${isOff ? 'bg-red-50 border-red-100 text-red-700' : 
                               isPaid ? 'bg-purple-50 border-purple-100 text-purple-700' :
-                              num > 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 
+                              isWorkEffective ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
                               'bg-white border-gray-100 text-gray-700'}`}
                         >
                           <div className="flex justify-between items-start mb-1 sm:mb-2">
@@ -1428,10 +1429,13 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                           </div>
                           <div className="space-y-0.5 sm:space-y-1">
                             {isOff ? (
-                              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight">Libur</div>
-                            ) : num > 0 ? (
-                              <div className="flex flex-col">
-                                <span className="text-[10px] sm:text-xs font-bold truncate">Rp {num.toLocaleString('id-ID')}</span>
+                              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight text-red-600">Libur</div>
+                            ) : isWorkEffective ? (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight text-emerald-700">Masuk Kerja</div>
+                                {num > 0 ? (
+                                  <span className="text-[10px] sm:text-xs font-bold truncate">Rp {num.toLocaleString('id-ID')}</span>
+                                ) : null}
                               </div>
                             ) : null}
                           </div>

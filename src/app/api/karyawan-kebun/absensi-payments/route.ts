@@ -975,7 +975,14 @@ export async function DELETE(request: Request) {
         select: { id: true },
       })
       if (gajianLocked) {
-        return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+        const gajianId = Number(gajianLocked.id)
+        return NextResponse.json(
+          {
+            error: `Pembayaran gajian harian tidak bisa dihapus karena sudah masuk gajian periode. gajianId=${gajianId}. Hapus/ubah gajian dulu.`,
+            relations: { kebunId, karyawanId, date: dateKey, gajianId },
+          },
+          { status: 409 },
+        )
       }
     }
     const trxRows = await prisma.kasTransaksi.findMany({

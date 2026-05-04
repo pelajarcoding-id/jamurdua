@@ -540,6 +540,7 @@ export async function POST(request: Request) {
             deletedAt: null,
             kategori: 'PENJUALAN_SAWIT',
             OR: [
+              { notaSawitPembayaranBatchId: batch.id } as any,
               { keterangan: { startsWith: `Batch ID: ${batch.id} •` } },
               { deskripsi: { startsWith: `Uang Nota Sawit Batch #${batch.id} -` } },
             ],
@@ -559,6 +560,7 @@ export async function POST(request: Request) {
                 kebunId: kebunId || null,
                 userId: transactionUserId,
                 notaSawitId: null,
+                notaSawitPembayaranBatchId: batch.id,
                 deletedAt: null,
                 deletedById: null,
               } as any,
@@ -573,6 +575,7 @@ export async function POST(request: Request) {
                 keterangan: keteranganKas,
                 kebunId: kebunId || undefined,
                 userId: transactionUserId,
+                notaSawitPembayaranBatchId: batch.id,
               } as any,
             })
 

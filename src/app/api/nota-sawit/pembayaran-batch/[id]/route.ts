@@ -261,6 +261,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           deletedAt: null,
           kategori: 'PENJUALAN_SAWIT',
           OR: [
+            { notaSawitPembayaranBatchId: batchId } as any,
             { keterangan: { startsWith: `Batch ID: ${batchId} •` } },
             { deskripsi: { startsWith: `Uang Nota Sawit Batch #${batchId} -` } },
           ],
@@ -289,6 +290,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
                 kebunId: kebunId || null,
                 userId: transactionUserId,
                 notaSawitId: null,
+                notaSawitPembayaranBatchId: batchId,
                 deletedAt: null,
                 deletedById: null,
               } as any,
@@ -303,6 +305,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
                 keterangan: keteranganKas,
                 kebunId: kebunId || undefined,
                 userId: transactionUserId,
+                notaSawitPembayaranBatchId: batchId,
               } as any,
             })
         await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: kasTrx.id } })
@@ -365,20 +368,22 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
         if (newer) throw new Error('LOCKED')
       }
 
-      const kasTrx = await tx.kasTransaksi.findFirst({
+      const kasIds = await tx.kasTransaksi.findMany({
         where: {
           deletedAt: null,
           kategori: 'PENJUALAN_SAWIT',
           OR: [
+            { notaSawitPembayaranBatchId: batchId } as any,
             { keterangan: { startsWith: `Batch ID: ${batchId} •` } },
             { deskripsi: { startsWith: `Uang Nota Sawit Batch #${batchId} -` } },
           ],
         } as any,
         select: { id: true },
       })
-      if (kasTrx) {
-        await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: kasTrx.id } })
-        await tx.kasTransaksi.update({ where: { id: kasTrx.id }, data: { deletedAt: new Date(), deletedById: guard.id } as any })
+      const kasIdList = (kasIds || []).map((r: any) => Number(r?.id)).filter((n: number) => Number.isFinite(n) && n > 0)
+      if (kasIdList.length > 0) {
+        await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: { in: kasIdList } } })
+        await tx.kasTransaksi.updateMany({ where: { id: { in: kasIdList } }, data: { deletedAt: new Date(), deletedById: guard.id } as any })
       }
 
       if (notaIds.length > 0) {

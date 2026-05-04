@@ -715,6 +715,41 @@ export async function DELETE(request: Request) {
       )
     }
 
+    const linkedToPembayaranRows = await (prisma as any).notaSawitPembayaranBatchItem.findMany({
+      where: { notaSawitId: { in: ids } },
+      select: { batchId: true, notaSawitId: true },
+      orderBy: [{ batchId: 'desc' }],
+      take: 200,
+    })
+    if (Array.isArray(linkedToPembayaranRows) && linkedToPembayaranRows.length > 0) {
+      const notaToBatchIds = new Map<number, number[]>()
+      const batchIdSet = new Set<number>()
+      for (const r of linkedToPembayaranRows as any[]) {
+        const notaId = Number(r?.notaSawitId)
+        const batchId = Number(r?.batchId)
+        if (!Number.isFinite(notaId) || notaId <= 0) continue
+        if (!Number.isFinite(batchId) || batchId <= 0) continue
+        batchIdSet.add(batchId)
+        const prev = notaToBatchIds.get(notaId) || []
+        if (!prev.includes(batchId)) prev.push(batchId)
+        notaToBatchIds.set(notaId, prev)
+      }
+      const batchIds = Array.from(batchIdSet).sort((a, b) => b - a).slice(0, 10)
+      const preview = Array.from(notaToBatchIds.entries())
+        .slice(0, 8)
+        .map(([notaId, bIds]) => ({ notaId, batchIds: bIds.slice(0, 5).sort((a, b) => b - a) }))
+
+      const batchText = batchIds.length > 0 ? `Batch terkait: ${batchIds.map((b) => `#${b}`).join(', ')}.` : ''
+      return NextResponse.json(
+        {
+          error: `nota sawit tidak bisa dihapus karena sudah masuk pembayaran nota sawit (batch). ${batchText} Hapus/ubah batch dulu, lalu coba lagi.`,
+          batches: batchIds,
+          notaBatchPreview: preview,
+        },
+        { status: 409 },
+      )
+    }
+
     const updated = await prisma.notaSawit.updateMany({
       where: { id: { in: ids }, deletedAt: null },
       data: { deletedAt: new Date(), deletedById: currentUserId },
