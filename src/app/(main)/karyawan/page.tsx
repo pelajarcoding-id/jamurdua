@@ -1024,6 +1024,7 @@ export default function KaryawanKebunPage() {
     const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
     let hariKerja = 0
     let totalGaji = 0
+    let jamKerjaBelumDibayar = 0
     Object.entries(absenWorkMap).forEach(([date, work]) => {
       if (work && date.startsWith(ym)) hariKerja += 1
     })
@@ -1032,10 +1033,17 @@ export default function KaryawanKebunPage() {
       const num = parseIdThousandInt(val)
       totalGaji += num
     })
+    Object.entries(absenHourlyMap).forEach(([date, hourly]) => {
+      if (!hourly || !date.startsWith(ym)) return
+      if (absenPaidMap[date]) return
+      const raw = (absenHourMap[date] || '').toString().trim()
+      const hours = parseFloat(raw.replace(',', '.')) || 0
+      if (hours > 0) jamKerjaBelumDibayar += hours
+    })
     const gajiBerjalan = selectedUser ? Math.round(Number(summaryData?.gaji?.unpaid || 0)) : 0
     const hutang = selectedUser ? Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0) : 0
-    return { hariKerja, totalGaji, gajiBerjalan, hutang }
-  }, [absenMonth, absenWorkMap, absenMap, rows, selectedUser, summaryData])
+    return { hariKerja, totalGaji, gajiBerjalan, hutang, jamKerjaBelumDibayar }
+  }, [absenMonth, absenWorkMap, absenMap, absenHourlyMap, absenHourMap, absenPaidMap, rows, selectedUser, summaryData])
   const formatJobTypeLabel = useCallback((raw?: string | null) => {
     const val = (raw || '').toString().toUpperCase().trim()
     if (!val || val === 'ALL') return 'Semua Jenis'
@@ -2637,10 +2645,17 @@ export default function KaryawanKebunPage() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-6">
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
                 <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Hari Kerja</p>
                 <p className="text-2xl font-bold text-emerald-900">{absenSummary.hariKerja} <span className="text-sm font-normal text-emerald-600">Hari</span></p>
+              </div>
+              <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100 shadow-sm">
+                <p className="text-xs font-medium text-sky-600 uppercase tracking-wider mb-1">Jam Kerja (Belum Dibayar)</p>
+                <p className="text-2xl font-bold text-sky-900">
+                  {absenSummary.jamKerjaBelumDibayar.toLocaleString('id-ID', { maximumFractionDigits: 2 })}{' '}
+                  <span className="text-sm font-normal text-sky-700">Jam</span>
+                </p>
               </div>
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
                 <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Gaji Berjalan</p>

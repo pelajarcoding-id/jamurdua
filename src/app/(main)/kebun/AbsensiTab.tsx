@@ -436,6 +436,11 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
           const nextWork: Record<string, boolean> = {}
           const nextOff: Record<string, boolean> = {}
           const nextNote: Record<string, string> = {}
+          const nextHourly: Record<string, boolean> = {}
+          const nextHour: Record<string, string> = {}
+          const nextRate: Record<string, string> = {}
+          const nextMealEnabled: Record<string, boolean> = {}
+          const nextMeal: Record<string, string> = {}
           
           records.forEach((r: any) => {
             const key = normalizeDateKey(r?.date)
@@ -445,12 +450,26 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
             if (r.kerja) nextWork[key] = true
             if (r.libur) nextOff[key] = true
             if (r.note) nextNote[key] = r.note
+            if (r.useHourly) {
+              nextHourly[key] = true
+              nextHour[key] = r.jamKerja != null ? String(r.jamKerja) : ''
+              nextRate[key] = r.ratePerJam != null ? formatRibuanId(String(Math.round(Number(r.ratePerJam) || 0))) : ''
+            }
+            if (r.uangMakan != null && Number(r.uangMakan) > 0) {
+              nextMealEnabled[key] = true
+              nextMeal[key] = formatRibuanId(String(Math.round(Number(r.uangMakan) || 0)))
+            }
           })
           
           setAbsenMap(nextAmount)
           setAbsenWorkMap(nextWork)
           setAbsenOffMap(nextOff)
           setAbsenNoteMap(nextNote)
+          setAbsenHourlyMap(nextHourly)
+          setAbsenHourMap(nextHour)
+          setAbsenRateMap(nextRate)
+          setAbsenMealEnabledMap(nextMealEnabled)
+          setAbsenMealMap(nextMeal)
           
           // Also update localStorage to keep it in sync
           const storageKey = getAbsensiStorageKey(kebunId, absenUserId, absenMonth)
@@ -458,7 +477,12 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
             amount: nextAmount,
             work: nextWork,
             off: nextOff,
-            note: nextNote
+            note: nextNote,
+            hourly: nextHourly,
+            hour: nextHour,
+            rate: nextRate,
+            mealEnabled: nextMealEnabled,
+            meal: nextMeal,
           }))
         }
       } catch (e) {
@@ -482,7 +506,11 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
         setAbsenWorkMap(prev => Object.keys(prev).length === 0 ? (parsed.work || {}) : prev)
         setAbsenOffMap(prev => Object.keys(prev).length === 0 ? (parsed.off || {}) : prev)
         setAbsenNoteMap(prev => Object.keys(prev).length === 0 ? (parsed.note || {}) : prev)
-        // ... set others if needed ...
+        setAbsenHourlyMap(prev => Object.keys(prev).length === 0 ? (parsed.hourly || {}) : prev)
+        setAbsenHourMap(prev => Object.keys(prev).length === 0 ? (parsed.hour || {}) : prev)
+        setAbsenRateMap(prev => Object.keys(prev).length === 0 ? (parsed.rate || {}) : prev)
+        setAbsenMealEnabledMap(prev => Object.keys(prev).length === 0 ? (parsed.mealEnabled || {}) : prev)
+        setAbsenMealMap(prev => Object.keys(prev).length === 0 ? (parsed.meal || {}) : prev)
       }
     } catch {
       // ignore

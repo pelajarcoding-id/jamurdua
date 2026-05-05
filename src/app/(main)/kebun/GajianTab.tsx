@@ -449,7 +449,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
             <div className="text-xl sm:text-2xl font-bold text-emerald-900 mt-2 leading-tight break-words">{formatCurrency(totalGajiUnpaid)}</div>
           </div>
           <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
-            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Total Biaya Lain</div>
+            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Total Biaya Borongan</div>
             <div className="text-xl sm:text-2xl font-bold text-blue-900 mt-2 leading-tight break-words">{formatCurrency(totalBiayaLain)}</div>
           </div>
           <div className="p-4 rounded-2xl bg-white border border-gray-100">

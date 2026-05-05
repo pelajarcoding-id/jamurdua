@@ -49,7 +49,7 @@ export function GajianPotonganSection(props: {
             <Button
               variant="outline"
               onClick={props.onAddPotongan}
-              className="h-10 px-4 rounded-full border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
+              className="h-10 px-4 rounded-full border-red-600 bg-red-600 text-white hover:bg-red-700 hover:border-red-700 text-xs sm:text-sm whitespace-nowrap inline-flex items-center justify-center shrink-0 w-[160px]"
             >
               <span className="sm:hidden">Tambah</span>
               <span className="hidden sm:inline">+ Tambah Potongan</span>
@@ -165,4 +165,3 @@ export function GajianPotonganSection(props: {
     </div>
   )
 }
-
