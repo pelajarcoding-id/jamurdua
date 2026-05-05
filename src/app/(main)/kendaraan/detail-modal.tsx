@@ -57,6 +57,14 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
         fetcher
     );
 
+    // Fetch Biaya Tag (Kas Transaksi tagged to this vehicle)
+    const { data: biayaTagData, isLoading: isLoadingBiayaTag } = useSWR<{ data: any[]; meta?: { totalJumlah?: number } }>(
+        isOpen && kendaraan?.platNomor ? `/api/reports/cost-center/kas-transaksi?tagScope=kendaraan&kendaraanPlatNomor=${encodeURIComponent(kendaraan.platNomor)}&page=1&pageSize=50` : null,
+        fetcher
+    );
+    const biayaTagRows = biayaTagData?.data ?? [];
+    const biayaTagTotal = biayaTagData?.meta?.totalJumlah ?? 0;
+
     const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
     const printRef = useRef<HTMLDivElement>(null);
@@ -659,6 +667,77 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
                                                     <TableRow>
                                                         <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                                                             Belum ada riwayat servis
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+
+                                {/* Biaya Tag - Kas Transaksi */}
+                                <div className="mb-8">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            </svg>
+                                            Biaya Tag Kendaraan
+                                        </h3>
+                                        <div className="text-sm text-gray-600">
+                                            Total: <span className="font-bold text-gray-900">Rp {biayaTagTotal.toLocaleString('id-ID')}</span>
+                                        </div>
+                                    </div>
+                                    <div className="border rounded-lg overflow-x-auto">
+                                        <Table>
+                                            <TableHeader className="bg-gray-50">
+                                                <TableRow>
+                                                    <TableHead>Tanggal</TableHead>
+                                                    <TableHead>Deskripsi</TableHead>
+                                                    <TableHead>Kategori</TableHead>
+                                                    <TableHead>Tipe</TableHead>
+                                                    <TableHead className="text-right">Jumlah</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {isLoadingBiayaTag ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                                            Memuat data...
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : biayaTagRows.length > 0 ? (
+                                                    biayaTagRows.map((row) => (
+                                                        <TableRow key={row.id}>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                {format(new Date(row.date), 'dd MMM yyyy', { locale: idLocale })}
+                                                            </TableCell>
+                                                            <TableCell className="max-w-[200px] truncate" title={row.deskripsi}>
+                                                                {row.deskripsi || '-'}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {row.kategori || '-'}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                                    row.tipe === 'PENGELUARAN' 
+                                                                        ? 'bg-red-100 text-red-700' 
+                                                                        : 'bg-emerald-100 text-emerald-700'
+                                                                }`}>
+                                                                    {row.tipe === 'PENGELUARAN' ? 'Keluar' : 'Masuk'}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right whitespace-nowrap">
+                                                                <span className={row.tipe === 'PENGELUARAN' ? 'text-red-600' : 'text-emerald-600'}>
+                                                                    {row.tipe === 'PENGELUARAN' ? '-' : '+'} Rp {Number(row.jumlah || 0).toLocaleString('id-ID')}
+                                                                </span>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                                            Tidak ada biaya tag untuk kendaraan ini
                                                         </TableCell>
                                                     </TableRow>
                                                 )}

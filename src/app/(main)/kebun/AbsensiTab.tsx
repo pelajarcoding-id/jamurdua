@@ -116,6 +116,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   const [absenWorkMap, setAbsenWorkMap] = useState<Record<string, boolean>>({})
   const [absenOffMap, setAbsenOffMap] = useState<Record<string, boolean>>({})
   const [absenNoteMap, setAbsenNoteMap] = useState<Record<string, string>>({})
+  const [absenSourceMap, setAbsenSourceMap] = useState<Record<string, string>>({})
   const [absenHourlyMap, setAbsenHourlyMap] = useState<Record<string, boolean>>({})
   const [absenHourMap, setAbsenHourMap] = useState<Record<string, string>>({})
   const [absenRateMap, setAbsenRateMap] = useState<Record<string, string>>({})
@@ -436,6 +437,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
           const nextWork: Record<string, boolean> = {}
           const nextOff: Record<string, boolean> = {}
           const nextNote: Record<string, string> = {}
+          const nextSource: Record<string, string> = {}
           const nextHourly: Record<string, boolean> = {}
           const nextHour: Record<string, string> = {}
           const nextRate: Record<string, string> = {}
@@ -449,7 +451,15 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
             if (r.jumlah > 0) nextAmount[key] = String(r.jumlah)
             if (r.kerja) nextWork[key] = true
             if (r.libur) nextOff[key] = true
-            if (r.note) nextNote[key] = r.note
+            const src = r.source == null ? '' : String(r.source)
+            const noteText = r.note == null ? '' : String(r.note)
+            const noteTrim = noteText.trim()
+            const noteUpper = noteTrim.toUpperCase()
+            const srcUpper = String(src || '').trim().toUpperCase()
+            if (noteTrim && !(noteUpper === srcUpper && srcUpper) && !['KIOSK', 'SELFIE', 'KIOSK-SELFIE'].includes(noteUpper)) nextNote[key] = noteTrim
+            if (src) nextSource[key] = src
+            const isSelfieMasuk = String(r.source || '').toUpperCase() === 'SELFIE'
+            if (isSelfieMasuk && !r.libur) nextWork[key] = true
             if (r.useHourly) {
               nextHourly[key] = true
               nextHour[key] = r.jamKerja != null ? String(r.jamKerja) : ''
@@ -465,6 +475,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
           setAbsenWorkMap(nextWork)
           setAbsenOffMap(nextOff)
           setAbsenNoteMap(nextNote)
+          setAbsenSourceMap(nextSource)
           setAbsenHourlyMap(nextHourly)
           setAbsenHourMap(nextHour)
           setAbsenRateMap(nextRate)
@@ -478,6 +489,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
             work: nextWork,
             off: nextOff,
             note: nextNote,
+            source: nextSource,
             hourly: nextHourly,
             hour: nextHour,
             rate: nextRate,
@@ -506,6 +518,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
         setAbsenWorkMap(prev => Object.keys(prev).length === 0 ? (parsed.work || {}) : prev)
         setAbsenOffMap(prev => Object.keys(prev).length === 0 ? (parsed.off || {}) : prev)
         setAbsenNoteMap(prev => Object.keys(prev).length === 0 ? (parsed.note || {}) : prev)
+        setAbsenSourceMap(prev => Object.keys(prev).length === 0 ? (parsed.source || {}) : prev)
         setAbsenHourlyMap(prev => Object.keys(prev).length === 0 ? (parsed.hourly || {}) : prev)
         setAbsenHourMap(prev => Object.keys(prev).length === 0 ? (parsed.hour || {}) : prev)
         setAbsenRateMap(prev => Object.keys(prev).length === 0 ? (parsed.rate || {}) : prev)
@@ -604,6 +617,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     let hariKerja = 0
     let totalGaji = 0
     let totalMeal = 0
+    let jamKerjaBelumDibayar = 0
     Object.entries(absenWorkMap).forEach(([date, work]) => {
       if (work && date.startsWith(ym)) hariKerja += 1
     })
@@ -618,9 +632,16 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
       const num = parseThousandInt(val)
       totalMeal += num
     })
+    Object.entries(absenHourlyMap).forEach(([date, hourly]) => {
+      if (!hourly || !date.startsWith(ym)) return
+      if (absenPaidMap[date]) return
+      const raw = (absenHourMap[date] || '').toString().trim()
+      const hours = parseFloat(raw.replace(',', '.')) || 0
+      if (hours > 0) jamKerjaBelumDibayar += hours
+    })
     const hutang = selectedUser ? Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0) : 0
-    return { hariKerja, totalGaji, totalMeal, hutang }
-  }, [absenMonth, absenWorkMap, absenMap, absenPaidMap, absenMealMap, absenMealEnabledMap, selectedUser, rows])
+    return { hariKerja, totalGaji, totalMeal, hutang, jamKerjaBelumDibayar }
+  }, [absenMonth, absenWorkMap, absenMap, absenPaidMap, absenMealMap, absenMealEnabledMap, absenHourlyMap, absenHourMap, selectedUser, rows])
 
   const unpaidDates = useMemo(() => {
     const ym = `${absenMonth.getFullYear()}-${String(absenMonth.getMonth() + 1).padStart(2, '0')}`
@@ -660,18 +681,24 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
     }
     setAbsenSaving(true)
     try {
-      const num = parseThousandInt(absenValue)
+      const baseManual = parseThousandInt(absenValue)
+      const hours = parseFloat(String(absenHour || '').trim().replace(',', '.')) || 0
+      const rate = Number(String(absenRate || '').replace(/\D/g, '')) || 0
+      const useHourly = !!absenUseHourly && hours > 0 && rate > 0
+      const hourlyAmount = useHourly ? hours * rate : 0
+      const mealAmount = absenMealEnabled ? parseThousandInt(absenMealAmount) : 0
+      const totalAmount = Math.max(0, Math.round(baseManual + hourlyAmount + mealAmount))
       const entry = {
         date: absenSelectedDate,
-        amount: num,
+        amount: totalAmount,
         work: absenWork,
         off: absenOff,
         note: absenNote,
-        hourly: absenUseHourly,
-        hour: Number(absenHour.replace(',', '.')) || 0,
-        rate: Number(absenRate.replace(/\D/g, '')) || 0,
+        hourly: useHourly,
+        hour: useHourly ? hours : 0,
+        rate: useHourly ? rate : 0,
         mealEnabled: absenMealEnabled,
-        meal: Number(absenMealAmount.replace(/\D/g, '')) || 0,
+        meal: absenMealEnabled ? mealAmount : 0,
       }
 
       const res = await fetch('/api/karyawan-kebun/absensi', {
@@ -686,15 +713,15 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
 
       if (res.ok) {
         // Update local maps
-        const nextAmount = { ...absenMap, [absenSelectedDate]: String(num) }
-        const nextWork = { ...absenWorkMap, [absenSelectedDate]: absenWork }
+        const nextAmount = { ...absenMap, [absenSelectedDate]: totalAmount > 0 ? formatRibuanId(String(totalAmount)) : '' }
+        const nextWork = { ...absenWorkMap, [absenSelectedDate]: absenWork || totalAmount > 0 }
         const nextOff = { ...absenOffMap, [absenOffMap[absenSelectedDate] ? absenSelectedDate : '']: false, [absenSelectedDate]: absenOff }
         const nextNote = { ...absenNoteMap, [absenSelectedDate]: absenNote }
-        const nextHourly = { ...absenHourlyMap, [absenSelectedDate]: absenUseHourly }
-        const nextHour = { ...absenHourMap, [absenSelectedDate]: absenHour }
-        const nextRate = { ...absenRateMap, [absenSelectedDate]: absenRate }
+        const nextHourly = { ...absenHourlyMap, [absenSelectedDate]: useHourly }
+        const nextHour = { ...absenHourMap, [absenSelectedDate]: useHourly ? String(hours) : '' }
+        const nextRate = { ...absenRateMap, [absenSelectedDate]: useHourly ? formatRibuanId(String(rate)) : '' }
         const nextMealEnabled = { ...absenMealEnabledMap, [absenSelectedDate]: absenMealEnabled }
-        const nextMeal = { ...absenMealMap, [absenSelectedDate]: absenMealAmount }
+        const nextMeal = { ...absenMealMap, [absenSelectedDate]: absenMealEnabled ? formatRibuanId(String(mealAmount)) : '' }
 
         setAbsenMap(nextAmount)
         setAbsenWorkMap(nextWork)
@@ -1383,13 +1410,15 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                     <p className="text-xs text-emerald-700">Hari Kerja</p>
                     <p className="text-lg font-semibold text-gray-900">{absenSummary.hariKerja.toLocaleString('id-ID')} Hari</p>
                   </div>
+                  <div className="rounded-xl bg-indigo-50/70 px-3 py-2">
+                    <p className="text-xs text-indigo-700">Jam Kerja (Belum Dibayar)</p>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {absenSummary.jamKerjaBelumDibayar.toLocaleString('id-ID', { maximumFractionDigits: 2 })} <span className="text-sm font-normal text-indigo-600">Jam</span>
+                    </p>
+                  </div>
                   <div className="rounded-xl bg-sky-50/70 px-3 py-2">
                     <p className="text-xs text-sky-700">Gaji Berjalan</p>
                     <p className="text-lg font-semibold text-gray-900">Rp {absenSummary.totalGaji.toLocaleString('id-ID')}</p>
-                  </div>
-                  <div className="rounded-xl bg-amber-50/70 px-3 py-2">
-                    <p className="text-xs text-amber-700">Uang Makan</p>
-                    <p className="text-lg font-semibold text-gray-900">Rp {absenSummary.totalMeal.toLocaleString('id-ID')}</p>
                   </div>
                   <div className="rounded-xl bg-emerald-50/60 px-3 py-2">
                     <p className="text-xs text-emerald-700">Saldo Hutang</p>
@@ -1431,10 +1460,24 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                           key={key}
                           onClick={() => {
                             setAbsenSelectedDate(key)
-                            setAbsenValue(val ? formatRibuanId(val) : (absenDefaultAmount > 0 ? formatRibuanId(String(absenDefaultAmount)) : ''))
+                            const hasHourly = !!absenHourlyMap[key]
+                            const hourRaw = (absenHourMap[key] || '').toString().trim()
+                            const hours = parseFloat(hourRaw.replace(',', '.')) || 0
+                            const rate = parseThousandInt(absenRateMap[key])
+                            const hourlyAmount = hasHourly && hours > 0 && rate > 0 ? hours * rate : 0
+                            const mealAmount = !!absenMealEnabledMap[key] ? parseThousandInt(absenMealMap[key]) : 0
+                            const total = parseThousandInt(val || '0')
+                            const manual = Math.max(0, Math.round(total - hourlyAmount - mealAmount))
+
+                            setAbsenValue(val ? (manual > 0 ? formatRibuanId(String(manual)) : '') : (absenDefaultAmount > 0 ? formatRibuanId(String(absenDefaultAmount)) : ''))
                             setAbsenWork(isWork || !!val || (absenDefaultAmount > 0 && !isOff))
                             setAbsenOff(isOff)
                             setAbsenNote(absenNoteMap[key] || '')
+                            setAbsenUseHourly(hasHourly)
+                            setAbsenHour(absenHourMap[key] || '')
+                            setAbsenRate(absenRateMap[key] || '')
+                            setAbsenMealEnabled(!!absenMealEnabledMap[key])
+                            setAbsenMealAmount(absenMealMap[key] || '')
                             
                             if (isFilled) {
                               setOpenAbsenView(true)
@@ -1461,6 +1504,11 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                             ) : isWorkEffective ? (
                               <div className="flex flex-col gap-0.5">
                                 <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight text-emerald-700">Masuk Kerja</div>
+                                {!!absenHourlyMap[key] && absenHourMap[key] ? (
+                                  <div className="text-[9px] sm:text-[10px] font-semibold text-indigo-600">
+                                    {absenHourMap[key]} Jam
+                                  </div>
+                                ) : null}
                                 {num > 0 ? (
                                   <span className="text-[10px] sm:text-xs font-bold truncate">Rp {num.toLocaleString('id-ID')}</span>
                                 ) : null}
@@ -1854,7 +1902,16 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-gray-500 font-medium">Upah Harian:</span>
                 <span className="font-bold text-gray-900">
-                  {!absenHourlyMap[absenSelectedDate] ? `Rp ${parseThousandInt(absenMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}
+                  {(() => {
+                    const total = parseThousandInt(absenMap[absenSelectedDate] || '0')
+                    const hasHourly = !!absenHourlyMap[absenSelectedDate]
+                    const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
+                    const rate = parseThousandInt(absenRateMap[absenSelectedDate] || '0')
+                    const hourlyAmount = hasHourly && hours > 0 && rate > 0 ? hours * rate : 0
+                    const mealAmount = !!absenMealEnabledMap[absenSelectedDate] ? parseThousandInt(absenMealMap[absenSelectedDate] || '0') : 0
+                    const manual = Math.max(0, Math.round(total - hourlyAmount - mealAmount))
+                    return `Rp ${manual.toLocaleString('id-ID')}`
+                  })()}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
@@ -1865,6 +1922,18 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                   ) : '-'}
                 </span>
               </div>
+              {absenHourlyMap[absenSelectedDate] && (
+                <div className="flex justify-between items-center text-sm p-2 px-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                  <span className="text-indigo-600 font-medium">Total Upah Per Jam:</span>
+                  <span className="font-bold text-indigo-700">
+                    Rp {(() => {
+                      const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
+                      const rate = parseThousandInt(absenRateMap[absenSelectedDate] || '0')
+                      return Math.round(hours * rate).toLocaleString('id-ID')
+                    })()}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-gray-500 font-medium">Uang Makan:</span>
                 <span className="font-bold text-gray-900">
@@ -1954,12 +2023,30 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
                         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                           <tr style="background-color: #f3f4f6;">
                             <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Upah Harian</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${!absenHourlyMap[absenSelectedDate] ? `Rp ${Number(absenMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${(() => {
+                              const total = Number(String(absenMap[absenSelectedDate] || '0').replace(/\D/g, '')) || 0
+                              const hasHourly = !!absenHourlyMap[absenSelectedDate]
+                              const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
+                              const rate = Number(String(absenRateMap[absenSelectedDate] || '0').replace(/\D/g, '')) || 0
+                              const hourlyAmount = hasHourly && hours > 0 && rate > 0 ? hours * rate : 0
+                              const mealAmount = !!absenMealEnabledMap[absenSelectedDate] ? (Number(String(absenMealMap[absenSelectedDate] || '0').replace(/\D/g, '')) || 0) : 0
+                              const manual = Math.max(0, Math.round(total - hourlyAmount - mealAmount))
+                              return `Rp ${manual.toLocaleString('id-ID')}`
+                            })()}</td>
                           </tr>
                           <tr>
                             <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Upah Per Jam</td>
                             <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${absenHourlyMap[absenSelectedDate] ? `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${Number(absenRateMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}</td>
                           </tr>
+                          ${absenHourlyMap[absenSelectedDate] ? `
+                          <tr style="background-color: #eef2ff;">
+                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #4f46e5;">Total Upah Per Jam</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold; color: #4f46e5;">Rp ${(() => {
+                              const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
+                              const rate = Number(String(absenRateMap[absenSelectedDate] || '0').replace(/\D/g, '')) || 0
+                              return Math.round(hours * rate).toLocaleString('id-ID')
+                            })()}</td>
+                          </tr>` : ''}
                           <tr style="background-color: #f3f4f6;">
                             <td style="padding: 10px;">Uang Makan</td>
                             <td style="padding: 10px; text-align: right; font-weight: bold;">${absenMealEnabledMap[absenSelectedDate] ? `Rp ${Number(absenMealMap[absenSelectedDate]?.replace(/\./g, '') || 0).toLocaleString('id-ID')}` : '-'}</td>

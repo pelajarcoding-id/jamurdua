@@ -2750,7 +2750,14 @@ export default function KaryawanKebunPage() {
                         onClick={() => {
                           setAbsenSelectedDate(key);
                           if (val) {
-                            setAbsenValue(val);
+                            const total = parseIdThousandInt(val)
+                            const hasHourly = !!absenHourlyMap[key]
+                            const hours = parseFloat(String(absenHourMap[key] || '').trim().replace(',', '.')) || 0
+                            const rate = parseIdThousandInt(absenRateMap[key] || '')
+                            const hourlyAmount = hasHourly && hours > 0 && rate > 0 ? hours * rate : 0
+                            const mealAmount = !!absenMealEnabledMap[key] ? parseIdThousandInt(absenMealMap[key] || '') : 0
+                            const manual = Math.max(0, Math.round(total - hourlyAmount - mealAmount))
+                            setAbsenValue(manual > 0 ? formatRibuanId(String(manual)) : '')
                           } else if (absenDefaultAmount > 0) {
                             setAbsenValue(formatRibuanId(String(absenDefaultAmount)));
                           } else {

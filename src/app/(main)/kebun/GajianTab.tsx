@@ -601,8 +601,7 @@ export default function GajianTab({ kebunId }: { kebunId: number }) {
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="rounded-full h-8 text-xs"
+                  className="rounded-full h-8 text-xs bg-red-600 text-white hover:bg-red-700 border-red-600"
                   onClick={() => {
                     const newId = `p-${Date.now()}`
                     setPotonganList((prev) => [...prev, { id: newId, deskripsi: '', total: 0, keterangan: '', tanggal: '' }])

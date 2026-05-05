@@ -79,10 +79,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
       // 3. Delete GajianHutangTambahan
       // Note: If the table doesn't exist in some environments, we use executeRaw
-      await tx.$executeRawUnsafe(`DELETE FROM "GajianHutangTambahan" WHERE "gajianId" = ${gajianId}`);
+      await tx.$executeRawUnsafe(`DELETE FROM "GajianHutangTambahan" WHERE "gajianId" = $1`, gajianId);
 
       // 4. Delete AbsensiGajiHarian
-      await tx.$executeRawUnsafe(`DELETE FROM "AbsensiGajiHarian" WHERE "gajianId" = ${gajianId}`);
+      await tx.$executeRawUnsafe(`DELETE FROM "AbsensiGajiHarian" WHERE "gajianId" = $1`, gajianId);
 
       await tx.pekerjaanKebun.deleteMany({
         where: {
