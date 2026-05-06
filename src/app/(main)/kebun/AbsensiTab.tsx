@@ -246,6 +246,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   const totalGajiBerjalan = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.totalGajiBelumDibayar || 0), 0), [filteredRows])
   const totalGajiDibayar = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.totalGajiDibayar || 0), 0), [filteredRows])
   const totalSaldoHutang = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.hutangSaldo || 0), 0), [filteredRows])
+  const totalHariKerja = useMemo(() => filteredRows.reduce((acc, curr) => acc + (curr.hariKerja || 0), 0), [filteredRows])
 
   const hutangList = useMemo(() => {
     return [...filteredRows].sort((a, b) => (Number(b.hutangSaldo || 0) - Number(a.hutangSaldo || 0)))
@@ -1353,6 +1354,7 @@ export default function AbsensiTab({ kebunId }: { kebunId: number }) {
               <tfoot className="bg-gray-50 border-t border-gray-200">
                 <tr>
                   <td colSpan={2} className="px-4 py-3 font-bold text-gray-900 text-right">TOTAL</td>
+                  <td className="px-4 py-3 font-bold text-emerald-600 text-right">{totalHariKerja} Hari</td>
                   <td className="px-4 py-3 font-bold text-gray-900 text-right">Rp {totalGajiBerjalan.toLocaleString('id-ID')}</td>
                   <td className="px-4 py-3 font-bold text-emerald-700 text-right">Rp {totalGajiDibayar.toLocaleString('id-ID')}</td>
                   <td className="px-4 py-3 font-bold text-red-600 text-right">Rp {totalSaldoHutang.toLocaleString('id-ID')}</td>
