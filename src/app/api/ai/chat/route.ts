@@ -3229,17 +3229,8 @@ async function reportDbRawSelect(args: any): Promise<ChatResponse> {
   const rawSql = String(args?.sql || '').trim()
   const v = validateReadOnlySql(rawSql)
   if (!v.ok) return { answer: `sql ditolak: ${v.error}`, tables: [] }
-  const sql = ensureSqlLimit(v.sql, 100)
-  const rows = await prisma.$queryRawUnsafe(sql)
-  const list = Array.isArray(rows) ? (rows as any[]).map(stripSensitiveDeep) : []
-  const first = list[0]
-  const cols = first && typeof first === 'object' ? Object.keys(first).slice(0, 20) : ['value']
-  const table: TablePayload = {
-    title: 'SQL result',
-    columns: cols,
-    rows: list.slice(0, 50).map((r: any) => cols.map((c) => valueToCell(r?.[c]))),
-  }
-  return { answer: `SQL ok. Rows ${list.length} (ditampilkan max 50).`, tables: [table] }
+  // SECURITY: raw SQL execution disabled to prevent SQL injection via LLM-generated queries
+  return { answer: 'Eksekusi SQL raw tidak diizinkan untuk alasan keamanan. Gunakan query builder Prisma.', tables: [] }
 }
 
 type DbMetric = 'count' | 'sum' | 'avg' | 'min' | 'max'
@@ -3270,11 +3261,8 @@ async function evalCompareSpec(spec: DbCompareSpec) {
   if (spec?.sql) {
     const v = validateReadOnlySql(String(spec.sql))
     if (!v.ok) return { ok: false as const, label, error: `sql ditolak: ${v.error}` }
-    const sql = ensureSqlLimit(v.sql, 1)
-    const rows = await prisma.$queryRawUnsafe(sql)
-    const value = extractFirstNumericCell(rows)
-    if (value === null) return { ok: false as const, label, error: 'sql harus mengembalikan 1 angka (1 baris/kolom angka)' }
-    return { ok: true as const, label, metric: `sql:${metric}`, value }
+    // SECURITY: raw SQL execution disabled to prevent SQL injection via LLM-generated queries
+    return { ok: false as const, label, error: 'sql ditolak: eksekusi SQL raw tidak diizinkan untuk alasan keamanan' }
   }
 
   const model = resolveModelDelegateName(spec?.model)

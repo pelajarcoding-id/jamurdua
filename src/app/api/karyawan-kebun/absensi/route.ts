@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/auth'
 import { parseWibYmd } from '@/lib/wib'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,26 +45,24 @@ const ensureTable = async () => {
       UNIQUE ("kebunId","karyawanId","date")
     )
   `)
-  // Add new columns if they don't exist
   const columns = await prisma.$queryRaw<Array<{ column_name: string }>>`
     SELECT column_name FROM information_schema.columns
     WHERE table_name = 'AbsensiHarian'
   `
   const columnNames = columns.map(c => c.column_name)
-  if (!columnNames.includes('source')) {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "source" TEXT`)
+  // SECURITY: explicit whitelist mapping to prevent SQL injection via dynamic column names
+  const columnTypeMap: Record<string, string> = {
+    source: 'TEXT',
+    jamKerja: 'NUMERIC',
+    ratePerJam: 'NUMERIC',
+    uangMakan: 'NUMERIC',
+    useHourly: 'BOOLEAN',
   }
-  if (!columnNames.includes('jamKerja')) {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "jamKerja" NUMERIC`)
-  }
-  if (!columnNames.includes('ratePerJam')) {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "ratePerJam" NUMERIC`)
-  }
-  if (!columnNames.includes('uangMakan')) {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "uangMakan" NUMERIC`)
-  }
-  if (!columnNames.includes('useHourly')) {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "useHourly" BOOLEAN`)
+  for (const col of Object.keys(columnTypeMap)) {
+    if (!columnNames.includes(col)) {
+      const type = columnTypeMap[col]
+      await prisma.$executeRawUnsafe(`ALTER TABLE "AbsensiHarian" ADD COLUMN "${col}" ${type}`)
+    }
   }
 
   await prisma.$executeRawUnsafe(`
@@ -78,38 +77,40 @@ const ensureTable = async () => {
     )
   `)
 
-  const fkAbsensiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
-    SELECT 1 as "exists"
-    FROM pg_constraint
-    WHERE conname = 'AbsensiHarian_karyawanId_fkey'
-    LIMIT 1
-  `
-  if (fkAbsensiHarian.length === 0) {
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE "AbsensiHarian"
-      ADD CONSTRAINT "AbsensiHarian_karyawanId_fkey"
-      FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
-      ON DELETE RESTRICT ON UPDATE CASCADE
-      NOT VALID
-    `)
-  }
-
-  const fkAbsensiGajiHarian = await prisma.$queryRaw<Array<{ exists: number }>>`
-    SELECT 1 as "exists"
-    FROM pg_constraint
-    WHERE conname = 'AbsensiGajiHarian_karyawanId_fkey'
-    LIMIT 1
-  `
-  if (fkAbsensiGajiHarian.length === 0) {
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE "AbsensiGajiHarian"
-      ADD CONSTRAINT "AbsensiGajiHarian_karyawanId_fkey"
-      FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
-      ON DELETE RESTRICT ON UPDATE CASCADE
-      NOT VALID
-    `)
+  for (const [table, fk] of [
+    ['AbsensiHarian', 'AbsensiHarian_karyawanId_fkey'],
+    ['AbsensiGajiHarian', 'AbsensiGajiHarian_karyawanId_fkey']
+  ] as const) {
+    const fkExists = await prisma.$queryRaw<Array<{ exists: number }>>`
+      SELECT 1 as "exists"
+      FROM pg_constraint
+      WHERE conname = ${fk}
+      LIMIT 1
+    `
+    if (fkExists.length === 0) {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "${table}"
+        ADD CONSTRAINT "${fk}"
+        FOREIGN KEY ("karyawanId") REFERENCES "User"("id")
+        ON DELETE RESTRICT ON UPDATE CASCADE
+        NOT VALID
+      `)
+    }
   }
 }
+
+const entrySchema = z.object({
+  date: z.string().min(1),
+  amount: z.number().min(0).default(0),
+  jumlah: z.number().min(0).optional(),
+  kerja: z.boolean().default(false),
+  libur: z.boolean().default(false),
+  note: z.string().optional().nullable(),
+  useHourly: z.boolean().default(false),
+  jamKerja: z.number().min(0).default(0).nullable(),
+  ratePerJam: z.number().min(0).default(0).nullable(),
+  uangMakan: z.number().min(0).default(0).nullable(),
+})
 
 export async function GET(request: Request) {
   try {
@@ -142,6 +143,7 @@ export async function GET(request: Request) {
         FROM "AbsensiHarian" a
         INNER JOIN "User" u
           ON u."id" = a."karyawanId"
+         AND u."kebunId" = ${kebunId}
         LEFT JOIN "AbsensiGajiHarian" p
           ON p."kebunId" = a."kebunId"
          AND p."karyawanId" = a."karyawanId"
@@ -170,7 +172,6 @@ export async function GET(request: Request) {
       })
     }
 
-    // Fetch all records for a specific user in a date range
     const karyawanIdParam = searchParams.get('karyawanId')
     if (karyawanIdParam) {
       const karyawanId = Number(karyawanIdParam)
@@ -233,10 +234,11 @@ export async function POST(request: Request) {
     if (!canWriteForKebun(session, kebunIdNum)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const dateKeys = entries
-      .map((entry: any) => String(entry?.date || '').trim())
-      .map((raw) => {
-        const ymd = parseWibYmd(raw)
+
+    const parsedEntries = entries.map((e: any) => entrySchema.parse(e))
+    const dateKeys = parsedEntries
+      .map((entry) => {
+        const ymd = parseWibYmd(entry.date)
         if (!ymd) return null
         return `${String(ymd.y).padStart(4, '0')}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`
       })
@@ -255,25 +257,23 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Absensi sudah dibayar gaji dan tidak bisa diubah' }, { status: 409 })
       }
     }
-    for (const entry of entries) {
-      const date = entry?.date
-      const jumlahRaw = entry?.jumlah ?? entry?.amount
-      const jumlah = Number(jumlahRaw) || 0
-      const kerja = !!(entry?.kerja ?? entry?.work)
-      const libur = !!(entry?.libur ?? entry?.off)
-      const note = entry?.keterangan ?? entry?.note ?? null
-      const jamKerja = Number(entry?.jamKerja ?? entry?.hour) || null
-      const ratePerJam = Number(entry?.ratePerJam ?? entry?.rate) || null
-      const uangMakan = Number(entry?.uangMakan ?? entry?.meal) || null
-      const useHourly = !!(entry?.useHourly ?? entry?.hourly)
 
-      if (!date) continue
+    for (const entry of parsedEntries) {
+      const date = entry.date
       const dateYmd = parseWibYmd(date)
       if (!dateYmd) continue
       const dateKey = `${String(dateYmd.y).padStart(4, '0')}-${String(dateYmd.m).padStart(2, '0')}-${String(dateYmd.d).padStart(2, '0')}`
+
+      const baseAmount = Number(entry.jumlah ?? entry.amount ?? 0)
+      const hourlyTotal = entry.useHourly
+        ? Math.round((Number(entry.jamKerja || 0) * Number(entry.ratePerJam || 0)))
+        : 0
+      const meal = Number(entry.uangMakan || 0)
+      const total = Math.round(baseAmount + hourlyTotal + meal)
+
       await prisma.$executeRaw`
         INSERT INTO "AbsensiHarian" ("kebunId","karyawanId","date","jumlah","kerja","libur","note","source","jamKerja","ratePerJam","uangMakan","useHourly","updatedAt")
-        VALUES (${Number(kebunId)}, ${Number(karyawanId)}, ${dateKey}::DATE, ${jumlah}, ${kerja}, ${libur}, ${note}, ${'MANUAL'}, ${jamKerja}, ${ratePerJam}, ${uangMakan}, ${useHourly}, NOW())
+        VALUES (${Number(kebunId)}, ${Number(karyawanId)}, ${dateKey}::DATE, ${total}, ${entry.kerja}, ${entry.libur}, ${entry.note || null}, ${'MANUAL'}, ${entry.jamKerja || null}, ${entry.ratePerJam || null}, ${meal || null}, ${entry.useHourly}, NOW())
         ON CONFLICT ("kebunId","karyawanId","date")
         DO UPDATE SET
           "jumlah" = EXCLUDED."jumlah",
@@ -291,6 +291,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validasi gagal', issues: error.issues }, { status: 400 })
+    }
     console.error('POST /api/karyawan-kebun/absensi error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
@@ -342,7 +345,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Absensi dari selfie tidak bisa dihapus dari menu karyawan' }, { status: 409 })
     }
 
-    // Check if paid
     const paid = await prisma.$queryRaw<Array<{ id: number }>>`
       SELECT id FROM "AbsensiGajiHarian"
       WHERE "kebunId" = ${kebunId}

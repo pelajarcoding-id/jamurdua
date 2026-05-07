@@ -420,22 +420,14 @@ export async function DELETE(request: Request) {
     if (!existingTrx || existingTrx.deletedAt || (!isAdmin && existingTrx.userId !== currentUserId)) {
         return NextResponse.json({ error: 'Transaksi tidak ditemukan atau Anda tidak memiliki akses' }, { status: 404 });
     }
-    if (existingTrx.kategori === 'GAJI' && existingTrx.kebunId) {
-      if (existingTrx.gajianId) {
-        const linked = await prisma.gajian.findUnique({
-          where: { id: existingTrx.gajianId },
-          select: { id: true, status: true },
-        })
-        const gajianId = Number(existingTrx.gajianId)
-        const gajianStatus = linked?.status ? String(linked.status) : null
-        return NextResponse.json(
-          {
-            error: `Transaksi gaji tidak bisa dihapus karena masih terhubung ke gajian periode. gajianId=${gajianId}${gajianStatus ? ` (status=${gajianStatus})` : ''}. Ubah/batalkan dari menu Gajian.`,
-            relations: { kasTransaksiId: trxId, gajianId, gajianStatus, kebunId: existingTrx.kebunId, karyawanId: existingTrx.karyawanId || null },
-          },
-          { status: 409 },
-        )
-      }
+    if (existingTrx.kategori === 'GAJI') {
+      return NextResponse.json(
+        {
+          error: `Transaksi gaji tidak bisa dihapus dari menu Kasir. Batalkan dari menu Karyawan > absensi (batalkan gaji) atau dari menu Kebun > tab absensi.`,
+          relations: { kasTransaksiId: trxId, kebunId: existingTrx.kebunId, karyawanId: existingTrx.karyawanId || null },
+        },
+        { status: 409 },
+      )
     }
     if (existingTrx.kategori === 'PENJUALAN_SAWIT') {
       const deskripsi = String(existingTrx.deskripsi || '')
@@ -479,38 +471,6 @@ export async function DELETE(request: Request) {
         entityId: String(trxId),
         reason: 'DELETE_TRX',
       })
-    }
-
-    if (existingTrx.kategori === 'GAJI' && existingTrx.kebunId && existingTrx.karyawanId) {
-      const dateKey = (() => {
-        const wib = new Date(existingTrx.date.getTime() + 7 * 60 * 60 * 1000)
-        const y = wib.getUTCFullYear()
-        const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
-        const d = String(wib.getUTCDate()).padStart(2, '0')
-        return `${y}-${m}-${d}`
-      })()
-      const ymd = parseWibYmd(dateKey)
-      const dayStart = ymd ? wibStartUtc(ymd) : existingTrx.date
-      const dayEnd = ymd ? wibEndUtcInclusive(ymd) : existingTrx.date
-      const remaining = await prisma.kasTransaksi.count({
-        where: {
-          kebunId: existingTrx.kebunId,
-          karyawanId: existingTrx.karyawanId,
-          kategori: 'GAJI',
-          date: {
-            gte: dayStart,
-            lte: dayEnd,
-          },
-        },
-      })
-      if (remaining === 0) {
-        await prisma.$executeRaw`
-          DELETE FROM "AbsensiGajiHarian"
-          WHERE "kebunId" = ${existingTrx.kebunId}
-            AND "karyawanId" = ${existingTrx.karyawanId}
-            AND "date" = ${dateKey}::DATE
-        `
-      }
     }
 
     await createAuditLog(currentUserId, 'DELETE', 'KasTransaksi', id.toString(), {});

@@ -6,9 +6,7 @@ import clsx from 'clsx';
 import { Bars3Icon, UserCircleIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/components/AuthProvider';
 import Link from 'next/link';
-import { logout } from '@/lib/actions';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import toast from 'react-hot-toast';
 import NotificationDropdown from './NotificationDropdown';
 import { SWRConfig } from 'swr';
 import PwaReloadButton from '@/components/PwaReloadButton';
@@ -67,18 +65,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setIsLogoutModalOpen(false);
-    try {
-      await logout();
-      toast.success('Berhasil logout!');
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1000);
-    } catch (error) {
-      toast.error('Gagal logout');
-      console.error('Logout error:', error);
-    }
+    window.location.href = '/logout';
   };
 
   const getInitials = (name: string) => {

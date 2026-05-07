@@ -14,6 +14,13 @@ export type ActionState = {
 };
 
 export async function logout() {
+  try {
+    const session = await auth();
+    const userId = session?.user?.id ? Number(session.user.id) : null;
+    if (userId) {
+      await (prisma as any).pushSubscription.deleteMany({ where: { userId } });
+    }
+  } catch {}
   await signOut({ redirect: false });
   return { success: true };
 }

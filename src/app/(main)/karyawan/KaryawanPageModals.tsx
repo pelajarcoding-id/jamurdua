@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+﻿import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ConfirmationModal } from '@/components/ui/confirmation-modal'
 import { ModalHeader, ModalContentWrapper, ModalFooter } from '@/components/ui/modal-elements'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ import {
   PlusCircleIcon,
   TrashIcon,
   UserGroupIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline'
 
 export default function KaryawanPageModals(props: any) {
@@ -245,7 +246,9 @@ export default function KaryawanPageModals(props: any) {
   return (
     <>
       <Dialog open={openAbsenView} onOpenChange={setOpenAbsenView}>
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-md bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden">
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-md bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden flex flex-col max-h-[85vh]">
+          <DialogTitle className="sr-only">Detail Absensi {selectedUser?.name}</DialogTitle>
+          <DialogDescription className="sr-only">Rincian kehadiran dan upah karyawan.</DialogDescription>
           <ModalHeader
             title={selectedUser?.name || 'Detail Absensi'}
             subtitle={absenSelectedDate ? format(new Date(absenSelectedDate), 'EEEE, dd MMMM yyyy', { locale: idLocale }) : ''}
@@ -253,301 +256,128 @@ export default function KaryawanPageModals(props: any) {
             onClose={() => setOpenAbsenView(false)}
           />
 
-          <ModalContentWrapper className="space-y-5" id="absen-view-content">
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${absenOffMap[absenSelectedDate] ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                  <CheckCircleIcon className="w-6 h-6" />
+          <ModalContentWrapper className="space-y-4 py-6 overflow-y-auto scrollbar-hide flex-1" id="absen-view-content">
+            <div className="p-5 rounded-2xl border border-gray-100 bg-white flex items-center gap-4 shadow-sm">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${absenOffMap[absenSelectedDate] ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                {absenOffMap[absenSelectedDate] ? <XCircleIcon className="w-8 h-8" /> : <CheckCircleIcon className="w-8 h-8" />}
+              </div>
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-wider text-emerald-900">
+                  {absenOffMap[absenSelectedDate] ? 'LIBUR / IJIN' : 'MASUK KERJA'}
+                </h4>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status Kehadiran</p>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-gray-100 bg-white flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <ClockIcon className="w-6 h-6" />
                 </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Status</p>
-                  <p className="font-bold text-gray-900">
-                    {absenOffMap[absenSelectedDate] ? 'Libur' : 'Masuk Kerja'}
-                  </p>
-                </div>
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-gray-500">Upah Per Jam</h4>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Gaji</p>
-                <p className="font-bold text-emerald-600 text-lg">
-                  Rp {(() => {
-                    const val = absenMap[absenSelectedDate] || '0'
-                    return parseIdThousandInt(val).toLocaleString('id-ID')
-                  })()}
+                <p className="text-sm font-black text-gray-900">
+                  {absenHourlyMap[absenSelectedDate] ? `${absenHourMap[absenSelectedDate]} Jam` : '-'}
                 </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Status Pembayaran</p>
-                {absenPaidMap[absenSelectedDate] ? (
-                  <div className="flex items-center gap-1.5 text-purple-600 font-bold text-sm">
-                    <BanknotesIcon className="w-4 h-4" />
-                    Sudah Dibayar
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-amber-600 font-bold text-sm">
-                    <ClockIcon className="w-4 h-4" />
-                    Belum Dibayar
-                  </div>
+                {absenHourlyMap[absenSelectedDate] && (
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">@ Rp {absenRateMap[absenSelectedDate]}</p>
                 )}
               </div>
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Metode Upah</p>
-                <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-sm">
-                  <CurrencyDollarIcon className="w-4 h-4" />
-                  {absenHourlyMap[absenSelectedDate] ? 'Per Jam' : 'Harian'}
-                </div>
-              </div>
-              <div className="col-span-2 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Diinput Oleh</p>
-                <div className="flex items-center gap-1.5 text-sky-700 font-bold text-sm">
-                  <UserGroupIcon className="w-4 h-4" />
-                  {(() => {
-                    const src = String(absenSourceMap[absenSelectedDate] || '').toUpperCase()
-                    if (src === 'SELFIE') return 'Selfie (Karyawan)'
-                    if (src === 'KIOSK') return 'KIOSK-SELFIE'
-                    if (src === 'MANUAL') return 'Manual'
-                    if (src) return src
-                    return '-'
-                  })()}
-                </div>
-              </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="text-gray-500 font-medium">Upah Harian:</span>
-                <span className="font-bold text-gray-900">
-                  {(() => {
-                    const total = parseIdThousandInt(absenMap[absenSelectedDate] || '0')
-                    const hasHourly = !!absenHourlyMap[absenSelectedDate]
-                    const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
-                    const rate = parseIdThousandInt(absenRateMap[absenSelectedDate] || '0')
-                    const hourlyAmount = hasHourly && hours > 0 && rate > 0 ? hours * rate : 0
-                    const mealAmount = !!absenMealEnabledMap[absenSelectedDate] ? parseIdThousandInt(absenMealMap[absenSelectedDate] || '0') : 0
-                    const manual = Math.max(0, Math.round(total - hourlyAmount - mealAmount))
-                    return `Rp ${manual.toLocaleString('id-ID')}`
-                  })()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="text-gray-500 font-medium">Upah Per Jam:</span>
-                <span className="font-bold text-gray-900">
-                  {absenHourlyMap[absenSelectedDate] ? (
-                    `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${parseIdThousandInt(absenRateMap[absenSelectedDate]).toLocaleString('id-ID')}`
-                  ) : '-'}
-                </span>
-              </div>
-              {absenHourlyMap[absenSelectedDate] && (
-                <div className="flex justify-between items-center text-sm p-2 px-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                  <span className="text-indigo-600 font-medium">Total Upah Per Jam:</span>
-                  <span className="font-bold text-indigo-700">
-                    Rp {(() => {
-                      const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
-                      const rate = parseIdThousandInt(absenRateMap[absenSelectedDate] || '0')
-                      return Math.round(hours * rate).toLocaleString('id-ID')
-                    })()}
-                  </span>
+            <div className="p-5 rounded-2xl border border-gray-100 bg-white flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                  <CurrencyDollarIcon className="w-6 h-6" />
                 </div>
-              )}
-              <div className="flex justify-between items-center text-sm p-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="text-gray-500 font-medium">Uang Makan:</span>
-                <span className="font-bold text-gray-900">
-                  {absenMealEnabledMap[absenSelectedDate] ? (
-                    `Rp ${parseIdThousandInt(absenMealMap[absenSelectedDate]).toLocaleString('id-ID')}`
-                  ) : '-'}
-                </span>
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-gray-500">Uang Makan</h4>
               </div>
-              <div className="space-y-1.5">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider ml-1">Keterangan</p>
-                <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100 text-gray-700 text-sm leading-relaxed min-h-[44px]">
-                  {absenNoteMap[absenSelectedDate] || '-'}
-                </div>
-              </div>
+              <p className="text-sm font-black text-gray-900">Rp {absenMealEnabledMap[absenSelectedDate] ? absenMealMap[absenSelectedDate] : '0'}</p>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="rounded-xl w-10 h-10 border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-all shadow-sm"
-                title="Export PDF"
-                onClick={async () => {
-                  const html2canvas = (await import('html2canvas')).default
-                  const jsPDF = (await import('jspdf')).jsPDF
+            <div className="p-5 rounded-2xl border border-gray-100 bg-white flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <BanknotesIcon className="w-6 h-6" />
+                </div>
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-gray-500">Gaji Harian / Tambahan</h4>
+              </div>
+              <p className="text-sm font-black text-gray-900">Rp {(absenMap[absenSelectedDate] ? parseIdThousandInt(absenMap[absenSelectedDate]).toLocaleString('id-ID') : '0')}</p>
+            </div>
 
-                  const pdfContainer = document.createElement('div')
-                  pdfContainer.style.position = 'fixed'
-                  pdfContainer.style.left = '-9999px'
-                  pdfContainer.style.top = '0'
-                  pdfContainer.style.width = '210mm'
-                  pdfContainer.style.backgroundColor = '#ffffff'
-                  pdfContainer.style.padding = '20mm'
-                  pdfContainer.style.fontFamily = 'sans-serif'
-                  pdfContainer.style.color = '#000000'
+            {absenNoteMap[absenSelectedDate] && (
+              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 italic text-xs text-gray-500">
+                &quot;{absenNoteMap[absenSelectedDate]}&quot;
+              </div>
+            )}
 
-                  const dateStr = absenSelectedDate ? format(new Date(absenSelectedDate), 'EEEE, dd MMMM yyyy', { locale: idLocale }) : ''
-                  const totalGaji = (() => {
-                    const val = absenMap[absenSelectedDate] || '0'
-                    return parseIdThousandInt(val).toLocaleString('id-ID')
-                  })()
-
-                  pdfContainer.innerHTML = `
-                    <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
-                      <h1 style="font-size: 24px; margin: 0; color: #059669;">LAPORAN ABSENSI HARIAN</h1>
-                      <p style="font-size: 14px; margin: 5px 0 0 0; color: #666;">Dicetak pada: ${format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
-                    </div>
-
-                    <div style="margin-bottom: 30px;">
-                      <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                          <td style="width: 150px; padding: 8px 0; font-weight: bold; color: #4b5563;">Nama Karyawan</td>
-                          <td style="padding: 8px 0;">: ${selectedUser?.name || '-'}</td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; font-weight: bold; color: #4b5563;">Tanggal</td>
-                          <td style="padding: 8px 0;">: ${dateStr}</td>
-                        </tr>
-                      </table>
-                    </div>
-
-                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
-                      <h2 style="font-size: 18px; margin: 0 0 15px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">Ringkasan Pekerjaan</h2>
-                      <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                          <td style="padding: 8px 0; color: #4b5563;">Status Kehadiran</td>
-                          <td style="padding: 8px 0; font-weight: bold; text-align: right;">${absenOffMap[absenSelectedDate] ? 'Libur' : 'Masuk Kerja'}</td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #4b5563;">Metode Upah</td>
-                          <td style="padding: 8px 0; font-weight: bold; text-align: right;">${absenHourlyMap[absenSelectedDate] ? 'Per Jam' : 'Harian'}</td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #4b5563;">Status Pembayaran</td>
-                          <td style="padding: 8px 0; font-weight: bold; text-align: right; color: ${absenPaidMap[absenSelectedDate] ? '#7c3aed' : '#d97706'};">${absenPaidMap[absenSelectedDate] ? 'SUDAH DIBAYAR' : 'BELUM DIBAYAR'}</td>
-                        </tr>
-                        <tr style="border-top: 1px solid #e5e7eb;">
-                          <td style="padding: 15px 0 8px 0; font-size: 18px; font-weight: bold;">TOTAL GAJI</td>
-                          <td style="padding: 15px 0 8px 0; font-size: 20px; font-weight: bold; text-align: right; color: #059669;">Rp ${totalGaji}</td>
-                        </tr>
-                      </table>
-                    </div>
-
-                    <div style="margin-bottom: 30px;">
-                      <h2 style="font-size: 16px; margin: 0 0 10px 0; color: #4b5563;">Rincian Gaji:</h2>
-                      <div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                          <tr style="background-color: #f3f4f6;">
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Upah Harian</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${(() => {
-                              const total = parseIdThousandInt(absenMap[absenSelectedDate] || '0')
-                              const hasHourly = !!absenHourlyMap[absenSelectedDate]
-                              const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
-                              const rate = parseIdThousandInt(absenRateMap[absenSelectedDate] || '0')
-                              const hourlyAmount = hasHourly && hours > 0 && rate > 0 ? hours * rate : 0
-                              const mealAmount = !!absenMealEnabledMap[absenSelectedDate] ? parseIdThousandInt(absenMealMap[absenSelectedDate] || '0') : 0
-                              const manual = Math.max(0, Math.round(total - hourlyAmount - mealAmount))
-                              return `Rp ${manual.toLocaleString('id-ID')}`
-                            })()}</td>
-                          </tr>
-                          <tr>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Upah Per Jam</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${absenHourlyMap[absenSelectedDate] ? `${absenHourMap[absenSelectedDate] || 0} jam × Rp ${parseIdThousandInt(absenRateMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}</td>
-                          </tr>
-                          ${absenHourlyMap[absenSelectedDate] ? `
-                          <tr style="background-color: #eef2ff;">
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #4f46e5;">Total Upah Per Jam</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold; color: #4f46e5;">Rp ${(() => {
-                              const hours = parseFloat(String(absenHourMap[absenSelectedDate] || '').trim().replace(',', '.')) || 0
-                              const rate = parseIdThousandInt(absenRateMap[absenSelectedDate] || '0')
-                              return Math.round(hours * rate).toLocaleString('id-ID')
-                            })()}</td>
-                          </tr>` : ''}
-                          <tr style="background-color: #f3f4f6;">
-                            <td style="padding: 10px;">Uang Makan</td>
-                            <td style="padding: 10px; text-align: right; font-weight: bold;">${absenMealEnabledMap[absenSelectedDate] ? `Rp ${parseIdThousandInt(absenMealMap[absenSelectedDate]).toLocaleString('id-ID')}` : '-'}</td>
-                          </tr>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h2 style="font-size: 16px; margin: 0 0 10px 0; color: #4b5563;">Keterangan:</h2>
-                      <div style="padding: 15px; background-color: #ecfdf5; border: 1px solid #d1fae5; border-radius: 8px; font-size: 14px; color: #065f46; min-height: 60px;">
-                        ${absenNoteMap[absenSelectedDate] || '-'}
-                      </div>
-                    </div>
-
-                    <div style="margin-top: 50px; text-align: right; font-size: 12px; color: #9ca3af;">
-                      <p>Dokumen ini dihasilkan secara otomatis oleh Sistem Aplikasi Sarakan.</p>
-                    </div>
-                  `
-
-                  document.body.appendChild(pdfContainer)
-
-                  const canvas = await html2canvas(pdfContainer, {
-                    logging: false,
-                    useCORS: true,
-                    backgroundColor: '#ffffff',
-                    scale: 2,
-                  } as any)
-
-                  const imgData = canvas.toDataURL('image/png')
-                  const pdf = new jsPDF('p', 'mm', 'a4')
-                  const pdfWidth = pdf.internal.pageSize.getWidth()
-                  const imgProps = pdf.getImageProperties(imgData)
-                  const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-
-                  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-                  pdf.save(`Laporan_Absensi_${selectedUser?.name || 'Karyawan'}_${absenSelectedDate}.pdf`)
-
-                  document.body.removeChild(pdfContainer)
-                }}
-              >
-                <ArrowDownTrayIcon className="w-4 h-4" />
-              </Button>
-              {absenPaidMap[absenSelectedDate] ? (
-                <Button
-                  variant="outline"
-                  className="rounded-xl h-10 border-amber-200 text-amber-600 hover:bg-amber-50 transition-all shadow-sm px-4 font-semibold text-xs"
-                  title="Batalkan Gaji"
-                  onClick={() => setOpenCancelGajiConfirm(true)}
-                  disabled={isCancellingGaji}
-                >
-                  <ArrowPathIcon className="w-4 h-4 mr-1.5" />
-                  Batalkan Gaji
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-xl w-10 h-10 border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-all shadow-sm"
-                    title="Edit Data"
-                    onClick={() => {
-                      setOpenAbsenView(false)
-                      setAbsenOpen(true)
-                    }}
-                  >
-                    <PencilSquareIcon className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-xl w-10 h-10 border-red-200 text-red-500 hover:bg-red-50 transition-all shadow-sm"
-                    title="Hapus Data"
-                    disabled={isDeletingAbsen || (absenSelectedDate ? String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' : false)}
-                    onClick={() => setOpenDeleteAbsenConfirm(true)}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </>
+            <div className={`mt-4 p-5 rounded-3xl flex items-center justify-center relative overflow-hidden ${absenPaidMap[absenSelectedDate] ? 'bg-purple-50 text-purple-700' : 'bg-orange-50 text-orange-700'}`}>
+              <span className="text-xs font-black uppercase tracking-[0.2em] z-10">
+                {absenPaidMap[absenSelectedDate] ? 'SUDAH TERBAYAR / LUNAS' : 'BELUM DIBAYAR'}
+              </span>
+              {absenPaidMap[absenSelectedDate] && (
+                <div className="absolute right-[-10px] top-[-10px] opacity-10 rotate-12">
+                  <div className="border-4 border-purple-700 rounded-full p-4 font-black text-3xl">PAID</div>
+                </div>
               )}
+            </div>
+
+            <div className="flex items-center justify-between px-2 pt-2 border-t border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Diterima</span>
+              <span className="text-xl font-black text-gray-900 tracking-tight">Rp {(absenMap[absenSelectedDate] ? parseIdThousandInt(absenMap[absenSelectedDate]).toLocaleString('id-ID') : '0')}</span>
             </div>
           </ModalContentWrapper>
+
+          <ModalFooter className="flex items-center gap-2">
+            {!absenPaidMap[absenSelectedDate] && (
+              <>
+                <Button
+                  variant="ghost"
+                  className="flex-1 rounded-2xl h-12 font-bold text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    setOpenAbsenView(false)
+                    setAbsenOpen(true)
+                  }}
+                >
+                  <PencilSquareIcon className="w-5 h-5 mr-2" />
+                  Ubah
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex-1 rounded-2xl h-12 font-bold text-red-600 hover:bg-red-50"
+                  onClick={() => setOpenDeleteAbsenConfirm(true)}
+                  disabled={isDeletingAbsen || (absenSelectedDate ? String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' : false)}
+                >
+                  <TrashIcon className="w-5 h-5 mr-2" />
+                  {isDeletingAbsen ? 'Hapus...' : 'Hapus'}
+                </Button>
+              </>
+            )}
+            {absenPaidMap[absenSelectedDate] && (
+              <Button
+                variant="ghost"
+                className="rounded-2xl h-12 font-bold text-amber-600 hover:bg-amber-50 flex-1"
+                onClick={() => {
+                  setOpenAbsenView(false)
+                  setCancelPaidDate(absenSelectedDate)
+                  setOpenCancelPaid(true)
+                }}
+              >
+                <ArrowPathIcon className="w-5 h-5 mr-2" />
+                Batalkan Gaji
+              </Button>
+            )}
+            <Button
+              className={`rounded-2xl h-12 font-bold ${absenPaidMap[absenSelectedDate] ? 'w-24 bg-gray-100 hover:bg-gray-200 text-gray-900' : 'w-24 bg-gray-100 hover:bg-gray-200 text-gray-900'} shadow-none transition-all active:scale-95`}
+              onClick={() => setOpenAbsenView(false)}
+            >
+              Tutup
+            </Button>
+          </ModalFooter>
         </DialogContent>
       </Dialog>
+
 
       <ConfirmationModal
         isOpen={openDeleteAbsenConfirm}
@@ -628,6 +458,8 @@ export default function KaryawanPageModals(props: any) {
 
       <Dialog open={absenOpen} onOpenChange={setAbsenOpen}>
         <DialogContent className="w-[92vw] sm:w-full sm:max-w-md bg-white rounded-3xl p-0 overflow-hidden max-h-[90vh] [&>button.absolute]:hidden flex flex-col">
+          <DialogTitle className="sr-only">Input Absensi</DialogTitle>
+          <DialogDescription className="sr-only">Formulir absensi harian karyawan.</DialogDescription>
           <ModalHeader
             title="Input Absensi"
             subtitle={absenSelectedDate ? format(new Date(absenSelectedDate), 'EEEE, dd MMMM yyyy', { locale: idLocale }) : ''}
@@ -635,7 +467,7 @@ export default function KaryawanPageModals(props: any) {
             icon={<CalendarIcon className="h-5 w-5 text-white" />}
             onClose={() => setAbsenOpen(false)}
           />
-          <ModalContentWrapper className="space-y-6 flex-1 min-h-0 overflow-y-auto no-scrollbar">
+          <ModalContentWrapper className="space-y-5 overflow-y-auto flex-1 min-h-0 scrollbar-hide">
             {absenSelectedDate && absenPaidMap[absenSelectedDate] && (
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-xs text-amber-700">
                 Tanggal ini sudah digaji. Batalkan digaji untuk mengubah data.
@@ -643,187 +475,167 @@ export default function KaryawanPageModals(props: any) {
             )}
             {absenSelectedDate && String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' && (
               <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
-                Absensi pada tanggal ini berasal dari Absensi Selfie.
+                Absensi pada tanggal ini dari Absensi Selfie.
               </div>
             )}
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-100">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-semibold">Masuk Kerja</Label>
-                  <p className="text-xs text-gray-500">Karyawan hadir bekerja</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setAbsenWork(true)
+                  setAbsenOff(false)
+                  if (!absenValue && absenDefaultAmount > 0) {
+                    setAbsenValue(formatRibuanId(String(absenDefaultAmount)))
+                  }
+                }}
+                disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2 ${
+                  absenWork
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                    : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'
+                } ${absenSelectedDate && absenPaidMap[absenSelectedDate] ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${absenWork ? 'bg-emerald-100' : 'bg-gray-50'}`}>
+                  <span className="text-xl">{'\u2705'}</span>
                 </div>
-                <Switch
-                  checked={absenWork}
-                  disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                  onCheckedChange={(v) => {
-                    setAbsenWork(v)
-                    if (v) {
-                      setAbsenOff(false)
-                      if (!absenValue && absenDefaultAmount > 0) {
-                        setAbsenValue(formatRibuanId(String(absenDefaultAmount)))
-                      }
-                    } else {
-                      setAbsenValue('0')
-                      setAbsenUseHourly(false)
-                      setAbsenHour('')
-                      setAbsenRate('')
-                      setAbsenMealEnabled(false)
-                      setAbsenMealAmount('')
-                    }
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-100">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-semibold">Libur</Label>
-                  <p className="text-xs text-gray-500">Karyawan tidak hadir</p>
+                <span className="text-xs font-bold uppercase tracking-wider">Masuk</span>
+              </button>
+              <button
+                onClick={() => {
+                  setAbsenOff(true)
+                  setAbsenWork(false)
+                  setAbsenValue('0')
+                  setAbsenUseHourly(false)
+                  setAbsenHour('')
+                  setAbsenRate('')
+                  setAbsenMealEnabled(false)
+                  setAbsenMealAmount('')
+                }}
+                disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2 ${
+                  absenOff
+                    ? 'bg-red-50 border-red-500 text-red-700'
+                    : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'
+                } ${absenSelectedDate && absenPaidMap[absenSelectedDate] ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${absenOff ? 'bg-red-100' : 'bg-gray-50'}`}>
+                  <span className="text-xl">{'\uD83C\uDFE0'}</span>
                 </div>
-                <Switch
-                  checked={absenOff}
-                  disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                  onCheckedChange={(v) => {
-                    setAbsenOff(v)
-                    if (v) {
-                      setAbsenWork(false)
-                      setAbsenValue('0')
-                      setAbsenUseHourly(false)
-                      setAbsenHour('')
-                      setAbsenRate('')
-                      setAbsenMealEnabled(false)
-                      setAbsenMealAmount('')
-                    }
-                  }}
-                />
-              </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Libur</span>
+              </button>
             </div>
 
             {!absenOff && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Upah Harian (Rp)</Label>
-                  <Input
-                    className="rounded-xl h-12 text-lg font-bold"
-                    placeholder="0"
-                    value={absenValue}
-                    disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                    onChange={(e) => {
-                      const next = formatRibuanId(e.target.value)
-                      setAbsenValue(next)
-                      if (next) {
-                        setAbsenWork(true)
-                        setAbsenOff(false)
-                      } else {
-                        setAbsenWork(false)
-                      }
-                    }}
-                  />
-                  {absenDefaultAmount > 0 && (
-                    <p className="text-xs text-gray-500">Default saat ini: Rp {absenDefaultAmount.toLocaleString('id-ID')}</p>
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="p-4 rounded-2xl bg-gray-50/50 border border-gray-100 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <ClockIcon className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <label className="text-sm font-bold text-gray-700">Hitung Per Jam</label>
+                    </div>
+                    <Switch
+                      checked={absenUseHourly}
+                      onCheckedChange={(v) => setAbsenUseHourly(v)}
+                      disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                    />
+                  </div>
+
+                  {absenUseHourly && (
+                    <div className="grid grid-cols-2 gap-3 animate-in zoom-in-95 duration-200">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Durasi (Jam)</label>
+                        <Input
+                          type="text"
+                          placeholder="0"
+                          value={absenHour}
+                          onChange={(e) => setAbsenHour(e.target.value.replace(',', '.'))}
+                          disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                          className="rounded-xl h-10 bg-white border-2 border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Upah / Jam</label>
+                        <Input
+                          type="text"
+                          placeholder="0"
+                          value={absenRate}
+                          onChange={(e) => setAbsenRate(formatRibuanId(e.target.value))}
+                          disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                          className="rounded-xl h-10 bg-white border-2 border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 transition-all"
+                        />
+                      </div>
+                    </div>
                   )}
-                </div>
 
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-100">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-semibold">Hitung per jam</Label>
-                    <p className="text-xs text-gray-500">Gunakan rate per jam</p>
-                  </div>
-                  <Switch
-                    checked={absenUseHourly}
-                    disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                    onCheckedChange={setAbsenUseHourly}
-                  />
-                </div>
-
-                {absenUseHourly && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Jam Kerja</Label>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        className="rounded-xl h-11"
-                        value={absenHour}
-                        disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                        onChange={e => setAbsenHour(e.target.value)}
-                        placeholder="7.5"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Rate/Jam</Label>
-                      <Input
-                        className="rounded-xl h-11"
-                        value={absenRate}
-                        disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                        onChange={e => setAbsenRate(formatRibuanId(e.target.value))}
-                        placeholder="15.000"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-100">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-semibold">Uang Makan</Label>
-                      <p className="text-xs text-gray-500">Opsional tambahan</p>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                        <CurrencyDollarIcon className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <label className="text-sm font-bold text-gray-700">Uang Makan</label>
                     </div>
                     <Switch
                       checked={absenMealEnabled}
+                      onCheckedChange={(v) => setAbsenMealEnabled(v)}
                       disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                      onCheckedChange={setAbsenMealEnabled}
                     />
                   </div>
+
                   {absenMealEnabled && (
+                    <div className="animate-in zoom-in-95 duration-200">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Jumlah Uang Makan</label>
+                      <Input
+                        type="text"
+                        placeholder="0"
+                        value={absenMealAmount}
+                        onChange={(e) => {
+                          const next = formatRibuanId(e.target.value)
+                          setAbsenMealAmount(next)
+                          if (next) {
+                            setAbsenWork(true)
+                            setAbsenOff(false)
+                          }
+                        }}
+                        disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                        className="rounded-xl h-10 bg-white border-2 border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 transition-all mt-1.5"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-sm font-bold text-gray-700">Gaji Harian / Tambahan</label>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">Rp</div>
                     <Input
-                      className="rounded-xl h-11"
-                      value={absenMealAmount}
-                      disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
-                      onChange={e => {
+                      placeholder="0"
+                      value={absenValue}
+                      onChange={(e) => {
                         const next = formatRibuanId(e.target.value)
-                        setAbsenMealAmount(next)
+                        setAbsenValue(next)
                         if (next) {
                           setAbsenWork(true)
                           setAbsenOff(false)
                         }
                       }}
-                      placeholder="contoh: 20.000"
+                      disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                      className="rounded-2xl h-14 pl-12 text-lg font-black border-2 border-emerald-500 bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 transition-all duration-200 shadow-md text-gray-900"
                     />
-                  )}
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Input Rupiah</span>
-                    <span className="font-semibold text-gray-900">Rp {(() => {
-                      const manual = parseIdThousandInt(absenValue)
-                      return manual ? manual.toLocaleString('id-ID') : 0
-                    })()}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Hitung Per Jam</span>
-                    <span className="font-semibold text-gray-900">Rp {(() => {
-                      if (!absenUseHourly) return 0
-                      const hourly = (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseIdThousandInt(absenRate)
-                      return Math.round(hourly).toLocaleString('id-ID')
-                    })()}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Uang Makan</span>
-                    <span className="font-semibold text-gray-900">Rp {(() => {
-                      const meal = !absenMealEnabled ? 0 : parseIdThousandInt(absenMealAmount)
-                      return Math.round(meal).toLocaleString('id-ID')
-                    })()}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
-                    <span className="text-gray-900 font-bold">TOTAL AKHIR</span>
-                    <span className="font-bold text-emerald-600 text-lg">Rp {(() => {
-                      const manual = parseIdThousandInt(absenValue)
-                      const hourly = !absenUseHourly ? 0 : (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseIdThousandInt(absenRate)
-                      const meal = !absenMealEnabled ? 0 : parseIdThousandInt(absenMealAmount)
-                      return Math.round(manual + hourly + meal).toLocaleString('id-ID')
-                    })()}</span>
-                  </div>
+                <div className="flex items-center justify-between px-2 pt-3 border-t border-gray-100">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Diterima</span>
+                  <span className="text-xl font-black text-gray-900 tracking-tight">Rp {(() => {
+                    const manual = parseIdThousandInt(absenValue)
+                    const hourly = !absenUseHourly ? 0 : (parseFloat((absenHour || '').toString().replace(',', '.')) || 0) * parseIdThousandInt(absenRate)
+                    const meal = !absenMealEnabled ? 0 : parseIdThousandInt(absenMealAmount)
+                    return Math.round(manual + hourly + meal).toLocaleString('id-ID')
+                  })()}</span>
                 </div>
               </div>
             )}
@@ -834,39 +646,44 @@ export default function KaryawanPageModals(props: any) {
                 disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
                 onCheckedChange={setAbsenSetDefault}
               />
-              <Label className="text-xs text-gray-500">Jadikan upah ini sebagai default harian</Label>
+              <label className="text-xs text-gray-500">Jadikan upah ini sebagai default harian</label>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-semibold text-gray-700">Keterangan (Opsional)</Label>
+              <label className="text-sm font-bold text-gray-700 px-1">Catatan</label>
               <Input
-                className="rounded-xl"
-                placeholder="Contoh: Lembur, Izin, dll"
+                placeholder="Contoh: Lembur 2 jam, Izin pulang cepat..."
                 value={absenNote}
                 onChange={(e) => setAbsenNote(e.target.value)}
                 disabled={!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]}
+                className="rounded-2xl h-12 border-2 border-emerald-500 bg-gray-50/50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600 transition-all"
               />
-              {absenSelectedDate && String(absenSourceMap[absenSelectedDate] || '').toUpperCase() === 'SELFIE' && (
-                <p className="text-xs text-blue-600">Absensi melalui Absensi Selfie.</p>
-              )}
             </div>
           </ModalContentWrapper>
           <ModalFooter className="gap-2">
-            {canDelete && absenSelectedDate && absenPaidMap[absenSelectedDate] && (
+            <div className="flex items-center gap-2 flex-1">
+              {canDelete && absenSelectedDate && absenPaidMap[absenSelectedDate] && (
+                <Button
+                  className="rounded-2xl bg-red-500 text-white hover:bg-red-600 h-12"
+                  onClick={() => {
+                    setCancelPaidDate(absenSelectedDate)
+                    setOpenCancelPaid(true)
+                  }}
+                >
+                  Batalkan Gaji
+                </Button>
+              )}
               <Button
-                className="rounded-full bg-red-500 text-white hover:bg-red-600 w-full sm:w-auto mr-auto"
-                onClick={() => {
-                  setCancelPaidDate(absenSelectedDate)
-                  setOpenCancelPaid(true)
-                }}
+                variant="ghost"
+                className="rounded-2xl text-gray-400 hover:text-gray-600 h-12 flex-1"
+                onClick={() => setAbsenOpen(false)}
               >
-                Batalkan Gaji
+                Batal
               </Button>
-            )}
-            <Button variant="outline" className="rounded-full" onClick={() => setAbsenOpen(false)}>Batal</Button>
+            </div>
             <Button
-              className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 px-8"
-              disabled={absenSaving || (!!absenSelectedDate && !!absenPaidMap[absenSelectedDate])}
+              className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-8 h-12 font-bold shadow-lg shadow-emerald-200"
+              disabled={absenSaving || (!!absenSelectedDate && !!absenPaidMap[absenSelectedDate]) || (!absenWork && !absenOff)}
               onClick={async () => {
                 if (!absenSelectedDate) return
                 if (!absenUserId) {
@@ -1590,7 +1407,7 @@ export default function KaryawanPageModals(props: any) {
                   <PopoverContent align="start" className="p-2 w-[--radix-popover-trigger-width] max-h-60 overflow-y-auto bg-white rounded-xl border shadow-sm">
                     <Input
                       autoFocus
-                      placeholder="Cari kebun…"
+                      placeholder="Cari kebunâ€¦"
                       value={kebunQuery}
                       onChange={(e) => setKebunQuery(e.target.value)}
                       className="mb-2 rounded-full"

@@ -19,11 +19,17 @@ export async function POST(request: Request) {
     }
   } catch {}
 
-  if (userId && endpoints.length > 0) {
+  if (userId) {
     try {
-      await (prisma as any).pushSubscription.deleteMany({
-        where: { userId, endpoint: { in: endpoints } },
-      })
+      if (endpoints.length > 0) {
+        await (prisma as any).pushSubscription.deleteMany({
+          where: { userId, endpoint: { in: endpoints } },
+        })
+      } else {
+        await (prisma as any).pushSubscription.deleteMany({
+          where: { userId },
+        })
+      }
     } catch {}
   }
 

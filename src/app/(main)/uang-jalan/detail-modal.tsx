@@ -81,7 +81,9 @@ export function DetailUangJalanModal({ isOpen, onClose, data, onEdit, onDelete }
             link.remove()
             window.URL.revokeObjectURL(blobUrl)
         } catch {
-            window.open(buktiUrl, '_blank')
+            if (typeof buktiUrl === 'string' && /^https?:\/\//i.test(buktiUrl)) {
+                window.open(buktiUrl, '_blank')
+            }
         } finally {
             setDownloading(false)
         }

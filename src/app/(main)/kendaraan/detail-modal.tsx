@@ -358,7 +358,9 @@ export function DetailModal({ isOpen, onClose, kendaraan, onEdit, onDelete, onRe
             window.URL.revokeObjectURL(blobUrl);
         } catch (error) {
             // Fallback method
-            window.open(url, '_blank');
+            if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+                window.open(url, '_blank');
+            }
         }
     };
 

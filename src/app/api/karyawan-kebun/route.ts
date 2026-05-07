@@ -210,10 +210,6 @@ export async function GET(request: Request) {
     // Kumpulkan semua karyawanId yang muncul
     const userIds = Array.from(
       new Set([
-        ...pekerjaanAgg.map(p => p.userId!).filter(Boolean),
-        ...kasPengeluaranAgg.map(k => k.karyawanId!).filter(Boolean),
-        ...kasPembayaranAgg.map(k => k.karyawanId!).filter(Boolean),
-        ...absensiAgg.map(a => a.karyawanId).filter(Boolean),
         ...assignedUsersRaw.map(u => u.id),
       ]),
     )

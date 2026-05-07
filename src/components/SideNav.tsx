@@ -6,9 +6,7 @@ import { PowerIcon, XMarkIcon, ChevronDownIcon, ArrowRightOnRectangleIcon, CubeI
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { links, NavLink } from './nav-links';
-import { logout } from '@/lib/actions';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import toast from 'react-hot-toast';
 import { useAuth } from '@/components/AuthProvider';
 
 interface SideNavProps {
@@ -116,18 +114,9 @@ export default function SideNav({ isMinimized, setIsMinimized, isOpen, setIsOpen
     });
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setIsLogoutModalOpen(false);
-    try {
-      await logout();
-      toast.success('Berhasil logout!');
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1000);
-    } catch (error) {
-      toast.error('Gagal logout');
-      console.error('Logout error:', error);
-    }
+    window.location.href = '/logout';
   };
 
   return (

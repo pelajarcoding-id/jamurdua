@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { cn } from '@/lib/utils'
+import { DialogTitle } from '@/components/ui/dialog'
 
 export type ModalVariant = 'blue' | 'emerald' | 'amber' | 'red' | 'purple' | 'gray'
 
@@ -43,7 +44,7 @@ export function ModalHeader({
             </div>
           ) : null}
           <div className="min-w-0">
-            <h2 className="text-xl font-bold truncate">{title}</h2>
+            <DialogTitle className="text-xl font-bold truncate">{title}</DialogTitle>
             {subtitle ? (
               <p className={cn("text-sm truncate", v.subtle)}>
                 {subtitle}

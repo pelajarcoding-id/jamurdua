@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { PencilSquareIcon, TrashIcon, ChevronDownIcon, PlusCircleIcon, MinusCircleIcon, EyeIcon, ArrowPathIcon, CheckCircleIcon, CalendarIcon, MagnifyingGlassIcon, ClockIcon, UserGroupIcon, BanknotesIcon, CreditCardIcon, CurrencyDollarIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import { PencilSquareIcon, TrashIcon, ChevronDownIcon, PlusCircleIcon, MinusCircleIcon, EyeIcon, ArrowPathIcon, CheckCircleIcon, CalendarIcon, MagnifyingGlassIcon, ClockIcon, UserGroupIcon, BanknotesIcon, CreditCardIcon, CurrencyDollarIcon, ArrowDownTrayIcon, CalendarDaysIcon } from '@heroicons/react/24/outline'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,33 +21,16 @@ import { KaryawanSummaryCards } from './KaryawanSummaryCards'
 import { KaryawanTabs } from './KaryawanTabs'
 import { formatIdThousands, parseIdThousandInt } from '@/lib/utils'
 
-type Kebun = { id: number; name: string }
-type WorkLocation = { id: number; name: string; type: string; kebunId?: number | null }
-type DeleteRequest = { id: number; status: string; createdAt: string; reason?: string | null; karyawan: { id: number; name: string }; requester: { id: number; name: string } }
-type User = {
-  id: number
-  name: string
-  email: string
-  role?: string
-  photoUrl?: string | null
-  kebunId?: number | null
-  noHp?: string | null
-  phone?: string | null
-  jenisPekerjaan?: string | null
-  jobType?: string | null
-  status?: string | null
-  kendaraanPlatNomor?: string | null
-}
-type Row = {
-  karyawan: User
-  pekerjaanCount: number
-  pekerjaanTotalBiaya: number
-  totalPengeluaran: number
-  totalPembayaran: number
-  hutangSaldo: number
-  hariKerja: number
-  totalGaji: number
-}
+// Import hooks
+import { useKaryawanData } from './hooks/useKaryawanData'
+import { useDateRange } from './hooks/useDateRange'
+import { useKaryawanSummary, useOperasionalData } from './hooks/useKaryawanSummary'
+import { useAbsensiKaryawan } from './hooks/useAbsensiKaryawan'
+import { useHutangKaryawan } from './hooks/useHutangKaryawan'
+import { usePayrollKaryawan } from './hooks/usePayrollKaryawan'
+
+// Import types
+import { Kebun, WorkLocation, DeleteRequest, User, Row } from './types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -795,10 +778,10 @@ export default function KaryawanKebunPage() {
         kebunId: String(kebunKey),
         karyawanId: String(absenUserId),
       })
-      if (deleteAbsenPayPaidAt) {
-        params.set('paidAt', deleteAbsenPayPaidAt)
-      } else if (deleteAbsenPayId) {
+      if (deleteAbsenPayId && deleteAbsenPayId > 0) {
         params.set('id', String(deleteAbsenPayId))
+      } else if (deleteAbsenPayPaidAt) {
+        params.set('paidAt', deleteAbsenPayPaidAt)
       } else {
         return
       }
@@ -1025,6 +1008,7 @@ export default function KaryawanKebunPage() {
     let hariKerja = 0
     let totalGaji = 0
     let jamKerjaBelumDibayar = 0
+    let jamKerjaSudahDibayar = 0
     Object.entries(absenWorkMap).forEach(([date, work]) => {
       if (work && date.startsWith(ym)) hariKerja += 1
     })
@@ -1035,14 +1019,19 @@ export default function KaryawanKebunPage() {
     })
     Object.entries(absenHourlyMap).forEach(([date, hourly]) => {
       if (!hourly || !date.startsWith(ym)) return
-      if (absenPaidMap[date]) return
       const raw = (absenHourMap[date] || '').toString().trim()
       const hours = parseFloat(raw.replace(',', '.')) || 0
-      if (hours > 0) jamKerjaBelumDibayar += hours
+      if (hours <= 0) return
+      if (absenPaidMap[date]) {
+        jamKerjaSudahDibayar += hours
+      } else {
+        jamKerjaBelumDibayar += hours
+      }
     })
+    const totalJamKerja = jamKerjaBelumDibayar + jamKerjaSudahDibayar
     const gajiBerjalan = selectedUser ? Math.round(Number(summaryData?.gaji?.unpaid || 0)) : 0
     const hutang = selectedUser ? Math.round(rows.find(r => r.karyawan.id === selectedUser.id)?.hutangSaldo || 0) : 0
-    return { hariKerja, totalGaji, gajiBerjalan, hutang, jamKerjaBelumDibayar }
+    return { hariKerja, totalGaji, gajiBerjalan, hutang, jamKerjaBelumDibayar, jamKerjaSudahDibayar, totalJamKerja }
   }, [absenMonth, absenWorkMap, absenMap, absenHourlyMap, absenHourMap, absenPaidMap, rows, selectedUser, summaryData])
   const formatJobTypeLabel = useCallback((raw?: string | null) => {
     const val = (raw || '').toString().toUpperCase().trim()
@@ -2645,31 +2634,72 @@ export default function KaryawanKebunPage() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-6">
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
-                <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Hari Kerja</p>
-                <p className="text-2xl font-bold text-emerald-900">{absenSummary.hariKerja} <span className="text-sm font-normal text-emerald-600">Hari</span></p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 bg-emerald-50 rounded-lg">
+                    <CalendarDaysIcon className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Hari Kerja</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold text-gray-900">{absenSummary.hariKerja}</span>
+                  <span className="text-xs text-gray-500 font-medium">Hari</span>
+                </div>
               </div>
-              <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100 shadow-sm">
-                <p className="text-xs font-medium text-sky-600 uppercase tracking-wider mb-1">Jam Kerja (Belum Dibayar)</p>
-                <p className="text-2xl font-bold text-sky-900">
-                  {absenSummary.jamKerjaBelumDibayar.toLocaleString('id-ID', { maximumFractionDigits: 2 })}{' '}
-                  <span className="text-sm font-normal text-sky-700">Jam</span>
-                </p>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-3 px-5">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-[11px] font-semibold text-indigo-600">Belum Dibayar</span>
+                  <span className="text-sm font-bold text-indigo-600">{absenSummary.jamKerjaBelumDibayar.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Jam</span>
+                </div>
+                <div className="border-t border-gray-100 my-1"></div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-[11px] font-medium text-gray-500">Sudah Dibayar</span>
+                  <span className="text-sm font-semibold text-gray-900">{absenSummary.jamKerjaSudahDibayar.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Jam</span>
+                </div>
+                <div className="border-t border-gray-100 my-1"></div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-[11px] font-medium text-gray-500">Total Jam</span>
+                  <span className="text-sm font-semibold text-gray-900">{absenSummary.totalJamKerja.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Jam</span>
+                </div>
               </div>
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
-                <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-1">Gaji Berjalan</p>
-                <p className="text-2xl font-bold text-emerald-900">Rp {absenSummary.gajiBerjalan.toLocaleString('id-ID')}</p>
+
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 bg-emerald-50 rounded-lg">
+                    <BanknotesIcon className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Gaji Berjalan</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm font-bold text-emerald-600">Rp</span>
+                  <span className="text-2xl font-bold text-emerald-600">{absenSummary.gajiBerjalan.toLocaleString('id-ID')}</span>
+                </div>
               </div>
-              <div className="p-4 rounded-2xl bg-red-50 border border-red-100 shadow-sm">
-                <p className="text-xs font-medium text-red-600 uppercase tracking-wider mb-1">Saldo Hutang</p>
-                <p className="text-2xl font-bold text-red-900">Rp {absenSummary.hutang.toLocaleString('id-ID')}</p>
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 bg-red-50 rounded-lg">
+                    <CreditCardIcon className="w-4 h-4 text-red-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saldo Hutang</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm font-bold text-red-600">Rp</span>
+                  <span className="text-2xl font-bold text-red-600">{absenSummary.hutang.toLocaleString('id-ID')}</span>
+                </div>
               </div>
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
-                <p className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-1">Biaya (Tag)</p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {biayaKaryawanLoading ? '...' : `Rp ${biayaKaryawanTotal.toLocaleString('id-ID')}`}
-                </p>
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 bg-slate-50 rounded-lg">
+                    <BanknotesIcon className="w-4 h-4 text-slate-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Biaya (Tag)</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm font-bold text-slate-600">Rp</span>
+                  <span className="text-2xl font-bold text-slate-600">{biayaKaryawanLoading ? '...' : biayaKaryawanTotal.toLocaleString('id-ID')}</span>
+                </div>
               </div>
             </div>
             {openAbsenSection && (
@@ -2734,10 +2764,10 @@ export default function KaryawanKebunPage() {
                     const key = new Intl.DateTimeFormat('en-CA').format(date)
                     const val = absenMap[key]
                     const num = Number((val||'').toString().replace(/\./g,'').replace(/,/g,'')) || 0
-                    const isOff = !!absenOffMap[key]
+                    const isPaid = !!absenPaidMap[key]
+                    const isOff = !!absenOffMap[key] && !(!!val && isPaid)
                     const isWork = !!absenWorkMap[key]
                     const isSelfie = String(absenSourceMap[key] || '').toUpperCase() === 'SELFIE'
-                    const isPaid = !!absenPaidMap[key]
                     const isFilled = !!val || isOff || isWork || !!absenNoteMap[key]
                     const color = isOff
                       ? 'bg-red-50 border-red-100 text-red-700'

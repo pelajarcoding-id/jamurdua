@@ -799,17 +799,23 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Data tidak ditemukan' }, { status: 404 })
       }
       if (trx.kebunId) {
-        const gajianLocked = await prisma.gajian.findFirst({
-          where: {
-            kebunId: trx.kebunId,
-            status: 'FINALIZED',
-            tanggalMulai: { lte: trx.date },
-            tanggalSelesai: { gte: trx.date },
-          },
-          select: { id: true },
-        })
-        if (gajianLocked) {
-          return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+        const dateKey = (() => {
+          const wib = new Date(trx.date.getTime() + 7 * 60 * 60 * 1000)
+          const y = wib.getUTCFullYear()
+          const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
+          const d = String(wib.getUTCDate()).padStart(2, '0')
+          return `${y}-${m}-${d}`
+        })()
+        const paidRow = await prisma.$queryRaw<Array<{ gajianId: number | null }>>`
+          SELECT "gajianId" FROM "AbsensiGajiHarian"
+          WHERE "kebunId" = ${trx.kebunId}
+            AND "karyawanId" = ${trx.karyawanId}
+            AND "date" = ${dateKey}::DATE
+          LIMIT 1
+        `
+        if (paidRow.length > 0 && paidRow[0]?.gajianId != null) {
+          const gajianId = Number(paidRow[0].gajianId)
+          return NextResponse.json({ error: `Pembayaran ini sudah masuk gajian. gajianId=${gajianId}. Hapus gajian terlebih dahulu.` }, { status: 400 })
         }
       }
       await prisma.$transaction(async (tx) => {
@@ -834,28 +840,23 @@ export async function DELETE(request: Request) {
         }
         if (trx.karyawanId) {
           const absensiKebunId = trx.kebunId ?? 0
-          const dateKey = (() => {
-            const wib = new Date(trx.date.getTime() + 7 * 60 * 60 * 1000)
-            const y = wib.getUTCFullYear()
-            const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
-            const d = String(wib.getUTCDate()).padStart(2, '0')
-            return `${y}-${m}-${d}`
-          })()
-          const ymd = parseWibYmd(dateKey)
-          const dayStart = ymd ? wibStartUtc(ymd) : trx.date
-          const dayEnd = ymd ? wibEndUtcInclusive(ymd) : trx.date
-          const remaining = await tx.kasTransaksi.count({
-            where: {
-              kebunId: trx.kebunId,
-              karyawanId: trx.karyawanId,
-              kategori: 'GAJI',
-              date: {
-                gte: dayStart,
-                lte: dayEnd,
-              },
-            },
-          })
-          if (remaining === 0) {
+          const period = parsePeriod(trx.keterangan)
+          if (period) {
+            await tx.$executeRaw`
+              DELETE FROM "AbsensiGajiHarian"
+              WHERE "kebunId" = ${absensiKebunId}
+                AND "karyawanId" = ${trx.karyawanId}
+                AND "date" >= ${period.start}::DATE
+                AND "date" <= ${period.end}::DATE
+            `
+          } else {
+            const dateKey = (() => {
+              const wib = new Date(trx.date.getTime() + 7 * 60 * 60 * 1000)
+              const y = wib.getUTCFullYear()
+              const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
+              const d = String(wib.getUTCDate()).padStart(2, '0')
+              return `${y}-${m}-${d}`
+            })()
             await tx.$executeRaw`
               DELETE FROM "AbsensiGajiHarian"
               WHERE "kebunId" = ${absensiKebunId}
@@ -887,6 +888,7 @@ export async function DELETE(request: Request) {
           kebunId: kasKebunId,
           karyawanId,
           kategori: 'GAJI',
+          deletedAt: null,
           createdAt: paidAt,
         },
         select: { id: true, date: true, keterangan: true },
@@ -894,20 +896,30 @@ export async function DELETE(request: Request) {
       if (trxRows.length === 0) {
         return NextResponse.json({ error: 'Data tidak ditemukan' }, { status: 404 })
       }
-      const minDate = trxRows.reduce((acc, r) => acc && acc < r.date ? acc : r.date, trxRows[0].date)
-      const maxDate = trxRows.reduce((acc, r) => acc && acc > r.date ? acc : r.date, trxRows[0].date)
-      if (kebunId > 0) {
-        const gajianLocked = await prisma.gajian.findFirst({
-          where: {
-            kebunId,
-            status: 'FINALIZED',
-            tanggalMulai: { lte: maxDate },
-            tanggalSelesai: { gte: minDate },
-          },
-          select: { id: true },
-        })
-        if (gajianLocked) {
-          return NextResponse.json({ error: 'Pembayaran ini sudah masuk gajian. Hapus gajian terlebih dahulu.' }, { status: 400 })
+      if (kebunId > 0 && karyawanId) {
+        const dateKeysCheck = Array.from(new Set(trxRows.map(r => {
+          const wib = new Date(r.date.getTime() + 7 * 60 * 60 * 1000)
+          const y = wib.getUTCFullYear()
+          const m = String(wib.getUTCMonth() + 1).padStart(2, '0')
+          const d = String(wib.getUTCDate()).padStart(2, '0')
+          return `${y}-${m}-${d}`
+        })))
+        const paidRow = await prisma.$queryRaw<Array<{ gajianId: number | null }>>(
+          Prisma.sql`SELECT "gajianId" FROM "AbsensiGajiHarian"
+            WHERE "kebunId" = ${kebunId}
+              AND "karyawanId" = ${karyawanId}
+              AND "date" IN (${Prisma.join(dateKeysCheck.map(k => Prisma.sql`${k}::DATE`))})
+            LIMIT 1`
+        )
+        if (paidRow.length > 0 && paidRow[0]?.gajianId != null) {
+          const gajianId = Number(paidRow[0].gajianId)
+          return NextResponse.json(
+            {
+              error: `Pembayaran gajian harian tidak bisa dihapus karena sudah masuk gajian periode. gajianId=${gajianId}. Hapus/ubah gajian dulu.`,
+              relations: { kebunId, karyawanId, date: dateKeysCheck[0], gajianId },
+            },
+            { status: 409 },
+          )
         }
       }
       const ids = trxRows.map(r => r.id)
@@ -954,6 +966,7 @@ export async function DELETE(request: Request) {
       })
       return NextResponse.json({ ok: true })
     }
+
     if (!dateParam) {
       return NextResponse.json({ error: 'date wajib diisi' }, { status: 400 })
     }
@@ -962,20 +975,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'date tidak valid' }, { status: 400 })
     }
     const dateKey = `${String(dateYmd.y).padStart(4, '0')}-${String(dateYmd.m).padStart(2, '0')}-${String(dateYmd.d).padStart(2, '0')}`
-    const dayStart = wibStartUtc(dateYmd)
-    const dayEnd = wibEndUtcInclusive(dateYmd)
     if (kebunId > 0) {
-      const gajianLocked = await prisma.gajian.findFirst({
-        where: {
-          kebunId,
-          status: 'FINALIZED',
-          tanggalMulai: { lte: dayStart },
-          tanggalSelesai: { gte: dayStart },
-        },
-        select: { id: true },
-      })
-      if (gajianLocked) {
-        const gajianId = Number(gajianLocked.id)
+      const paidRow = await prisma.$queryRaw<Array<{ gajianId: number | null }>>`
+        SELECT "gajianId" FROM "AbsensiGajiHarian"
+        WHERE "kebunId" = ${kebunId}
+          AND "karyawanId" = ${karyawanId}
+          AND "date" = ${dateKey}::DATE
+        LIMIT 1
+      `
+      if (paidRow.length > 0 && paidRow[0]?.gajianId != null) {
+        const gajianId = Number(paidRow[0].gajianId)
         return NextResponse.json(
           {
             error: `Pembayaran gajian harian tidak bisa dihapus karena sudah masuk gajian periode. gajianId=${gajianId}. Hapus/ubah gajian dulu.`,
@@ -985,19 +994,85 @@ export async function DELETE(request: Request) {
         )
       }
     }
-    const trxRows = await prisma.kasTransaksi.findMany({
+    // Dapatkan jumlah yang dibatalkan
+    const cancelRow = await prisma.$queryRaw<Array<{ jumlah: number }>>`
+      SELECT "jumlah" FROM "AbsensiGajiHarian"
+      WHERE "kebunId" = ${kebunId}
+        AND "karyawanId" = ${karyawanId}
+        AND "date" = ${dateKey}::DATE
+      LIMIT 1
+    `
+    const cancelAmount = cancelRow.length > 0 ? Number(cancelRow[0].jumlah) : 0
+    // Cari kasTransaksi batch yang mencakup tanggal ini via keterangan period
+    const searchStart = new Date(Date.UTC(dateYmd.y, dateYmd.m - 1, 1))
+    const searchEnd = new Date(Date.UTC(dateYmd.y, dateYmd.m, 0, 23, 59, 59, 999))
+    const allTrx = await prisma.kasTransaksi.findMany({
       where: {
         kebunId: kasKebunId,
         karyawanId,
         kategori: 'GAJI',
-        date: {
-          gte: dayStart,
-          lte: dayEnd,
-        },
+        deletedAt: null,
+        date: { gte: searchStart, lte: searchEnd },
       },
-      select: { id: true },
+      select: { id: true, jumlah: true, keterangan: true, createdAt: true, date: true, deskripsi: true },
     })
+    let matchingTrx: typeof allTrx[0] | null = null
+    for (const trx of allTrx) {
+      const period = parsePeriod(trx.keterangan)
+      if (period && dateKey >= period.start && dateKey <= period.end) {
+        matchingTrx = trx
+        break
+      }
+    }
+    if (!matchingTrx) {
+      // Orphan cleanup: AbsensiGajiHarian masih ada tapi kasTransaksi sudah hilang
+      if (cancelAmount > 0) {
+        await prisma.$executeRaw`
+          DELETE FROM "AbsensiGajiHarian"
+          WHERE "kebunId" = ${kebunId}
+            AND "karyawanId" = ${karyawanId}
+            AND "date" = ${dateKey}::DATE
+        `
+        return NextResponse.json({ ok: true, cleaned: true })
+      }
+      return NextResponse.json({ error: 'Data tidak ditemukan' }, { status: 404 })
+    }
+    const trxPeriod = parsePeriod(matchingTrx.keterangan)
+    const isBatch = trxPeriod && trxPeriod.start !== trxPeriod.end
+    if (isBatch && cancelAmount > 0) {
+      // Batch payment: update jumlah, bukan delete
+      const newJumlah = Math.max(0, Number(matchingTrx.jumlah) - cancelAmount)
+      await prisma.$transaction(async (tx) => {
+        const updateData: any = { jumlah: newJumlah }
+        // Jika semua tanggal dibatalkan, update periode
+        if (newJumlah <= 0) {
+          delete updateData.jumlah
+          await tx.kasTransaksi.delete({ where: { id: matchingTrx!.id } })
+          await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: matchingTrx!.id } })
+        } else {
+          await tx.kasTransaksi.update({ where: { id: matchingTrx!.id }, data: updateData })
+          await tx.jurnal.deleteMany({ where: { refType: 'KasTransaksi', refId: matchingTrx!.id } })
+          await tx.jurnal.createMany({
+            data: [
+              { date: matchingTrx!.date, akun: 'Beban Gaji', deskripsi: matchingTrx!.deskripsi, debit: newJumlah, kredit: 0, refType: 'KasTransaksi', refId: matchingTrx!.id },
+              { date: matchingTrx!.date, akun: 'Kas', deskripsi: matchingTrx!.deskripsi, debit: 0, kredit: newJumlah, refType: 'KasTransaksi', refId: matchingTrx!.id },
+            ],
+          })
+        }
+        // Potongan hutang tetap (tidak dihapus)
+        await tx.$executeRaw`
+          DELETE FROM "AbsensiGajiHarian"
+          WHERE "kebunId" = ${kebunId}
+            AND "karyawanId" = ${karyawanId}
+            AND "date" = ${dateKey}::DATE
+        `
+      })
+      return NextResponse.json({ ok: true, updated: true, newJumlah })
+    }
+    // Single date: delete seluruhnya seperti biasa
+    const trxRows = [matchingTrx]
     const ids = trxRows.map(r => r.id)
+    const batchCreatedAt = trxRows[0]?.createdAt ?? null
     await prisma.$transaction(async (tx) => {
       if (ids.length > 0) {
         await tx.jurnal.deleteMany({
@@ -1005,6 +1080,16 @@ export async function DELETE(request: Request) {
         })
         await tx.kasTransaksi.deleteMany({
           where: { id: { in: ids } },
+        })
+      }
+      if (batchCreatedAt && karyawanId) {
+        await tx.kasTransaksi.deleteMany({
+          where: {
+            kebunId: kasKebunId,
+            karyawanId,
+            kategori: 'PEMBAYARAN_HUTANG',
+            createdAt: batchCreatedAt,
+          },
         })
       }
       await tx.$executeRaw`
