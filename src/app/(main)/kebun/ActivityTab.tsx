@@ -1431,7 +1431,11 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                         <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
                           <EyeIcon className="h-4 w-4" />
                         </Button>
-                        {!isLocked && (
+                        {mode === 'borongan' && isPaid ? (
+                          <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
+                            <PencilSquareIcon className="h-4 w-4" />
+                          </Button>
+                        ) : !isLocked ? (
                           <>
                             <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
                               <PencilSquareIcon className="h-4 w-4" />
@@ -1442,7 +1446,7 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                               </Button>
                             ) : null}
                           </>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -1601,7 +1605,11 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                               <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openDetail(item)}>
                                 <EyeIcon className="h-4 w-4" />
                               </Button>
-                              {!isLocked && (
+                              {mode === 'borongan' && isPaid ? (
+                                <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
+                                  <PencilSquareIcon className="h-4 w-4" />
+                                </Button>
+                              ) : !isLocked ? (
                                 <>
                                   <Button variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => openEdit(item)}>
                                     <PencilSquareIcon className="h-4 w-4" />
@@ -1612,7 +1620,7 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                                     </Button>
                                   ) : null}
                                 </>
-                              )}
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -1754,14 +1762,14 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
 
       {/* Edit Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="w-[92vw] sm:w-full sm:max-w-2xl bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden flex flex-col max-h-[90vh]">
+          <DialogContent className="w-[92vw] sm:w-full sm:max-w-2xl bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden flex flex-col max-h-[90vh]">
           <DialogTitle className="sr-only">Edit Pekerjaan</DialogTitle>
           <DialogDescription className="sr-only">Edit data pekerjaan borongan / aktivitas.</DialogDescription>
           <ModalHeader title="Edit Pekerjaan" variant="emerald" onClose={() => setEditOpen(false)} />
-          <ModalContentWrapper>
-            <div className="space-y-4">
+          <ModalContentWrapper className="overflow-y-auto scrollbar-hide flex-1">
+            <div className="grid grid-cols-2 gap-4">
               {mode === 'borongan' && (
-                <div>
+                <div className="col-span-2">
                   <Label>Kategori Borongan {editKategoriOnly ? '' : '*'}</Label>
                   <Popover open={openEditKategoriSelect} onOpenChange={setOpenEditKategoriSelect}>
                     <PopoverTrigger asChild>
@@ -1817,7 +1825,46 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                   ) : null}
                 </div>
               )}
-              {!editKategoriOnly && (
+              {editKategoriOnly ? (
+                <div className="col-span-2 grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-500">Tanggal</Label>
+                    <p className="font-medium">{editForm.date ? new Date(editForm.date + 'T00:00:00+07:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-500">{mode === 'borongan' ? 'Jenis Pekerjaan' : 'Deskripsi'}</Label>
+                    <p className="font-medium">{editForm.jenisPekerjaan || '-'}</p>
+                  </div>
+                  {mode === 'aktivitas' && editForm.kendaraanPlatNomor && (
+                    <div>
+                      <Label className="text-gray-500">Kendaraan</Label>
+                      <p className="font-medium">{editForm.kendaraanPlatNomor}</p>
+                    </div>
+                  )}
+                  {(mode === 'borongan' || editForm.upahBorongan) && (
+                    <>
+                      <div>
+                        <Label className="text-gray-500">Jumlah</Label>
+                        <p className="font-medium">{editForm.jumlah ? `${Number(editForm.jumlah).toLocaleString('id-ID')} ${editForm.satuan || ''}` : '-'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-500">Harga Satuan</Label>
+                        <p className="font-medium">{editForm.hargaSatuan ? formatCurrency(editForm.hargaSatuan) : '-'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-500">Total Biaya</Label>
+                        <p className="font-medium text-emerald-600">{formatCurrency(Math.round(Number(editForm.jumlah || 0) * Number(editForm.hargaSatuan || 0)))}</p>
+                      </div>
+                    </>
+                  )}
+                  {editForm.keterangan && (
+                    <div className="col-span-2">
+                      <Label className="text-gray-500">Keterangan</Label>
+                      <p className="font-medium">{stripGajianManualMarker(editForm.keterangan)}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <>
                   <div>
                     <Label>Tanggal</Label>
@@ -1844,7 +1891,7 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                     ) : null}
                   </div>
                   {mode === 'aktivitas' && (
-                    <div>
+                    <div className="col-span-2">
                       <Label>Kendaraan</Label>
                       <Popover open={openEditKendaraanSelect} onOpenChange={setOpenEditKendaraanSelect}>
                         <PopoverTrigger asChild>
@@ -1937,7 +1984,7 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                       </div>
                     </>
                   )}
-                  <div>
+                  <div className="col-span-2">
                     <Label>Keterangan</Label>
                     <Textarea
                       value={editForm.keterangan}
@@ -1945,7 +1992,7 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
                       className="bg-white"
                     />
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <Label>Upload Gambar</Label>
                     <ImageUpload
                       previewUrl={editBuktiPreview}
