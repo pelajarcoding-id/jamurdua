@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import toast from 'react-hot-toast'
 import {
@@ -1663,8 +1663,10 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
 
       {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <ModalHeader title="Detail Pekerjaan" />
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-2xl bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden flex flex-col max-h-[90vh]">
+          <DialogTitle className="sr-only">Detail Pekerjaan</DialogTitle>
+          <DialogDescription className="sr-only">Detail pekerjaan borongan / aktivitas.</DialogDescription>
+          <ModalHeader title="Detail Pekerjaan" variant="emerald" onClose={() => setDetailOpen(false)} />
           <ModalContentWrapper>
             {selectedActivity && (
               <div className="space-y-4">
@@ -1752,8 +1754,10 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
 
       {/* Edit Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <ModalHeader title="Edit Pekerjaan" />
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-2xl bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden flex flex-col max-h-[90vh]">
+          <DialogTitle className="sr-only">Edit Pekerjaan</DialogTitle>
+          <DialogDescription className="sr-only">Edit data pekerjaan borongan / aktivitas.</DialogDescription>
+          <ModalHeader title="Edit Pekerjaan" variant="emerald" onClose={() => setEditOpen(false)} />
           <ModalContentWrapper>
             <div className="space-y-4">
               {mode === 'borongan' && (
@@ -1992,8 +1996,10 @@ export default function ActivityTab({ kebunId, mode }: ActivityTabProps) {
 
       {/* Master Kategori Modal */}
       <Dialog open={kategoriMaster.isOpen} onOpenChange={kategoriMaster.setIsOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <ModalHeader title="Master Kategori Borongan" />
+        <DialogContent className="w-[92vw] sm:w-full sm:max-w-md bg-white rounded-3xl p-0 overflow-hidden shadow-2xl border-none [&>button.absolute]:hidden flex flex-col max-h-[90vh]">
+          <DialogTitle className="sr-only">Master Kategori Borongan</DialogTitle>
+          <DialogDescription className="sr-only">Kelola kategori borongan.</DialogDescription>
+          <ModalHeader title="Master Kategori Borongan" variant="emerald" onClose={() => kategoriMaster.setIsOpen(false)} />
           <ModalContentWrapper>
             <div className="space-y-4">
               <div className="flex gap-2">

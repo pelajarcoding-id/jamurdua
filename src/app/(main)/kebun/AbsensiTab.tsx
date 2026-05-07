@@ -25,9 +25,9 @@ import { User } from './types'
 
 export default function AbsensiTab({ kebunId }: { kebunId: number }) {
   const { role } = useAuth()
-  const isAdminOrOwner = role === 'ADMIN' || role === 'PEMILIK'
+  const isAdminOrOwner = role === 'ADMIN' || role === 'PEMILIK' || role === 'MANAGER' || role === 'MANDOR'
   const isManagerOrMandor = role === 'MANAGER' || role === 'MANDOR'
-  const canSeeDebtDetail = isAdminOrOwner || isManagerOrMandor
+  const canSeeDebtDetail = isAdminOrOwner
 
   const [absenMonth, setAbsenMonth] = useState<Date>(new Date())
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
