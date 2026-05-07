@@ -62,15 +62,15 @@ export function AbsensiDetailHutangModal({
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                           {format(new Date(r.date), 'dd/MM/yy', { locale: idLocale })}
                         </td>
-                        <td className="px-4 py-3 text-gray-700 min-w-[150px]">{r.description}</td>
+                        <td className="px-4 py-3 text-gray-700 min-w-[150px]">{r.description ?? (r.deskripsi || '-')}</td>
                         <td className="px-4 py-3 text-right text-emerald-600 font-medium">
-                          {r.type === 'HUTANG' ? `Rp ${r.amount.toLocaleString('id-ID')}` : '-'}
+                          {(r.type ?? r.tipe) === 'HUTANG' ? `Rp ${((r.amount ?? r.jumlah) || 0).toLocaleString('id-ID')}` : '-'}
                         </td>
                         <td className="px-4 py-3 text-right text-red-600 font-medium">
-                          {r.type === 'POTONGAN' ? `Rp ${r.amount.toLocaleString('id-ID')}` : '-'}
+                          {(r.type ?? r.tipe) === 'POTONGAN' ? `Rp ${((r.amount ?? r.jumlah) || 0).toLocaleString('id-ID')}` : '-'}
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-gray-900">
-                          Rp {r.balance.toLocaleString('id-ID')}
+                          Rp {(r.balance ?? 0).toLocaleString('id-ID')}
                         </td>
                       </tr>
                     ))}

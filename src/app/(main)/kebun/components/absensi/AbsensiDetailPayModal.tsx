@@ -48,7 +48,7 @@ export function AbsensiDetailPayModal({
               <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-blue-600 font-bold mb-1">Tanggal Bayar</div>
-                  <div className="text-sm font-bold text-blue-900">{format(new Date(detail.paidAt), 'EEEE, dd MMMM yyyy', { locale: idLocale })}</div>
+                  <div className="text-sm font-bold text-blue-900">{detail.paidAt ? format(new Date(detail.paidAt), 'EEEE, dd MMMM yyyy', { locale: idLocale }) : '-'}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] uppercase tracking-wider text-blue-600 font-bold mb-1">Total Bersih</div>
