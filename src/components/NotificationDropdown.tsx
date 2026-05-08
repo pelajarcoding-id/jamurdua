@@ -87,18 +87,26 @@ export default function NotificationDropdown() {
 
             // 1. Get or Register SW
             toast.loading('Mendaftarkan Service Worker...', { id: toastId });
-            const swScript = process.env.NODE_ENV === 'development' ? '/custom-sw.js' : '/sw.js'
-            let registration = await navigator.serviceWorker.getRegistration('/');
+            // Unregister next-pwa sw.js (workbox) karena tidak punya push handler
+            const existingReg = await navigator.serviceWorker.getRegistration('/');
+            let registration: ServiceWorkerRegistration | null = existingReg ?? null;
+            if (registration) {
+              const scriptUrl = String((registration as any)?.active?.scriptURL || (registration as any)?.installing?.scriptURL || (registration as any)?.waiting?.scriptURL || '')
+              if (!scriptUrl.includes('custom-sw')) {
+                try { await registration.unregister() } catch {}
+                registration = null
+              }
+            }
             if (!registration) {
-                 try {
-                     registration = await navigator.serviceWorker.register(swScript, { scope: '/', updateViaCache: 'none' as any });
-                 } catch (err) {
-                     try {
-                         registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any });
-                     } catch (err2) {
-                         throw new Error(`Gagal register SW: ${err instanceof Error ? err.message : String(err)}`);
-                     }
-                 }
+                  try {
+                      registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any });
+                  } catch (err) {
+                      try {
+                          registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any });
+                      } catch (err2) {
+                          throw new Error(`Gagal register SW: ${err instanceof Error ? err.message : String(err)}`);
+                      }
+                  }
             }
 
             if (!registration) {

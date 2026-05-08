@@ -94,11 +94,18 @@ export default function PushNotifikasiPage() {
       }
 
       toast.loading('Mendaftarkan Service Worker...', { id: toastId })
-      const swScript = process.env.NODE_ENV === 'development' ? '/custom-sw.js' : '/sw.js'
-      let registration = await navigator.serviceWorker.getRegistration('/')
+      const existingReg = await navigator.serviceWorker.getRegistration('/')
+      let registration: ServiceWorkerRegistration | null = existingReg ?? null
+      if (registration) {
+        const scriptUrl = String((registration as any)?.active?.scriptURL || (registration as any)?.installing?.scriptURL || (registration as any)?.waiting?.scriptURL || '')
+        if (!scriptUrl.includes('custom-sw')) {
+          try { await registration.unregister() } catch {}
+          registration = null
+        }
+      }
       if (!registration) {
         try {
-          registration = await navigator.serviceWorker.register(swScript, { scope: '/', updateViaCache: 'none' as any })
+          registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any })
         } catch {
           registration = await navigator.serviceWorker.register('/custom-sw.js', { scope: '/', updateViaCache: 'none' as any })
         }

@@ -21,15 +21,6 @@ import { KaryawanSummaryCards } from './KaryawanSummaryCards'
 import { KaryawanTabs } from './KaryawanTabs'
 import { formatIdThousands, parseIdThousandInt } from '@/lib/utils'
 
-// Import hooks
-import { useKaryawanData } from './hooks/useKaryawanData'
-import { useDateRange } from './hooks/useDateRange'
-import { useKaryawanSummary, useOperasionalData } from './hooks/useKaryawanSummary'
-import { useAbsensiKaryawan } from './hooks/useAbsensiKaryawan'
-import { useHutangKaryawan } from './hooks/useHutangKaryawan'
-import { usePayrollKaryawan } from './hooks/usePayrollKaryawan'
-
-// Import types
 import { Kebun, WorkLocation, DeleteRequest, User, Row } from './types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())

@@ -54,21 +54,6 @@ export type SummaryRow = {
   totalGaji: number
 }
 
-export type Absen = {
-  date: string
-  amount: number
-  work: boolean
-  off: boolean
-  note: string
-  source: string
-}
-
-export type PaymentHistoryItem = {
-  id: number
-  paidAt: string
-  amount: number
-}
-
 export type HutangDetailRow = {
   id: number
   date: string
@@ -85,14 +70,6 @@ export type HutangDetailRow = {
 export type Assignment = {
   userId: number
   location: WorkLocation
-}
-
-export type PayrollData = {
-  basePay: number
-  totalHutang: number
-  potonganHutang: number
-  hutangAfter: number
-  takeHome: number
 }
 
 export const fetcher = (url: string) => fetch(url).then(r => r.json())
